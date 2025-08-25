@@ -56,7 +56,6 @@ const MatchupsPage = () => {
   useEffect(() => {
     const loadInitialData = async () => {
       const leagueId = LEAGUES[year].upper
-      const lowerLeagueId = LEAGUES[year].lower
 
       const [rosters, users, metadata] = await Promise.all([
         getStandings(leagueId),
@@ -80,21 +79,21 @@ const MatchupsPage = () => {
     const loadMatchups = async () => {
       if (!selectedWeek) return
       const leagueId = LEAGUES[year].upper
-      const lowerLeagueId = LEAGUES[year].lower
 
       const matchups = await getMatchups(leagueId, selectedWeek)
       setUpperMatchups(matchups)
 
-      if (lowerLeagueId) {
+      if (LEAGUES[year].lower) {
+        const lowerId = LEAGUES[year].lower
         const [lowerRosters, lowerUsers] = await Promise.all([
-          getStandings(lowerLeagueId),
-          getLeagueUsers(lowerLeagueId),
+          getStandings(lowerId),
+          getLeagueUsers(lowerId),
         ])
         const lowerUserMap = Object.fromEntries(lowerUsers.map((u: User) => [u.user_id, u]))
         setUsersMap((prev) => ({ ...prev, ...lowerUserMap }))
         setLowerLeague(lowerRosters)
 
-        const lowerMatchups = await getMatchups(lowerLeagueId, selectedWeek)
+        const lowerMatchups = await getMatchups(lowerId, selectedWeek)
         setLowerMatchups(lowerMatchups)
       }
     }
