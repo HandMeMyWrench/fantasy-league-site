@@ -4,7 +4,7 @@ import React, { useEffect, useState } from "react"
 import {
   getLeagueUsers,
   getStandings,
-  getLeagueMetadata,
+ // getLeagueMetadata,
 } from "@/lib/sleeper"
 
 type SeasonYear = "2025" | "2024"
