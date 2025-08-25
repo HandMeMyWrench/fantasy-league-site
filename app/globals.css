@@ -24,3 +24,19 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+@keyframes fade-in-out-rhino {
+  0% {
+    opacity: 0;
+  }
+  50% {
+    opacity: 0.3;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+.animate-fade-in-out-rhino {
+  animation: fade-in-out-rhino 6s ease-in-out infinite;
+}
+

@@ -1,103 +1,218 @@
-import Image from "next/image";
+"use client"
 
-export default function Home() {
+import React, { useEffect, useState } from "react"
+import {
+  getLeagueUsers,
+  getStandings,
+  getLeagueMetadata,
+} from "@/lib/sleeper"
+
+type SeasonYear = "2025" | "2024"
+
+const LEAGUES: Record<SeasonYear, { upper: string; lower: string | null }> = {
+  "2025": {
+    upper: "1243754325482684416",
+    lower: "1255233614015119360",
+  },
+  "2024": {
+    upper: "1048479451052494848",
+    lower: null,
+  },
+}
+
+type Roster = {
+  metadata: Record<string, string>
+  owner_id: string
+  roster_id: number
+  settings?: {
+    wins?: number
+  }
+}
+
+type User = {
+  user_id: string
+  display_name: string
+  avatar: string
+}
+
+export default function StandingsPage() {
+  const [year, setYear] = useState<SeasonYear>("2025")
+  const [upperLeague, setUpperLeague] = useState<Roster[]>([])
+  const [lowerLeague, setLowerLeague] = useState<Roster[] | null>(null)
+  const [usersMap, setUsersMap] = useState<Record<string, User>>({})
+
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        const upperLeagueId = LEAGUES[year].upper
+        const lowerLeagueId = LEAGUES[year].lower
+
+        const [rosters, users] = await Promise.all([
+          getStandings(upperLeagueId),
+          getLeagueUsers(upperLeagueId),
+        ])
+
+        const userMap = Object.fromEntries(users.map((u: User) => [u.user_id, u]))
+        setUsersMap(userMap)
+        setUpperLeague(
+          rosters.sort((a: Roster, b: Roster) => (b.settings?.wins ?? 0) - (a.settings?.wins ?? 0))
+        )
+
+        if (lowerLeagueId) {
+          const [lowerRosters, lowerUsers] = await Promise.all([
+            getStandings(lowerLeagueId),
+            getLeagueUsers(lowerLeagueId),
+          ])
+          const lowerUserMap = Object.fromEntries(lowerUsers.map((u: User) => [u.user_id, u]))
+          setUsersMap((prev) => ({ ...prev, ...lowerUserMap }))
+          setLowerLeague(
+            lowerRosters.sort((a: Roster, b: Roster) => (b.settings?.wins ?? 0) - (a.settings?.wins ?? 0))
+          )
+        } else {
+          setLowerLeague(null)
+        }
+      } catch (err) {
+        console.error("Error loading standings:", err)
+      }
+    }
+
+    loadData()
+  }, [year])
+
   return (
-    <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="list-inside list-decimal text-sm/6 text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded font-[family-name:var(--font-geist-mono)] font-semibold">
-              app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
+    <main className="min-h-screen bg-black text-white p-6 font-sans">
+      <div className="max-w-7xl mx-auto">
+        <h1 className="text-4xl font-extrabold text-center mb-10 text-purple-400">
+          🏈 Self Will Run Riot Fantasy Relegation League
+        </h1>
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+        <div className="mb-6 text-center">
+          <label className="mr-2 font-semibold text-purple-300">Season:</label>
+          <select
+            value={year}
+            onChange={(e) => setYear(e.target.value as SeasonYear)}
+            className="bg-black border border-purple-500 text-white rounded px-3 py-1 focus:outline-none focus:ring-2 focus:ring-purple-600"
           >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+            {Object.keys(LEAGUES).map((y) => (
+              <option key={y} value={y}>
+                {y}
+              </option>
+            ))}
+          </select>
         </div>
-      </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
-    </div>
-  );
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+          {/* Upper League */}
+          <div className="bg-gray-900 rounded-xl shadow-xl p-6 border border-purple-700 relative">
+            <h2 className="text-2xl font-semibold mb-6 text-purple-300">Upper League</h2>
+            <ul className="divide-y divide-gray-700">
+              {upperLeague.map((team, index) => {
+                const user = usersMap[team.owner_id]
+                return (
+                  <React.Fragment key={team.owner_id}>
+                    <li className="flex items-center justify-between py-3">
+                      <div className="flex items-center gap-3">
+                        <img
+                          src={
+                            user?.avatar
+                              ? `https://sleepercdn.com/avatars/${user.avatar}`
+                              : "/default-avatar.png"
+                          }
+                          alt={user?.display_name}
+                          className="w-10 h-10 rounded-full shadow"
+                        />
+                        <div className="flex flex-col">
+                          <span className="font-bold text-white">
+                            {team.metadata?.team_name || user?.display_name || "Unnamed Team"}
+                          </span>
+                          <span className="text-sm text-gray-400">
+                            owned by {user?.display_name || "Unknown"}
+                          </span>
+                        </div>
+                      </div>
+                      <span className="text-lg font-semibold text-white">
+                        {(team.settings?.wins ?? 0)} Wins
+                      </span>
+                    </li>
+                    {index === 5 && (
+                      <>
+                        <li className="py-2 text-center border-t border-red-600 text-red-400 font-bold relative">
+                          🔻 Relegation Line 🔻
+                        </li>
+                        <img
+                          src="/rhino.gif"
+                          alt="Rhino Pooping"
+                          className="absolute w-full h-[360px] left-0 animate-fade-in-out-rhino pointer-events-none"
+                          style={{
+                            top: `${(index + 4.5) * 60}px`,
+                            objectFit: "contain",
+                          }}
+                        />
+                      </>
+                    )}
+                  </React.Fragment>
+                )
+              })}
+            </ul>
+          </div>
+
+          {/* Lower League */}
+          {LEAGUES[year].lower && lowerLeague && (
+            <div className="bg-gray-900 rounded-xl shadow-xl p-6 border border-green-700 relative">
+              <h2 className="text-2xl font-semibold mb-6 text-green-300">Lower League</h2>
+              <ul className="divide-y divide-gray-700">
+                {lowerLeague.map((team, index) => {
+                  const user = usersMap[team.owner_id]
+                  return (
+                    <React.Fragment key={team.owner_id}>
+                      <li className="flex items-center justify-between py-3">
+                        <div className="flex items-center gap-3">
+                          <img
+                            src={
+                              user?.avatar
+                                ? `https://sleepercdn.com/avatars/${user.avatar}`
+                                : "/default-avatar.png"
+                            }
+                            alt={user?.display_name}
+                            className="w-10 h-10 rounded-full shadow"
+                          />
+                          <div className="flex flex-col">
+                            <span className="font-bold text-white">
+                              {team.metadata?.team_name || user?.display_name || "Unnamed Team"}
+                            </span>
+                            <span className="text-sm text-gray-400">
+                              owned by {user?.display_name || "Unknown"}
+                            </span>
+                          </div>
+                        </div>
+                        <span className="text-lg font-semibold text-white">
+                          {(team.settings?.wins ?? 0)} Wins
+                        </span>
+                      </li>
+                      {index === 5 && (
+                        <>
+                          <li className="py-2 text-center border-t border-red-600 text-red-400 font-bold relative">
+                            🔻 Relegation Line 🔻
+                          </li>
+                          <img
+                            src="/rhino.gif"
+                            alt="Rhino Pooping"
+                            className="absolute w-full h-[360px] left-0 animate-fade-in-out-rhino pointer-events-none"
+                            style={{
+                              top: `${(index + 4.5) * 60}px`,
+                              objectFit: "contain",
+                            }}
+                          />
+                        </>
+                      )}
+                    </React.Fragment>
+                  )
+                })}
+              </ul>
+            </div>
+          )}
+        </div>
+      </div>
+    </main>
+  )
 }
