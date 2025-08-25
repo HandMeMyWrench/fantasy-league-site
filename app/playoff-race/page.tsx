@@ -25,7 +25,10 @@ type Roster = {
     points_for?: number
     points_against?: number
   }
-  label?: "In" | "Bubble" | "Out"
+}
+
+type LabeledRoster = Roster & {
+  label: "In" | "Bubble" | "Out"
 }
 
 type User = {
@@ -36,8 +39,8 @@ type User = {
 
 export default function PlayoffRacePage() {
   const [year, setYear] = useState<SeasonYear>("2025")
-  const [upperLeague, setUpperLeague] = useState<Roster[]>([])
-  const [lowerLeague, setLowerLeague] = useState<Roster[] | null>(null)
+  const [upperLeague, setUpperLeague] = useState<LabeledRoster[]>([])
+  const [lowerLeague, setLowerLeague] = useState<LabeledRoster[] | null>(null)
   const [usersMap, setUsersMap] = useState<Record<string, User>>({})
 
   useEffect(() => {
@@ -50,11 +53,11 @@ export default function PlayoffRacePage() {
         getLeagueUsers(upperId),
       ])
 
-      const upperLabeled = upperRosters
-        .sort((a: Roster, b: Roster) => (b.settings?.wins ?? 0) - (a.settings?.wins ?? 0))
-        .map((r: Roster, i: number) => ({
+      const upperLabeled: LabeledRoster[] = (upperRosters as Roster[])
+        .sort((a, b) => (b.settings?.wins ?? 0) - (a.settings?.wins ?? 0))
+        .map((r, index): LabeledRoster => ({
           ...r,
-          label: i < 6 ? "In" : i < 8 ? "Bubble" : "Out",
+          label: index < 6 ? "In" : index < 8 ? "Bubble" : "Out",
         }))
 
       const userMap = Object.fromEntries(upperUsers.map((u: User) => [u.user_id, u]))
@@ -67,11 +70,11 @@ export default function PlayoffRacePage() {
           getLeagueUsers(lowerId),
         ])
 
-        const lowerLabeled = lowerRosters
-          .sort((a: Roster, b: Roster) => (b.settings?.wins ?? 0) - (a.settings?.wins ?? 0))
-          .map((r: Roster, i: number) => ({
+        const lowerLabeled: LabeledRoster[] = (lowerRosters as Roster[])
+          .sort((a, b) => (b.settings?.wins ?? 0) - (a.settings?.wins ?? 0))
+          .map((r, index): LabeledRoster => ({
             ...r,
-            label: i < 6 ? "In" : i < 8 ? "Bubble" : "Out",
+            label: index < 6 ? "In" : index < 8 ? "Bubble" : "Out",
           }))
 
         const lowerMap = Object.fromEntries(lowerUsers.map((u: User) => [u.user_id, u]))
@@ -81,14 +84,15 @@ export default function PlayoffRacePage() {
         setLowerLeague(null)
       }
     }
+
     load()
   }, [year])
 
-  const renderLeague = (teams: Roster[], title: string, color: string) => (
+  const renderLeague = (teams: LabeledRoster[], title: string, color: string) => (
     <div className={`bg-gray-900 border border-${color}-700 rounded-xl p-6 shadow-xl`}>
       <h2 className={`text-2xl font-bold mb-4 text-${color}-300`}>{title}</h2>
       <ul className="divide-y divide-gray-700">
-        {teams.map((team, i) => {
+        {teams.map((team) => {
           const user = usersMap[team.owner_id]
           return (
             <li key={team.owner_id} className="flex justify-between items-center py-3">
@@ -105,7 +109,13 @@ export default function PlayoffRacePage() {
               </div>
               <div className="text-right">
                 <div className="font-bold text-white">{team.settings?.wins ?? 0} Wins</div>
-                <div className={`text-sm ${team.label === "In" ? "text-green-400" : team.label === "Bubble" ? "text-yellow-300" : "text-red-400"}`}>
+                <div className={`text-sm ${
+                  team.label === "In"
+                    ? "text-green-400"
+                    : team.label === "Bubble"
+                    ? "text-yellow-300"
+                    : "text-red-400"
+                }`}>
                   {team.label}
                 </div>
               </div>
