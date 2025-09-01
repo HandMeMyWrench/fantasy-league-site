@@ -245,11 +245,13 @@ const MatchupsPage = () => {
           allStarterIds
         );
         setProjMap(map);
-      } catch (e: any) {
-        console.warn("[proj] error", e);
-        setProjError(e?.message ?? "Failed to load projections");
-        setProjMap(new Map());
-      } finally {
+      } catch (e) {
+  console.warn("[proj] error", e);
+  const message = e instanceof Error ? e.message : "Failed to load projections";
+  setProjError(message);
+  setProjMap(new Map());
+}
+ finally {
         setProjLoading(false);
       }
     };

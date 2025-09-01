@@ -45,8 +45,28 @@ export async function getLeagueMetadata(leagueId: string) {
   return res.json();
 }
 
-// ---- Public projections (REST) – fallback ----
+// ================== Types ==================
+
 type Scoring = "half_ppr" | "ppr" | "std";
+
+type SleeperProjection = {
+  player_id?: string;
+  playerId?: string;
+  stats?: Record<string, unknown>;
+  [key: string]: unknown;
+};
+
+type SleeperGqlNode = {
+  player_id: string;
+  stats?: Record<string, unknown>;
+  [key: string]: unknown;
+};
+
+type SleeperGqlResponse = {
+  data?: Record<string, SleeperGqlNode[]>;
+};
+
+// ================== Public Projections ==================
 
 export async function getProjections(
   season: number,
@@ -58,24 +78,25 @@ export async function getProjections(
   if (!res.ok) throw new Error("Failed to fetch projections");
 
   const raw = await res.json();
-  const data: Record<string, { stats?: Record<string, unknown> }> = Array.isArray(raw)
+
+  const data: Record<string, SleeperProjection> = Array.isArray(raw)
     ? Object.fromEntries(
         raw
-          .map((r: any) => [String(r?.player_id ?? r?.playerId ?? ""), r])
+          .map((r: SleeperProjection) => [String(r.player_id ?? r.playerId ?? ""), r])
           .filter(([k]) => k)
       )
-    : (raw ?? {});
+    : {};
 
   const statKey =
     scoring === "ppr" ? "pts_ppr" : scoring === "std" ? "pts_std" : "pts_half_ppr";
 
   const map = new Map<string, number>();
-  for (const [key, row] of Object.entries<any>(data)) {
+  for (const [key, row] of Object.entries(data)) {
     const stats = row?.stats ?? {};
     const rawPts =
       stats[statKey] ??
-      (stats as any).fantasy_points ??
-      (stats as any).proj_fp ??
+      (stats as Record<string, unknown>).fantasy_points ??
+      (stats as Record<string, unknown>).proj_fp ??
       0;
     const pts = Number(rawPts);
     map.set(String(key), Number.isFinite(pts) ? pts : 0);
@@ -87,8 +108,7 @@ export async function getProjections(
 
 import { SLEEPER_GQL_URL, buildProjectionsPayload } from "./sleeper_gql_query";
 
-/** POST to our cookie-forwarding proxy -> Sleeper GraphQL. */
-export async function postSleeperGql(payload: any) {
+export async function postSleeperGql(payload: unknown): Promise<SleeperGqlResponse> {
   const res = await fetch(
     `/api/sleeper-gql?url=${encodeURIComponent(SLEEPER_GQL_URL)}`,
     {
@@ -105,8 +125,7 @@ export async function postSleeperGql(payload: any) {
   return res.json();
 }
 
-/** Parse Map<player_id, projected_points> from a Sleeper GQL response. */
-export function parseProjectionsFromGql(json: any): Map<string, number> {
+export function parseProjectionsFromGql(json: SleeperGqlResponse): Map<string, number> {
   const out = new Map<string, number>();
   if (!json?.data) return out;
 
@@ -120,11 +139,11 @@ export function parseProjectionsFromGql(json: any): Map<string, number> {
     "proj_fp",
   ];
 
-  const take = (pid: any, node: any) => {
+  const take = (pid: string, node: SleeperGqlNode) => {
     if (!pid || !node) return;
     const stats = node.stats ?? node;
     for (const k of KEYS) {
-      const v = Number(stats?.[k]);
+      const v = Number(stats?.[k as keyof typeof stats]);
       if (Number.isFinite(v)) {
         out.set(String(pid), v);
         return;
@@ -132,8 +151,7 @@ export function parseProjectionsFromGql(json: any): Map<string, number> {
     }
   };
 
-  // Prefer any alias that ends with "__proj"
-  const entries = Object.entries(json.data) as Array<[string, any]>;
+  const entries = Object.entries(json.data) as Array<[string, SleeperGqlNode[]]>;
   const projFirst = entries.sort(([a], [b]) =>
     a.endsWith("__proj") && !b.endsWith("__proj") ? -1 : 0
   );
@@ -145,7 +163,6 @@ export function parseProjectionsFromGql(json: any): Map<string, number> {
   return out;
 }
 
-/** EXACT projections using Sleeper’s private GQL (league scoring). */
 export async function getLeagueExactProjections(
   _leagueId: string,
   season: number,
@@ -164,7 +181,6 @@ export async function getLeagueExactProjections(
   return map;
 }
 
-/** Try GQL first, fall back to public REST. */
 export async function getPrivateOrPublicProjections(
   season: number,
   week: number,
@@ -178,7 +194,9 @@ export async function getPrivateOrPublicProjections(
       const m = parseProjectionsFromGql(raw);
       if (m.size) return m;
     }
-  } catch {}
+  } catch {
+    // fallback below
+  }
   return getProjections(season, week, "half_ppr");
 }
 
