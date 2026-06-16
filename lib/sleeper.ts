@@ -218,6 +218,68 @@ export async function getPrivateOrPublicProjections(
   return getProjections(season, week, "half_ppr");
 }
 
+// ================== League-accurate projections ==================
+// Sleeper's website computes projected (and actual) fantasy points by applying
+// the LEAGUE's scoring settings to each player's raw stat line. The generic
+// `pts_half_ppr` value ignores league-specific bonuses (yardage bonuses, long-TD
+// bonuses, custom kicker scoring, etc.), so it never matches the Sleeper app.
+// These helpers fetch the raw projected stats and apply the league scoring.
+
+export type ScoringSettings = Record<string, number>;
+
+export async function getLeagueScoring(leagueId: string): Promise<ScoringSettings> {
+  const league = await getLeagueData(leagueId);
+  return (league?.scoring_settings ?? {}) as ScoringSettings;
+}
+
+/** Apply a league's scoring settings to a raw stat line → fantasy points. */
+export function scoreStats(
+  stats: Record<string, unknown> | undefined,
+  scoring: ScoringSettings
+): number {
+  if (!stats) return 0;
+  let pts = 0;
+  for (const key in stats) {
+    const weight = scoring[key];
+    if (weight) {
+      const v = Number(stats[key]);
+      if (Number.isFinite(v)) pts += v * weight;
+    }
+  }
+  return pts;
+}
+
+/**
+ * Fetch RAW projected stat lines per player via Sleeper's GraphQL endpoint
+ * (the public REST /v1/projections endpoint now returns empty objects).
+ * Returns a map of player_id -> stats so league scoring can be applied.
+ */
+export async function getProjectedStats(
+  season: number,
+  week: number,
+  playerIds: string[]
+): Promise<Map<string, Record<string, unknown>>> {
+  const out = new Map<string, Record<string, unknown>>();
+  if (!playerIds?.length) return out;
+
+  const raw = await postSleeperGql(buildProjectionsPayload(season, week, playerIds));
+  if (!raw?.data) return out;
+
+  // Prefer the "proj" alias over the "stat" alias when both are present.
+  const entries = (Object.entries(raw.data) as Array<[string, SleeperGqlNode[]]>).sort(
+    ([a], [b]) => (a.endsWith("__proj") ? -1 : b.endsWith("__proj") ? 1 : 0)
+  );
+
+  for (const [, arr] of entries) {
+    if (!Array.isArray(arr)) continue;
+    for (const node of arr) {
+      const pid = String(node?.player_id ?? "");
+      if (pid && node?.stats && !out.has(pid)) out.set(pid, node.stats);
+    }
+  }
+  return out;
+}
+
 // Optional default export so either import style works:
 const SleeperAPI = {
   getLeagueData,
@@ -230,5 +292,8 @@ const SleeperAPI = {
   parseProjectionsFromGql,
   getLeagueExactProjections,
   getPrivateOrPublicProjections,
+  getLeagueScoring,
+  scoreStats,
+  getProjectedStats,
 };
 export default SleeperAPI;

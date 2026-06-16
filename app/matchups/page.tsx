@@ -7,42 +7,32 @@ import {
   getLeagueUsers,
   getLeagueMetadata,
   getNflState,
-  getPrivateOrPublicProjections, // GQL+REST fallback
+  getLeagueScoring,
+  getProjectedStats,
+  scoreStats,
+  type ScoringSettings,
 } from "@/lib/sleeper";
+import { LEAGUES, type SeasonYear } from "@/lib/leagues";
 
-/* ----------------------------- types & config ----------------------------- */
-
-type SeasonYear = "2025" | "2024";
-
-const LEAGUES: Record<SeasonYear, { upper: string; lower: string | null }> = {
-  "2025": {
-    upper: "1243754325482684416",
-    lower: "1255233614015119360",
-  },
-  "2024": {
-    upper: "1048479451052494848",
-    lower: null,
-  },
-};
+/* ----------------------------- types ----------------------------- */
 
 type Roster = {
   metadata: Record<string, string>;
   owner_id: string;
   roster_id: number;
-  settings: { wins: number };
+  settings?: { wins?: number; losses?: number; ties?: number };
 };
 
 type User = {
   user_id: string;
   display_name: string;
-  avatar: string;
+  avatar: string | null;
 };
 
 type Matchup = {
   matchup_id: number;
   roster_id: number;
   points: number;
-  custom_points?: number;
   starters?: string[]; // "0" means empty slot
 };
 
@@ -56,433 +46,305 @@ type PlayerCatalogRow = {
 
 /* ---------------------- win% model (mean/variance) ----------------------- */
 
-// Positional coefficients of variation (tunable heuristics)
-const POS_CV: Record<string, number> = {
-  QB: 0.32,
-  RB: 0.50,
-  WR: 0.50,
-  TE: 0.55,
-  K: 0.60,
-  DEF: 0.60, // Sleeper uses "DEF" for DST
-};
-// Minimum standard deviation by position (prevents tiny σ for small projections)
-const POS_SIGMA_FLOOR: Record<string, number> = {
-  QB: 1.6,
-  RB: 1.3,
-  WR: 1.3,
-  TE: 1.4,
-  K: 1.2,
-  DEF: 1.8,
-};
+const POS_CV: Record<string, number> = { QB: 0.32, RB: 0.5, WR: 0.5, TE: 0.55, K: 0.6, DEF: 0.6 };
+const POS_SIGMA_FLOOR: Record<string, number> = { QB: 1.6, RB: 1.3, WR: 1.3, TE: 1.4, K: 1.2, DEF: 1.8 };
 
 function erf(x: number) {
-  // Abramowitz & Stegun 7.1.26 approximation
-  const a1 = 0.254829592,
-    a2 = -0.284496736,
-    a3 = 1.421413741,
-    a4 = -1.453152027,
-    a5 = 1.061405429;
+  const a1 = 0.254829592, a2 = -0.284496736, a3 = 1.421413741, a4 = -1.453152027, a5 = 1.061405429;
   const p = 0.3275911;
   const sign = x < 0 ? -1 : 1;
   const t = 1 / (1 + p * Math.abs(x));
-  const y =
-    1 -
-    (((((a5 * t + a4) * t + a3) * t + a2) * t + a1) * t) *
-      Math.exp(-x * x);
+  const y = 1 - ((((a5 * t + a4) * t + a3) * t + a2) * t + a1) * t * Math.exp(-x * x);
   return sign * y;
 }
-
 function normCdf(z: number) {
   return 0.5 * (1 + erf(z / Math.SQRT2));
 }
 
-/** Smooth, animated percent bar like Sleeper */
-function WinBar({ side, percent }: { side: "left" | "right"; percent: number }) {
-  const fillClass = side === "left" ? "bg-green-500" : "bg-red-500";
-  const rounded = side === "left" ? "rounded-l-full" : "rounded-r-full";
-
-  // keep within [2,98] so the bar never fully disappears/overlaps
-  const clamped = Math.max(2, Math.min(98, percent));
-
-  return (
-    <div className="w-full">
-      <div className="h-1.5 w-full bg-gray-700/70 rounded-full overflow-hidden">
-        <div
-          className={`${fillClass} h-full ${rounded} transition-all duration-700`}
-          style={{ width: `${clamped}%` }}
-        />
-      </div>
-      <div className={`mt-1 text-[11px] ${side === "left" ? "text-left" : "text-right"} text-gray-300`}>
-        {Math.round(percent)}%
-      </div>
-    </div>
-  );
-}
-
-/* --------------------------- component starts here ------------------------ */
+const YEAR: SeasonYear = "2025";
+const MAX_WEEK = 18;
 
 const MatchupsPage = () => {
-  const [year] = useState<SeasonYear>("2025");
-
   const [currentWeek, setCurrentWeek] = useState<number | null>(null);
   const [selectedWeek, setSelectedWeek] = useState<number | null>(null);
   const [season, setSeason] = useState<number | null>(null);
 
   const [usersMap, setUsersMap] = useState<Record<string, User>>({});
   const [upperLeague, setUpperLeague] = useState<Roster[]>([]);
-  const [lowerLeague, setLowerLeague] = useState<Roster[] | null>(null);
+  const [lowerLeague, setLowerLeague] = useState<Roster[]>([]);
   const [upperMatchups, setUpperMatchups] = useState<Matchup[]>([]);
   const [lowerMatchups, setLowerMatchups] = useState<Matchup[]>([]);
 
-  // player catalog & projections
-  const [playersMap, setPlayersMap] = useState<Record<string, PlayerCatalogRow>>(
-    {}
-  );
-  const [projMap, setProjMap] = useState<Map<string, number>>(new Map());
+  const [playersMap, setPlayersMap] = useState<Record<string, PlayerCatalogRow>>({});
+  const [scoringUpper, setScoringUpper] = useState<ScoringSettings>({});
+  const [scoringLower, setScoringLower] = useState<ScoringSettings>({});
+  const [statsMap, setStatsMap] = useState<Map<string, Record<string, unknown>>>(new Map());
   const [projLoading, setProjLoading] = useState(false);
   const [projError, setProjError] = useState<string | null>(null);
 
-  // UI: show/hide starting lineups for a matchup
   const [openLineups, setOpenLineups] = useState<Record<number, boolean>>({});
 
-  const maxWeek = 18;
-
-  /* -------------------------- load base league data -------------------------- */
+  /* -------------------------- base league data -------------------------- */
   useEffect(() => {
-    const loadInitialData = async () => {
-      const leagueId = LEAGUES[year].upper;
+    const load = async () => {
+      const upperId = LEAGUES[YEAR].upper;
+      const lowerId = LEAGUES[YEAR].lower;
 
-      const [rosters, users, metadata, nflState] = await Promise.all([
-        getStandings(leagueId),
-        getLeagueUsers(leagueId),
-        getLeagueMetadata(leagueId),
+      const [uRosters, uUsers, meta, nflState, uScoring] = await Promise.all([
+        getStandings(upperId),
+        getLeagueUsers(upperId),
+        getLeagueMetadata(upperId),
         getNflState(),
+        getLeagueScoring(upperId),
       ]);
 
-      const userMap = Object.fromEntries(users.map((u: User) => [u.user_id, u]));
-      setUsersMap(userMap);
-      setUpperLeague(rosters);
+      const map: Record<string, User> = {};
+      for (const u of uUsers as User[]) map[u.user_id] = u;
+      setUpperLeague(uRosters);
+      setScoringUpper(uScoring);
 
-      // Current week comes from the NFL state endpoint (reliable), not league
-      // metadata. Before the season starts (pre/off), default to week 1.
-      const isPreseason =
-        nflState?.season_type === "pre" || nflState?.season_type === "off";
-      const week = isPreseason
-        ? 1
-        : Number(nflState?.display_week || nflState?.week || 1);
-      setCurrentWeek(week);
-      setSelectedWeek(week);
-      setSeason(Number(metadata?.season) || Number(nflState?.season) || null);
-    };
-
-    loadInitialData();
-  }, [year]);
-
-  /* ---------------------------- load weekly matchups --------------------------- */
-  useEffect(() => {
-    const loadMatchups = async () => {
-      if (!selectedWeek) return;
-
-      const leagueId = LEAGUES[year].upper;
-      const matchups = await getMatchups(leagueId, selectedWeek);
-      setUpperMatchups(matchups);
-
-      if (LEAGUES[year].lower) {
-        const lowerId = LEAGUES[year].lower!;
-        const [lowerRosters, lowerUsers, lowerMu] = await Promise.all([
+      if (lowerId) {
+        const [lRosters, lUsers, lScoring] = await Promise.all([
           getStandings(lowerId),
           getLeagueUsers(lowerId),
-          getMatchups(lowerId, selectedWeek),
+          getLeagueScoring(lowerId),
         ]);
-        const lowerUserMap = Object.fromEntries(
-          lowerUsers.map((u: User) => [u.user_id, u])
-        );
-        setUsersMap((prev) => ({ ...prev, ...lowerUserMap }));
-        setLowerLeague(lowerRosters);
-        setLowerMatchups(lowerMu);
-      } else {
-        setLowerLeague(null);
-        setLowerMatchups([]);
+        for (const u of lUsers as User[]) map[u.user_id] = u;
+        setLowerLeague(lRosters);
+        setScoringLower(lScoring);
       }
+      setUsersMap(map);
+
+      const isPreseason = nflState?.season_type === "pre" || nflState?.season_type === "off";
+      const week = isPreseason ? 1 : Number(nflState?.display_week || nflState?.week || 1);
+      setCurrentWeek(week);
+      setSelectedWeek(week);
+      setSeason(Number(meta?.season) || Number(nflState?.season) || null);
     };
+    load();
+  }, []);
 
-    loadMatchups();
-
-    const interval = setInterval(loadMatchups, 60_000);
-    return () => clearInterval(interval);
-  }, [selectedWeek, year]);
-
-  /* ------------------------- load Sleeper player catalog ----------------------- */
+  /* ---------------------------- weekly matchups --------------------------- */
   useEffect(() => {
-    const loadPlayers = async () => {
+    const load = async () => {
+      if (!selectedWeek) return;
+      const upperId = LEAGUES[YEAR].upper;
+      const lowerId = LEAGUES[YEAR].lower;
+      const u = await getMatchups(upperId, selectedWeek);
+      setUpperMatchups(u);
+      if (lowerId) setLowerMatchups(await getMatchups(lowerId, selectedWeek));
+    };
+    load();
+    const interval = setInterval(load, 60_000);
+    return () => clearInterval(interval);
+  }, [selectedWeek]);
+
+  /* ------------------------- player catalog ----------------------- */
+  useEffect(() => {
+    const load = async () => {
       try {
-        const res = await fetch("https://api.sleeper.app/v1/players/nfl", {
-          cache: "force-cache",
-        });
-        const data = (await res.json()) as Record<string, PlayerCatalogRow>;
-        setPlayersMap(data ?? {});
+        const res = await fetch("https://api.sleeper.app/v1/players/nfl", { cache: "force-cache" });
+        setPlayersMap(((await res.json()) as Record<string, PlayerCatalogRow>) ?? {});
       } catch (e) {
         console.warn("[players] failed to load catalog", e);
       }
     };
-    loadPlayers();
+    load();
   }, []);
 
-  /* ------------------------------ load projections ---------------------------- */
-  const allStarterIds: string[] = useMemo(() => {
-    const take = (arr: Matchup[]) =>
-      arr.flatMap((m) => (m.starters ?? [])).filter((s) => s && s !== "0");
-    const ids = [...new Set([...take(upperMatchups), ...take(lowerMatchups)])];
-    return ids;
+  /* ------------------------------ projections ---------------------------- */
+  const allStarterIds = useMemo(() => {
+    const take = (arr: Matchup[]) => arr.flatMap((m) => m.starters ?? []).filter((s) => s && s !== "0");
+    return [...new Set([...take(upperMatchups), ...take(lowerMatchups)])];
   }, [upperMatchups, lowerMatchups]);
 
   useEffect(() => {
-    const loadProjections = async () => {
-      if (!season || !selectedWeek) return;
-      if (!allStarterIds.length) {
-        setProjMap(new Map());
+    const load = async () => {
+      if (!season || !selectedWeek || !allStarterIds.length) {
+        setStatsMap(new Map());
         return;
       }
       try {
         setProjLoading(true);
         setProjError(null);
-        const map = await getPrivateOrPublicProjections(
-          season,
-          selectedWeek,
-          allStarterIds
-        );
-        setProjMap(map);
+        setStatsMap(await getProjectedStats(season, selectedWeek, allStarterIds));
       } catch (e) {
-  console.warn("[proj] error", e);
-  const message = e instanceof Error ? e.message : "Failed to load projections";
-  setProjError(message);
-  setProjMap(new Map());
-}
- finally {
+        setProjError(e instanceof Error ? e.message : "Failed to load projections");
+        setStatsMap(new Map());
+      } finally {
         setProjLoading(false);
       }
     };
-    loadProjections();
+    load();
   }, [season, selectedWeek, allStarterIds]);
 
-  /* --------------------------------- helpers --------------------------------- */
+  // Per-league projection maps: same raw stats, each league's own scoring.
+  const projUpper = useMemo(() => {
+    const m = new Map<string, number>();
+    statsMap.forEach((stats, pid) => m.set(pid, scoreStats(stats, scoringUpper)));
+    return m;
+  }, [statsMap, scoringUpper]);
+  const projLower = useMemo(() => {
+    const m = new Map<string, number>();
+    statsMap.forEach((stats, pid) => m.set(pid, scoreStats(stats, scoringLower)));
+    return m;
+  }, [statsMap, scoringLower]);
 
-  const nameFor = (pid?: string) => {
+  /* --------------------------------- helpers --------------------------------- */
+  const teamName = (r?: Roster, u?: User) => r?.metadata?.team_name || u?.display_name || "Team";
+  const avatar = (u?: User) =>
+    u?.avatar ? `https://sleepercdn.com/avatars/${u.avatar}` : "/default-avatar.png";
+
+  const playerLabel = (pid?: string) => {
     if (!pid) return "—";
     const row = playersMap[pid];
     if (!row) return `#${pid}`;
-    const name =
-      row.full_name ||
-      [row.first_name, row.last_name].filter(Boolean).join(" ").trim() ||
-      `#${pid}`;
-    const tag = [row.position, row.team].filter(Boolean).join(" · ");
-    return tag ? `${name} (${tag})` : name;
+    return row.full_name || [row.first_name, row.last_name].filter(Boolean).join(" ") || `#${pid}`;
+  };
+  const playerMeta = (pid?: string) => {
+    const row = pid ? playersMap[pid] : undefined;
+    return [row?.position, row?.team].filter(Boolean).join(" · ");
   };
 
-  const sumProjected = (starters?: string[]) => {
-    if (!starters?.length) return 0;
-    let total = 0;
-    for (const pid of starters) {
+  const teamDistribution = (proj: Map<string, number>, starters?: string[]) => {
+    let mu = 0, variance = 0;
+    for (const pid of starters ?? []) {
       if (!pid || pid === "0") continue;
-      total += projMap.get(pid) ?? 0;
-    }
-    return total;
-  };
-
-  // Compute team (mean, variance) from starters
-  const teamDistribution = (starters?: string[]) => {
-    let mu = 0;
-    let variance = 0;
-    if (!starters?.length) return { mu, variance };
-
-    for (const pid of starters) {
-      if (!pid || pid === "0") continue;
-      const mean = projMap.get(pid) ?? 0;
+      const mean = proj.get(pid) ?? 0;
       mu += mean;
-
       const pos = (playersMap[pid]?.position ?? "").toUpperCase();
-      const cv = POS_CV[pos] ?? 0.5;
-      const floor = POS_SIGMA_FLOOR[pos] ?? 1.3;
-      const sigma = Math.max(cv * mean, floor);
+      const sigma = Math.max((POS_CV[pos] ?? 0.5) * mean, POS_SIGMA_FLOOR[pos] ?? 1.3);
       variance += sigma * sigma;
     }
     return { mu, variance };
   };
 
-  // Live win% from Normal difference with live points added to the means
-  const winProb = (actual1: number, s1?: string[], actual2?: number, s2?: string[]) => {
-    const d1 = teamDistribution(s1);
-    const d2 = teamDistribution(s2);
-    const mu1 = actual1 + d1.mu;
-    const mu2 = (actual2 ?? 0) + d2.mu;
+  const sumProj = (proj: Map<string, number>, starters?: string[]) =>
+    (starters ?? []).reduce((t, pid) => (pid && pid !== "0" ? t + (proj.get(pid) ?? 0) : t), 0);
+
+  const winProb = (proj: Map<string, number>, a1: number, s1?: string[], a2 = 0, s2?: string[]) => {
+    const d1 = teamDistribution(proj, s1);
+    const d2 = teamDistribution(proj, s2);
+    const mu1 = a1 + d1.mu, mu2 = a2 + d2.mu;
     const denom = Math.sqrt(d1.variance + d2.variance);
     if (!isFinite(denom) || denom === 0) {
-      // fallback to naive share
-      const p1 = mu1;
-      const p2 = mu2;
-      const tot = p1 + p2 || 1;
-      return [(p1 / tot) * 100, (p2 / tot) * 100] as const;
+      const tot = mu1 + mu2 || 1;
+      return [(mu1 / tot) * 100, (mu2 / tot) * 100] as const;
     }
-    const z = (mu1 - mu2) / denom;
-    const p1 = normCdf(z) * 100;
+    const p1 = normCdf((mu1 - mu2) / denom) * 100;
     return [p1, 100 - p1] as const;
   };
 
-  const renderStartersList = (starters?: string[]) => {
+  /* --------------------------------- render --------------------------------- */
+
+  const Lineup = ({ proj, starters }: { proj: Map<string, number>; starters?: string[] }) => {
     const clean = (starters ?? []).filter((s) => s && s !== "0");
-    if (clean.length === 0) {
-      return <div className="text-sm text-gray-400">No starters set.</div>;
-    }
+    if (!clean.length) return <div className="text-xs text-gray-500">No starters set.</div>;
     return (
       <ul className="space-y-1">
         {clean.map((pid) => (
-          <li key={pid} className="text-sm text-gray-200">
-            {nameFor(pid)}
-            {projMap.size > 0 && (
-              <span className="text-gray-400">
-                {" "}
-                — {(projMap.get(pid) ?? 0).toFixed(1)}
-              </span>
-            )}
+          <li key={pid} className="flex items-baseline justify-between gap-2 text-xs">
+            <span className="truncate text-gray-200">
+              {playerLabel(pid)}
+              <span className="text-gray-500"> {playerMeta(pid)}</span>
+            </span>
+            <span className="shrink-0 tabular-nums text-gray-400">
+              {(proj.get(pid) ?? 0).toFixed(1)}
+            </span>
           </li>
         ))}
       </ul>
     );
   };
 
-  const renderMatchups = (matchups: Matchup[], league: Roster[]) => {
+  const renderMatchups = (matchups: Matchup[], league: Roster[], proj: Map<string, number>) => {
     const pairs = Object.values(
       matchups.reduce((acc, m) => {
-        acc[m.matchup_id] = acc[m.matchup_id] || [];
-        acc[m.matchup_id].push(m);
+        (acc[m.matchup_id] = acc[m.matchup_id] || []).push(m);
         return acc;
       }, {} as Record<number, Matchup[]>)
     );
 
     return pairs.map((pair) => {
       if (pair.length !== 2) return null;
-      const [team1, team2] = pair;
-      const roster1 = league.find((r) => r.roster_id === team1.roster_id);
-      const roster2 = league.find((r) => r.roster_id === team2.roster_id);
-      if (!roster1 || !roster2) return null;
+      const [t1, t2] = pair;
+      const r1 = league.find((r) => r.roster_id === t1.roster_id);
+      const r2 = league.find((r) => r.roster_id === t2.roster_id);
+      if (!r1 || !r2) return null;
+      const u1 = usersMap[r1.owner_id];
+      const u2 = usersMap[r2.owner_id];
 
-      const user1 = usersMap[roster1.owner_id];
-      const user2 = usersMap[roster2.owner_id];
+      const a1 = Number(t1.points ?? 0);
+      const a2 = Number(t2.points ?? 0);
+      const p1 = sumProj(proj, t1.starters);
+      const p2 = sumProj(proj, t2.starters);
+      const [w1, w2] = proj.size
+        ? winProb(proj, a1, t1.starters, a2, t2.starters)
+        : (() => {
+            const tot = a1 + a2 || 1;
+            return [(a1 / tot) * 100, (a2 / tot) * 100] as const;
+          })();
 
-      const actual1 = Number(team1.points ?? 0);
-      const actual2 = Number(team2.points ?? 0);
-
-      const proj1 = sumProjected(team1.starters);
-      const proj2 = sumProjected(team2.starters);
-
-      // Live win probability using actual + projected means
-      const [prob1, prob2] =
-        projMap.size > 0
-          ? winProb(actual1, team1.starters, actual2, team2.starters)
-          : (() => {
-              const tot = actual1 + actual2 || 1;
-              return [(actual1 / tot) * 100, (actual2 / tot) * 100] as const;
-            })();
-
-      const isOpen = !!openLineups[pair[0].matchup_id];
-
-      // if you want a subtle tint for the side currently favored:
-      const winnerHighlight =
-        prob1 > prob2 ? "" : prob2 > prob1 ? "" : "";
+      const lead1 = a1 === a2 ? w1 >= w2 : a1 > a2;
+      const id = pair[0].matchup_id;
+      const isOpen = !!openLineups[id];
 
       return (
-        <div
-          key={pair[0].matchup_id}
-          className={`bg-gray-800 border border-purple-600 rounded p-4 shadow-sm ${winnerHighlight}`}
-        >
-          <div className="flex justify-between items-center">
-            <div className="flex items-center gap-2">
-              <img
-                src={
-                  user1?.avatar
-                    ? `https://sleepercdn.com/avatars/${user1.avatar}`
-                    : "/file.svg"
-                }
-                alt={user1?.display_name}
-                className="w-6 h-6 rounded-full"
-              />
-              <span className="font-medium text-white">
-                {roster1.metadata?.team_name || user1?.display_name || "Team 1"}
-              </span>
+        <div key={id} className="rounded-lg border border-gray-800 bg-gray-900/70 p-3">
+          {/* teams + score */}
+          <div className="flex items-center gap-2">
+            <div className="flex min-w-0 flex-1 items-center gap-2">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={avatar(u1)} alt="" className="h-7 w-7 rounded-full" />
+              <div className="min-w-0">
+                <div className={`truncate text-sm font-semibold ${lead1 ? "text-white" : "text-gray-400"}`}>
+                  {teamName(r1, u1)}
+                </div>
+                <div className="text-[11px] text-gray-500">proj {p1.toFixed(1)}</div>
+              </div>
             </div>
 
-            <div className="text-center w-[420px] max-w-full">
-              <div className="text-sm font-bold text-purple-300">
-                {actual1.toFixed(1)} - {actual2.toFixed(1)}
+            <div className="px-1 text-center">
+              <div className="text-base font-bold tabular-nums">
+                <span className={lead1 ? "text-purple-300" : "text-gray-400"}>{a1.toFixed(1)}</span>
+                <span className="text-gray-600"> – </span>
+                <span className={!lead1 ? "text-purple-300" : "text-gray-400"}>{a2.toFixed(1)}</span>
               </div>
-              <div className="text-xs text-gray-400">
-                {projError ? (
-                  <>Proj: n/a (error)</>
-                ) : projLoading ? (
-                  <>Proj: …</>
-                ) : (
-                  <>
-                    Proj: {proj1.toFixed(1)} - {proj2.toFixed(1)}
-                    <br />
-                  </>
-                )}
-                Win %: {Math.round(prob1)}% - {Math.round(prob2)}%
-              </div>
-
-              {/* dynamic bars */}
-              <div className="mt-3 grid grid-cols-2 gap-4">
-                <WinBar side="left" percent={prob1} />
-                <WinBar side="right" percent={prob2} />
-              </div>
-
-              <button
-                onClick={() =>
-                  setOpenLineups((prev) => ({
-                    ...prev,
-                    [pair[0].matchup_id]: !prev[pair[0].matchup_id],
-                  }))
-                }
-                className="mt-3 text-xs px-3 py-1 rounded bg-purple-700 hover:bg-purple-600 text-white"
-              >
-                {isOpen ? "Hide lineups" : "Show lineups"}
-              </button>
             </div>
 
-            <div className="flex items-center gap-2">
-              <img
-                src={
-                  user2?.avatar
-                    ? `https://sleepercdn.com/avatars/${user2.avatar}`
-                    : "/file.svg"
-                }
-                alt={user2?.display_name}
-                className="w-6 h-6 rounded-full"
-              />
-              <span className="font-medium text-white">
-                {roster2.metadata?.team_name || user2?.display_name || "Team 2"}
-              </span>
+            <div className="flex min-w-0 flex-1 items-center justify-end gap-2 text-right">
+              <div className="min-w-0">
+                <div className={`truncate text-sm font-semibold ${!lead1 ? "text-white" : "text-gray-400"}`}>
+                  {teamName(r2, u2)}
+                </div>
+                <div className="text-[11px] text-gray-500">proj {p2.toFixed(1)}</div>
+              </div>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={avatar(u2)} alt="" className="h-7 w-7 rounded-full" />
             </div>
           </div>
 
-          {isOpen && (
-            <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <div className="text-sm font-semibold text-purple-300 mb-1">
-                  {roster1.metadata?.team_name || user1?.display_name || "Team 1"} Starters
-                </div>
-                <div className="rounded border border-purple-700/40 bg-gray-900/40 p-3">
-                  {renderStartersList(team1.starters)}
-                </div>
-              </div>
+          {/* slim split win bar */}
+          <div className="mt-2.5 flex items-center gap-2">
+            <span className="w-8 text-[11px] tabular-nums text-emerald-400">{Math.round(w1)}%</span>
+            <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-rose-500/40">
+              <div className="h-full rounded-full bg-emerald-500 transition-all duration-700" style={{ width: `${w1}%` }} />
+            </div>
+            <span className="w-8 text-right text-[11px] tabular-nums text-rose-400">{Math.round(w2)}%</span>
+          </div>
 
-              <div>
-                <div className="text-sm font-semibold text-purple-300 mb-1">
-                  {roster2.metadata?.team_name || user2?.display_name || "Team 2"} Starters
-                </div>
-                <div className="rounded border border-purple-700/40 bg-gray-900/40 p-3">
-                  {renderStartersList(team2.starters)}
-                </div>
-              </div>
+          {/* lineups toggle */}
+          <button
+            onClick={() => setOpenLineups((prev) => ({ ...prev, [id]: !prev[id] }))}
+            className="mx-auto mt-2 flex items-center gap-1 text-[11px] text-gray-500 hover:text-purple-300"
+          >
+            {projLoading ? "loading projections…" : projError ? "projections unavailable" : isOpen ? "Hide lineups ▲" : "Lineups ▼"}
+          </button>
+
+          {isOpen && (
+            <div className="mt-2 grid grid-cols-2 gap-3 border-t border-gray-800 pt-2">
+              <Lineup proj={proj} starters={t1.starters} />
+              <Lineup proj={proj} starters={t2.starters} />
             </div>
           )}
         </div>
@@ -490,75 +352,67 @@ const MatchupsPage = () => {
     });
   };
 
-  /* --------------------------------- render --------------------------------- */
+  const weekNav = (
+    <div className="mb-6 flex items-center justify-center gap-2">
+      <button
+        onClick={() => setSelectedWeek((w) => Math.max(1, (w ?? 1) - 1))}
+        disabled={!selectedWeek || selectedWeek <= 1}
+        className="rounded bg-gray-800 px-3 py-1 text-sm font-medium text-white hover:bg-gray-700 disabled:opacity-40"
+      >
+        ←
+      </button>
+      <span className="min-w-[80px] text-center text-sm font-semibold text-purple-300">
+        Week {selectedWeek ?? "–"}
+      </span>
+      <button
+        onClick={() => setSelectedWeek((w) => Math.min(MAX_WEEK, (w ?? 1) + 1))}
+        disabled={!selectedWeek || selectedWeek >= MAX_WEEK}
+        className="rounded bg-gray-800 px-3 py-1 text-sm font-medium text-white hover:bg-gray-700 disabled:opacity-40"
+      >
+        →
+      </button>
+      {selectedWeek !== currentWeek && currentWeek && (
+        <button
+          onClick={() => setSelectedWeek(currentWeek)}
+          className="ml-1 rounded bg-purple-800 px-2 py-1 text-xs text-white hover:bg-purple-700"
+        >
+          Current
+        </button>
+      )}
+    </div>
+  );
 
   return (
-    <div className="p-6">
-      <h1 className="text-3xl font-bold text-purple-300 mb-6 text-center">
-        Weekly Matchups
-      </h1>
+    <main className="min-h-screen bg-black p-6 font-sans text-white">
+      <div className="mx-auto max-w-6xl">
+        <h1 className="mb-4 text-center text-2xl font-bold text-purple-300">Weekly Matchups</h1>
+        {weekNav}
 
-      <div className="flex flex-wrap justify-center items-center gap-4 mb-8">
-        <button
-          onClick={() => setSelectedWeek((prev) => Math.max(1, (prev ?? 1) - 1))}
-          className="bg-purple-700 hover:bg-purple-600 px-4 py-2 rounded text-white font-semibold"
-          disabled={!selectedWeek || selectedWeek <= 1}
-        >
-          ← Prev
-        </button>
-
-        <div className="text-lg font-bold text-purple-300">
-          Week {selectedWeek ?? "-"}
-        </div>
-
-        <button
-          onClick={() => setSelectedWeek((prev) => Math.min(maxWeek, (prev ?? 1) + 1))}
-          className="bg-purple-700 hover:bg-purple-600 px-4 py-2 rounded text-white font-semibold"
-          disabled={!selectedWeek || selectedWeek >= maxWeek}
-        >
-          Next →
-        </button>
-
-        {selectedWeek !== currentWeek && currentWeek && (
-          <button
-            onClick={() => setSelectedWeek(currentWeek)}
-            className="bg-gray-700 hover:bg-gray-600 px-4 py-2 rounded text-white font-medium"
-          >
-            Go to Current Week
-          </button>
-        )}
-      </div>
-
-      <div className="space-y-12">
-        <div>
-          <h2 className="text-2xl font-semibold text-purple-300 mb-4">
-            Upper League
-          </h2>
-          {upperMatchups.length > 0 && upperLeague.length > 0 ? (
-            <div className="space-y-3">
-              {renderMatchups(upperMatchups, upperLeague)}
+        <section className="mb-8">
+          <h2 className="mb-3 text-sm font-bold uppercase tracking-wider text-purple-400">Upper League</h2>
+          {upperMatchups.length && upperLeague.length ? (
+            <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+              {renderMatchups(upperMatchups, upperLeague, projUpper)}
             </div>
           ) : (
-            <p className="text-gray-400 text-center">Waiting for matchups...</p>
+            <p className="text-center text-sm text-gray-500">Waiting for matchups…</p>
           )}
-        </div>
+        </section>
 
-        {LEAGUES[year].lower && lowerLeague && (
-          <div>
-            <h2 className="text-2xl font-semibold text-green-300 mb-4">
-              Lower League
-            </h2>
-            {lowerMatchups.length > 0 && lowerLeague.length > 0 ? (
-              <div className="space-y-3">
-                {renderMatchups(lowerMatchups, lowerLeague)}
+        {lowerLeague.length > 0 && (
+          <section>
+            <h2 className="mb-3 text-sm font-bold uppercase tracking-wider text-emerald-400">Lower League</h2>
+            {lowerMatchups.length && lowerLeague.length ? (
+              <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+                {renderMatchups(lowerMatchups, lowerLeague, projLower)}
               </div>
             ) : (
-              <p className="text-gray-400 text-center">Waiting for matchups...</p>
+              <p className="text-center text-sm text-gray-500">Waiting for matchups…</p>
             )}
-          </div>
+          </section>
         )}
       </div>
-    </div>
+    </main>
   );
 };
 
