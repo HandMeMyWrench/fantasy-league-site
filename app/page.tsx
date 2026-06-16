@@ -1,99 +1,209 @@
 "use client"
 
 import React, { useEffect, useState } from "react"
+import { getStandings, getLeagueUsers } from "@/lib/sleeper"
 import {
-  getLeagueUsers,
-  getStandings,
- // getLeagueMetadata,
-} from "@/lib/sleeper"
+  LEAGUES,
+  movementSpots,
+  sortStandings,
+  type SeasonYear,
+  type RosterLite,
+} from "@/lib/leagues"
 
-type SeasonYear = "2025" | "2024"
-
-const LEAGUES: Record<SeasonYear, { upper: string; lower: string | null }> = {
-  "2025": {
-    upper: "1243754325482684416",
-    lower: "1255233614015119360",
-  },
-  "2024": {
-    upper: "1048479451052494848",
-    lower: null,
-  },
-}
-
-type Roster = {
-  metadata: Record<string, string>
-  owner_id: string
-  roster_id: number
-  settings?: {
-    wins?: number
-  }
-}
+type Roster = RosterLite & { roster_id: number }
 
 type User = {
   user_id: string
   display_name: string
-  avatar: string
+  avatar: string | null
 }
+
+const SEASONS = Object.keys(LEAGUES) as SeasonYear[]
 
 export default function StandingsPage() {
   const [year, setYear] = useState<SeasonYear>("2025")
   const [upperLeague, setUpperLeague] = useState<Roster[]>([])
   const [lowerLeague, setLowerLeague] = useState<Roster[] | null>(null)
   const [usersMap, setUsersMap] = useState<Record<string, User>>({})
+  const [provisional, setProvisional] = useState(false)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  // How many teams move based on THIS season's finish — decides where the lines go.
+  const movement = movementSpots(year)
 
   useEffect(() => {
-    const loadData = async () => {
-      try {
-        const upperLeagueId = LEAGUES[year].upper
-        const lowerLeagueId = LEAGUES[year].lower
+    let cancelled = false
 
-        const [rosters, users] = await Promise.all([
-          getStandings(upperLeagueId),
-          getLeagueUsers(upperLeagueId),
+    const loadLive = async (upperId: string, lowerId: string | null) => {
+      const [rosters, users] = await Promise.all([
+        getStandings(upperId),
+        getLeagueUsers(upperId),
+      ])
+      const map: Record<string, User> = {}
+      for (const u of users as User[]) map[u.user_id] = u
+      let lower: Roster[] | null = null
+      if (lowerId) {
+        const [lRosters, lUsers] = await Promise.all([
+          getStandings(lowerId),
+          getLeagueUsers(lowerId),
         ])
+        for (const u of lUsers as User[]) map[u.user_id] = u
+        lower = sortStandings(lRosters as Roster[])
+      }
+      if (cancelled) return
+      setUsersMap(map)
+      setUpperLeague(sortStandings(rosters as Roster[]))
+      setLowerLeague(lower)
+      setProvisional(false)
+    }
 
-        const userMap = Object.fromEntries(users.map((u: User) => [u.user_id, u]))
-        setUsersMap(userMap)
-        setUpperLeague(
-          rosters.sort((a: Roster, b: Roster) => (b.settings?.wins ?? 0) - (a.settings?.wins ?? 0))
-        )
+    // Build a provisional view for a season that has no league IDs yet, by
+    // applying the PRIOR season's promotion/relegation to its final standings.
+    const loadProvisional = async (fromYear: SeasonYear) => {
+      const prev = LEAGUES[fromYear]
+      if (!prev?.upper || !prev?.lower) {
+        throw new Error("no prior season to preview from")
+      }
+      const [uRosters, uUsers, lRosters, lUsers] = await Promise.all([
+        getStandings(prev.upper),
+        getLeagueUsers(prev.upper),
+        getStandings(prev.lower),
+        getLeagueUsers(prev.lower),
+      ])
+      const map: Record<string, User> = {}
+      for (const u of [...uUsers, ...lUsers] as User[]) map[u.user_id] = u
 
-        if (lowerLeagueId) {
-          const [lowerRosters, lowerUsers] = await Promise.all([
-            getStandings(lowerLeagueId),
-            getLeagueUsers(lowerLeagueId),
-          ])
-          const lowerUserMap = Object.fromEntries(lowerUsers.map((u: User) => [u.user_id, u]))
-          setUsersMap((prev) => ({ ...prev, ...lowerUserMap }))
-          setLowerLeague(
-            lowerRosters.sort((a: Roster, b: Roster) => (b.settings?.wins ?? 0) - (a.settings?.wins ?? 0))
-          )
+      const u = sortStandings(uRosters as Roster[])
+      const l = sortStandings(lRosters as Roster[])
+      const pMove = movementSpots(fromYear)
+      const relegateFrom = Math.max(0, u.length - pMove)
+
+      // Next-season upper = those who stayed up + those promoted from below.
+      const nextUpper = [...u.slice(0, relegateFrom), ...l.slice(0, pMove)]
+      // Next-season lower = those relegated + those who stayed down.
+      const nextLower = [...u.slice(relegateFrom), ...l.slice(pMove)]
+
+      if (cancelled) return
+      setUsersMap(map)
+      setUpperLeague(nextUpper)
+      setLowerLeague(nextLower)
+      setProvisional(true)
+    }
+
+    const run = async () => {
+      setLoading(true)
+      setError(null)
+      try {
+        const cfg = LEAGUES[year]
+        if (cfg.upper) {
+          await loadLive(cfg.upper, cfg.lower)
         } else {
-          setLowerLeague(null)
+          // No IDs yet — preview from the previous season's results.
+          const prevYear = String(Number(year) - 1) as SeasonYear
+          await loadProvisional(prevYear)
         }
       } catch (err) {
-        console.error("Error loading standings:", err)
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : "Failed to load standings")
+          setUpperLeague([])
+          setLowerLeague(null)
+        }
+      } finally {
+        if (!cancelled) setLoading(false)
       }
     }
 
-    loadData()
+    run()
+    return () => {
+      cancelled = true
+    }
   }, [year])
+
+  const teamName = (r: Roster) =>
+    r.metadata?.team_name || usersMap[r.owner_id]?.display_name || "Unnamed Team"
+  const ownerName = (r: Roster) => usersMap[r.owner_id]?.display_name || "Unknown"
+  const avatarUrl = (r: Roster) => {
+    const a = usersMap[r.owner_id]?.avatar
+    return a ? `https://sleepercdn.com/avatars/${a}` : "/default-avatar.png"
+  }
+
+  /**
+   * Render one league's standings, inserting a divider line at the right spot.
+   * - tier "upper": a RELEGATION line; the bottom `movement` teams drop.
+   * - tier "lower": a PROMOTION line; the top `movement` teams rise.
+   */
+  const renderLeague = (teams: Roster[], tier: "upper" | "lower") => {
+    const isUpper = tier === "upper"
+    // Index of the team AFTER which the divider is drawn.
+    const lineAfter = isUpper ? teams.length - movement - 1 : movement - 1
+    const showLine = movement > 0 && lineAfter >= 0 && lineAfter < teams.length - 1
+
+    return (
+      <ul className="divide-y divide-gray-700">
+        {teams.map((team, index) => (
+          <React.Fragment key={team.owner_id}>
+            <li className="flex items-center justify-between py-3">
+              <div className="flex items-center gap-3">
+                <span className="w-5 text-right text-sm text-gray-500">{index + 1}</span>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={avatarUrl(team)}
+                  alt={ownerName(team)}
+                  className="w-10 h-10 rounded-full shadow"
+                />
+                <div className="flex flex-col">
+                  <span className="font-bold text-white">{teamName(team)}</span>
+                  <span className="text-sm text-gray-400">owned by {ownerName(team)}</span>
+                </div>
+              </div>
+              <span className="text-lg font-semibold text-white">
+                {provisional ? (
+                  <span className="text-sm text-gray-500">new season</span>
+                ) : (
+                  <>{team.settings?.wins ?? 0} Wins</>
+                )}
+              </span>
+            </li>
+
+            {showLine && index === lineAfter && (
+              <li
+                className={`relative py-2 text-center font-bold border-t ${
+                  isUpper ? "border-red-600 text-red-400" : "border-green-600 text-green-400"
+                }`}
+              >
+                {isUpper ? "🔻 Relegation Line 🔻" : "🔼 Promotion Line 🔼"}
+                {isUpper && (
+                  /* eslint-disable-next-line @next/next/no-img-element */
+                  <img
+                    src="/Rhino.gif"
+                    alt="Rhino"
+                    className="absolute left-1/2 -translate-x-1/2 -top-16 h-32 w-auto animate-fade-in-out-rhino pointer-events-none"
+                  />
+                )}
+              </li>
+            )}
+          </React.Fragment>
+        ))}
+      </ul>
+    )
+  }
 
   return (
     <main className="min-h-screen bg-black text-white p-6 font-sans">
       <div className="max-w-7xl mx-auto">
-        <h1 className="text-4xl font-extrabold text-center mb-10 text-purple-400">
+        <h1 className="text-4xl font-extrabold text-center mb-4 text-purple-400">
           🏈 Self Will Run Riot Fantasy Relegation League
         </h1>
 
-        <div className="mb-6 text-center">
+        <div className="mb-2 text-center">
           <label className="mr-2 font-semibold text-purple-300">Season:</label>
           <select
             value={year}
             onChange={(e) => setYear(e.target.value as SeasonYear)}
             className="bg-black border border-purple-500 text-white rounded px-3 py-1 focus:outline-none focus:ring-2 focus:ring-purple-600"
           >
-            {Object.keys(LEAGUES).map((y) => (
+            {SEASONS.map((y) => (
               <option key={y} value={y}>
                 {y}
               </option>
@@ -101,114 +211,39 @@ export default function StandingsPage() {
           </select>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-          {/* Upper League */}
-          <div className="bg-gray-900 rounded-xl shadow-xl p-6 border border-purple-700 relative">
-            <h2 className="text-2xl font-semibold mb-6 text-purple-300">Upper League</h2>
-            <ul className="divide-y divide-gray-700">
-              {upperLeague.map((team, index) => {
-                const user = usersMap[team.owner_id]
-                return (
-                  <React.Fragment key={team.owner_id}>
-                    <li className="flex items-center justify-between py-3">
-                      <div className="flex items-center gap-3">
-                        <img
-                          src={
-                            user?.avatar
-                              ? `https://sleepercdn.com/avatars/${user.avatar}`
-                              : "/default-avatar.png"
-                          }
-                          alt={user?.display_name}
-                          className="w-10 h-10 rounded-full shadow"
-                        />
-                        <div className="flex flex-col">
-                          <span className="font-bold text-white">
-                            {team.metadata?.team_name || user?.display_name || "Unnamed Team"}
-                          </span>
-                          <span className="text-sm text-gray-400">
-                            owned by {user?.display_name || "Unknown"}
-                          </span>
-                        </div>
-                      </div>
-                      <span className="text-lg font-semibold text-white">
-                        {(team.settings?.wins ?? 0)} Wins
-                      </span>
-                    </li>
-                    {index === 5 && (
-                      <>
-                        <li className="py-2 text-center border-t border-red-600 text-red-400 font-bold relative">
-                          🔻 Relegation Line 🔻
-                        </li>
-                        <img
-                          src="/Rhino.gif"
-                          alt="Rhino Pooping"
-                          className="absolute w-full h-[360px] left-0 animate-fade-in-out-rhino pointer-events-none"
-                          style={{
-                            top: `${(index + 4.5) * 60}px`,
-                            objectFit: "contain",
-                          }}
-                        />
-                      </>
-                    )}
-                  </React.Fragment>
-                )
-              })}
-            </ul>
-          </div>
+        {provisional && (
+          <p className="text-center text-yellow-300 text-sm mb-2">
+            Provisional {year} lineup — derived from the {Number(year) - 1} final standings.
+            Records reset once the season starts. Lines show this year&apos;s{" "}
+            {movement}-up / {movement}-down rule.
+          </p>
+        )}
+        {!provisional && movement > 0 && (
+          <p className="text-center text-gray-500 text-sm mb-2">
+            Bottom {movement} of the upper league are relegated; top {movement} of the lower
+            league are promoted.
+          </p>
+        )}
 
-          {/* Lower League */}
-          {LEAGUES[year].lower && lowerLeague && (
-            <div className="bg-gray-900 rounded-xl shadow-xl p-6 border border-green-700 relative">
-              <h2 className="text-2xl font-semibold mb-6 text-green-300">Lower League</h2>
-              <ul className="divide-y divide-gray-700">
-                {lowerLeague.map((team, index) => {
-                  const user = usersMap[team.owner_id]
-                  return (
-                    <React.Fragment key={team.owner_id}>
-                      <li className="flex items-center justify-between py-3">
-                        <div className="flex items-center gap-3">
-                          <img
-                            src={
-                              user?.avatar
-                                ? `https://sleepercdn.com/avatars/${user.avatar}`
-                                : "/default-avatar.png"
-                            }
-                            alt={user?.display_name}
-                            className="w-10 h-10 rounded-full shadow"
-                          />
-                          <div className="flex flex-col">
-                            <span className="font-bold text-white">
-                              {team.metadata?.team_name || user?.display_name || "Unnamed Team"}
-                            </span>
-                            <span className="text-sm text-gray-400">
-                              owned by {user?.display_name || "Unknown"}
-                            </span>
-                          </div>
-                        </div>
-                        <span className="text-lg font-semibold text-white">
-                          {(team.settings?.wins ?? 0)} Wins
-                        </span>
-                      </li>
-                      {index === 5 && (
-                        <>
-                          <li className="py-2 text-center border-t border-red-600 text-red-400 font-bold relative">
-                            🔻 Relegation Line 🔻
-                          </li>
-                          <img
-                            src="/Rhino.gif"
-                            alt="Rhino Pooping"
-                            className="absolute w-full h-[360px] left-0 animate-fade-in-out-rhino pointer-events-none"
-                            style={{
-                              top: `${(index + 4.5) * 60}px`,
-                              objectFit: "contain",
-                            }}
-                          />
-                        </>
-                      )}
-                    </React.Fragment>
-                  )
-                })}
-              </ul>
+        <div className="mt-6">
+          {loading && <p className="text-center text-gray-400">Loading standings…</p>}
+          {error && !loading && (
+            <p className="text-center text-red-400">Couldn’t load standings: {error}</p>
+          )}
+
+          {!loading && !error && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+              <div className="bg-gray-900 rounded-xl shadow-xl p-6 border border-purple-700">
+                <h2 className="text-2xl font-semibold mb-6 text-purple-300">Upper League</h2>
+                {renderLeague(upperLeague, "upper")}
+              </div>
+
+              {lowerLeague && (
+                <div className="bg-gray-900 rounded-xl shadow-xl p-6 border border-green-700">
+                  <h2 className="text-2xl font-semibold mb-6 text-green-300">Lower League</h2>
+                  {renderLeague(lowerLeague, "lower")}
+                </div>
+              )}
             </div>
           )}
         </div>
