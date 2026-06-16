@@ -5,26 +5,44 @@
 
 export type SeasonYear = "2026" | "2025" | "2024";
 
-export const LEAGUES: Record<SeasonYear, { upper: string; lower: string | null }> = {
-  // 2026: fill these in once the new Sleeper leagues are created.
+// `movement` = how many teams move between tiers based on THAT season's final
+// standings: the top `movement` of the lower league are promoted, and the
+// bottom `movement` of the upper league are relegated.
+//
+// 2025 was the inaugural season, so it used a one-time 6-up / 6-down reshuffle
+// to seed the two tiers. From 2026 onward the permanent rule is 3-up / 3-down.
+export type LeagueSeason = {
+  upper: string;
+  lower: string | null;
+  movement: number;
+};
+
+export const LEAGUES: Record<SeasonYear, LeagueSeason> = {
+  // 2026: fill the IDs in once the new Sleeper leagues are created.
   "2026": {
     upper: "",
     lower: "",
+    movement: 3,
   },
   "2025": {
     upper: "1243754325482684416",
     lower: "1255233614015119360",
+    movement: 6, // inaugural-season reshuffle (one-time)
   },
   "2024": {
     upper: "1048479451052494848",
     lower: null,
+    movement: 0, // single league, no promotion/relegation
   },
 };
 
-// How many teams stay up (top of the upper league) and, equivalently, how many
-// get promoted from the top of the lower league. The bottom this-many of the
-// upper league are relegated. For a 12-team league this is 6.
-export const RELEGATION_SPOTS = 6;
+// The standing rule for any new season going forward.
+export const DEFAULT_MOVEMENT = 3;
+
+// How many teams move between tiers based on a given season's finish.
+export function movementSpots(year: SeasonYear): number {
+  return LEAGUES[year]?.movement ?? DEFAULT_MOVEMENT;
+}
 
 export type RosterLite = {
   owner_id: string;

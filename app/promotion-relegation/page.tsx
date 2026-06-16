@@ -4,7 +4,7 @@ import React, { useEffect, useMemo, useState } from "react"
 import { getStandings, getLeagueUsers } from "@/lib/sleeper"
 import {
   LEAGUES,
-  RELEGATION_SPOTS,
+  movementSpots,
   pointsFor,
   sortStandings,
   type SeasonYear,
@@ -93,18 +93,23 @@ export default function PromotionRelegationPage() {
     return a ? `https://sleepercdn.com/avatars/${a}` : "/default-avatar.png"
   }
 
+  const spots = movementSpots(year)
+
   const split = useMemo(() => {
     const upperRanked = sortStandings(upper)
     const lowerRanked = sortStandings(lower)
+    // Upper league: the bottom `spots` are relegated, everyone above stays up.
+    // Lower league: the top `spots` are promoted, everyone below stays down.
+    const upRelegateFrom = Math.max(0, upperRanked.length - spots)
     return {
-      stayUp: upperRanked.slice(0, RELEGATION_SPOTS),
-      relegated: upperRanked.slice(RELEGATION_SPOTS),
-      promoted: lowerRanked.slice(0, RELEGATION_SPOTS),
-      stayDown: lowerRanked.slice(RELEGATION_SPOTS),
+      stayUp: upperRanked.slice(0, upRelegateFrom),
+      relegated: upperRanked.slice(upRelegateFrom),
+      promoted: lowerRanked.slice(0, spots),
+      stayDown: lowerRanked.slice(spots),
       upperRanked,
       lowerRanked,
     }
-  }, [upper, lower])
+  }, [upper, lower, spots])
 
   const nextYear = Number(year) + 1
 
@@ -134,8 +139,13 @@ export default function PromotionRelegationPage() {
         </h1>
         <p className="text-center text-gray-400 mb-8">
           End-of-season movement based on final standings (wins, then points-for). Top{" "}
-          {RELEGATION_SPOTS} of the lower league go up; bottom {RELEGATION_SPOTS} of the upper
-          league go down.
+          {spots} of the lower league go up; bottom {spots} of the upper league go down.
+          {year === "2025" && (
+            <span className="block text-xs text-gray-500 mt-1">
+              2025 was the inaugural season — a one-time 6-up / 6-down split to seed the two
+              tiers. From 2026 on it&apos;s 3 up / 3 down.
+            </span>
+          )}
         </p>
 
         <div className="mb-8 text-center">
@@ -168,7 +178,7 @@ export default function PromotionRelegationPage() {
               <div className="bg-gray-900 rounded-xl shadow-xl p-6 border border-green-700">
                 <h2 className="text-xl font-bold mb-1 text-green-300">▲ Promoted to Upper</h2>
                 <p className="text-xs text-gray-400 mb-4">
-                  Top {RELEGATION_SPOTS} of the {year} Lower League
+                  Top {spots} of the {year} Lower League
                 </p>
                 <ul className="divide-y divide-gray-800">
                   {split.promoted.map((r) => (
@@ -180,7 +190,7 @@ export default function PromotionRelegationPage() {
               <div className="bg-gray-900 rounded-xl shadow-xl p-6 border border-red-700">
                 <h2 className="text-xl font-bold mb-1 text-red-300">▼ Relegated to Lower</h2>
                 <p className="text-xs text-gray-400 mb-4">
-                  Bottom {RELEGATION_SPOTS} of the {year} Upper League
+                  Bottom {spots} of the {year} Upper League
                 </p>
                 <ul className="divide-y divide-gray-800">
                   {split.relegated.map((r) => (

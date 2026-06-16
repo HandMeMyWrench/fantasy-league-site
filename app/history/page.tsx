@@ -4,7 +4,7 @@ import React, { useEffect, useMemo, useState } from "react"
 import { getStandings, getLeagueUsers, getLeagueMetadata } from "@/lib/sleeper"
 import {
   LEAGUES,
-  RELEGATION_SPOTS,
+  movementSpots,
   sortStandings,
   type SeasonYear,
   type RosterLite,
@@ -65,10 +65,13 @@ async function loadSeason(year: SeasonYear): Promise<SeasonRecord | null> {
     const upperRanked = sortStandings(uRosters as Roster[])
     const lowerRanked = sortStandings(lRosters as Roster[])
 
-    const stayUp = upperRanked.slice(0, RELEGATION_SPOTS)
-    const relegated = upperRanked.slice(RELEGATION_SPOTS)
-    const promoted = lowerRanked.slice(0, RELEGATION_SPOTS)
-    const stayDown = lowerRanked.slice(RELEGATION_SPOTS)
+    // This season's movement count (6 for 2025's inaugural reshuffle, 3 from 2026 on).
+    const spots = movementSpots(year)
+    const upRelegateFrom = Math.max(0, upperRanked.length - spots)
+    const stayUp = upperRanked.slice(0, upRelegateFrom)
+    const relegated = upperRanked.slice(upRelegateFrom)
+    const promoted = lowerRanked.slice(0, spots)
+    const stayDown = lowerRanked.slice(spots)
 
     const complete =
       meta?.status === "complete" || Number(year) < new Date().getFullYear()

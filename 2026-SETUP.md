@@ -4,6 +4,11 @@ Based on the **final 2025 standings** (ranked by wins, then points-for). In both
 leagues there was a clean win-gap at the line (15 wins → 14 wins), so the split
 is unambiguous.
 
+> **Note on the rule:** 2025 was the inaugural season, so it used a one-time
+> **6-up / 6-down** reshuffle to seed the two tiers (below). From the **2026
+> season onward**, the permanent rule is **3-up / 3-down** — the top 3 of the
+> lower league are promoted and the bottom 3 of the upper league are relegated.
+
 ## Who goes where in 2026
 
 ### ⬆️ 2026 UPPER LEAGUE (12 teams)
