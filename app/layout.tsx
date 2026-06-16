@@ -16,6 +16,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <Link href="/power-rankings" className="hover:text-purple-400 font-semibold">Power Rankings</Link>
           <Link href="/playoff-race" className="hover:text-purple-400 font-semibold">Playoff Race</Link>
           <Link href="/power-playoff" className="hover:text-purple-400 font-semibold">Power + Playoff</Link>
+          <Link href="/promotion-relegation" className="hover:text-purple-400 font-semibold">Promotion / Relegation</Link>
         </nav>
         <main>{children}</main>
       </body>
