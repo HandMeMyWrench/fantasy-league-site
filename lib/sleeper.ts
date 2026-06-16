@@ -45,6 +45,24 @@ export async function getLeagueMetadata(leagueId: string) {
   return res.json();
 }
 
+// NFL season state — the reliable source for the current/active week.
+// Returns { season, season_type, week, display_week, leg, ... }.
+export type NflState = {
+  season: string;
+  season_type: string; // "pre" | "regular" | "post" | "off"
+  week: number;
+  display_week?: number;
+  leg?: number;
+};
+
+export async function getNflState(): Promise<NflState> {
+  const res = await fetch("https://api.sleeper.app/v1/state/nfl", {
+    cache: "no-store",
+  });
+  if (!res.ok) throw new Error("Failed to fetch NFL state");
+  return res.json();
+}
+
 // ================== Types ==================
 
 type Scoring = "half_ppr" | "ppr" | "std";

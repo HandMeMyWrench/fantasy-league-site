@@ -88,9 +88,14 @@ export default function PlayoffRacePage() {
     load()
   }, [year])
 
-  const renderLeague = (teams: LabeledRoster[], title: string, color: string) => (
-    <div className={`bg-gray-900 border border-${color}-700 rounded-xl p-6 shadow-xl`}>
-      <h2 className={`text-2xl font-bold mb-4 text-${color}-300`}>{title}</h2>
+  const COLORS = {
+    purple: { border: "border-purple-700", heading: "text-purple-300" },
+    green: { border: "border-green-700", heading: "text-green-300" },
+  } as const
+
+  const renderLeague = (teams: LabeledRoster[], title: string, color: "purple" | "green") => (
+    <div className={`bg-gray-900 border ${COLORS[color].border} rounded-xl p-6 shadow-xl`}>
+      <h2 className={`text-2xl font-bold mb-4 ${COLORS[color].heading}`}>{title}</h2>
       <ul className="divide-y divide-gray-700">
         {teams.map((team) => {
           const user = usersMap[team.owner_id]

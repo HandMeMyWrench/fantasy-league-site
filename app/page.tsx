@@ -140,7 +140,7 @@ export default function StandingsPage() {
                           🔻 Relegation Line 🔻
                         </li>
                         <img
-                          src="/rhino.gif"
+                          src="/Rhino.gif"
                           alt="Rhino Pooping"
                           className="absolute w-full h-[360px] left-0 animate-fade-in-out-rhino pointer-events-none"
                           style={{
@@ -195,7 +195,7 @@ export default function StandingsPage() {
                             🔻 Relegation Line 🔻
                           </li>
                           <img
-                            src="/rhino.gif"
+                            src="/Rhino.gif"
                             alt="Rhino Pooping"
                             className="absolute w-full h-[360px] left-0 animate-fade-in-out-rhino pointer-events-none"
                             style={{

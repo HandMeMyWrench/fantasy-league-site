@@ -116,7 +116,12 @@ export default function PowerPlayoffPage() {
     load()
   }, [year])
 
-  const renderTable = (league: TeamPower[], label: string, color: string) => {
+  const COLORS = {
+    purple: { border: "border-purple-700", heading: "text-purple-300" },
+    green: { border: "border-green-700", heading: "text-green-300" },
+  } as const
+
+  const renderTable = (league: TeamPower[], label: string, color: "purple" | "green") => {
     if (!league.length) return null
 
     const topScorer = league.reduce((max, curr) =>
@@ -128,8 +133,8 @@ export default function PowerPlayoffPage() {
       topScorer?.metadata?.team_name || usersMap[topScorer?.owner_id]?.display_name || "Unknown"
 
     return (
-      <div className={`bg-gray-900 border border-${color}-700 rounded-xl p-6 shadow-xl`}>
-        <h2 className={`text-2xl font-bold mb-4 text-${color}-300`}>{label}</h2>
+      <div className={`bg-gray-900 border ${COLORS[color].border} rounded-xl p-6 shadow-xl`}>
+        <h2 className={`text-2xl font-bold mb-4 ${COLORS[color].heading}`}>{label}</h2>
         <p className="text-sm text-gray-400 mb-2">
           🏅 Top Scorer: {topScorerName} with {topScorer.settings?.points_for?.toFixed(1) ?? 0} PF
         </p>

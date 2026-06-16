@@ -6,6 +6,7 @@ import {
   getStandings,
   getLeagueUsers,
   getLeagueMetadata,
+  getNflState,
   getPrivateOrPublicProjections, // GQL+REST fallback
 } from "@/lib/sleeper";
 
@@ -151,21 +152,27 @@ const MatchupsPage = () => {
     const loadInitialData = async () => {
       const leagueId = LEAGUES[year].upper;
 
-      const [rosters, users, metadata] = await Promise.all([
+      const [rosters, users, metadata, nflState] = await Promise.all([
         getStandings(leagueId),
         getLeagueUsers(leagueId),
         getLeagueMetadata(leagueId),
+        getNflState(),
       ]);
 
       const userMap = Object.fromEntries(users.map((u: User) => [u.user_id, u]));
       setUsersMap(userMap);
       setUpperLeague(rosters);
 
-      const week =
-        metadata?.season_type === "pre_draft" ? null : Number(metadata?.week || 1);
+      // Current week comes from the NFL state endpoint (reliable), not league
+      // metadata. Before the season starts (pre/off), default to week 1.
+      const isPreseason =
+        nflState?.season_type === "pre" || nflState?.season_type === "off";
+      const week = isPreseason
+        ? 1
+        : Number(nflState?.display_week || nflState?.week || 1);
       setCurrentWeek(week);
       setSelectedWeek(week);
-      setSeason(Number(metadata?.season) || null);
+      setSeason(Number(metadata?.season) || Number(nflState?.season) || null);
     };
 
     loadInitialData();

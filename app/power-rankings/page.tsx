@@ -111,16 +111,23 @@ export default function PowerRankingsPage() {
     load()
   }, [year])
 
-  const renderTable = (league: TeamPower[], label: string, color: string) => {
+  const renderTable = (league: TeamPower[], label: string, color: "purple" | "green") => {
     if (league.length === 0) return null
+
+    // Static full class strings so Tailwind's compiler can see and generate them.
+    const COLORS = {
+      purple: { border: "border-purple-700", heading: "text-purple-300" },
+      green: { border: "border-green-700", heading: "text-green-300" },
+    } as const
+    const c = COLORS[color]
 
     const topScorer = league.reduce((max, curr) => {
       return (curr.settings?.points_for ?? 0) > (max.settings?.points_for ?? 0) ? curr : max
     }, league[0])
 
     return (
-      <div className={`bg-gray-900 border border-${color}-700 rounded-xl p-6 shadow-xl`}>
-        <h2 className={`text-2xl font-bold mb-4 text-${color}-300`}>{label}</h2>
+      <div className={`bg-gray-900 border ${c.border} rounded-xl p-6 shadow-xl`}>
+        <h2 className={`text-2xl font-bold mb-4 ${c.heading}`}>{label}</h2>
         {topScorer && (
           <p className="text-sm text-gray-400 mb-2">
             🏅 Top Scorer: {topScorer.metadata?.team_name || usersMap[topScorer.owner_id]?.display_name} with {topScorer.settings?.points_for?.toFixed(1) ?? 0} PF
