@@ -178,7 +178,10 @@ export default function StandingsPage() {
                   <img
                     src="/Rhino.gif"
                     alt="Rhino"
-                    className="absolute left-1/2 -translate-x-1/2 -top-16 h-32 w-auto animate-fade-in-out-rhino pointer-events-none"
+                    className="absolute left-0 w-full object-contain animate-fade-in-out-rhino pointer-events-none z-10"
+                    // Drape the rhino down over the relegated teams below the line.
+                    // `movement` teams sit in the drop zone (6 in 2025, 3 in 2026).
+                    style={{ top: "100%", height: `${movement * 66}px` }}
                   />
                 )}
               </li>
