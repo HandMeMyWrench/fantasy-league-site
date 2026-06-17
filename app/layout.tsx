@@ -27,6 +27,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className="bg-black text-white font-sans">
         <nav className="bg-gray-950 text-white border-b border-purple-700 flex gap-4 sm:gap-6 sm:flex-wrap overflow-x-auto whitespace-nowrap px-3 py-3 sm:p-4 text-sm sm:text-base [scrollbar-width:none] [-ms-overflow-style:none]">
           <Link href="/" className="shrink-0 hover:text-purple-400 font-semibold">Standings</Link>
+          <Link href="/scoreboard" className="shrink-0 hover:text-purple-400 font-semibold">Scoreboard</Link>
           <Link href="/matchups" className="shrink-0 hover:text-purple-400 font-semibold">Matchups</Link>
           <Link href="/power-rankings" className="shrink-0 hover:text-purple-400 font-semibold">Power Rankings</Link>
           <Link href="/playoff-race" className="shrink-0 hover:text-purple-400 font-semibold">Playoff Race</Link>
