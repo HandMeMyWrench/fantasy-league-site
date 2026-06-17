@@ -44,6 +44,16 @@ export function movementSpots(year: SeasonYear): number {
   return LEAGUES[year]?.movement ?? DEFAULT_MOVEMENT;
 }
 
+// The newest season that actually has league IDs configured. Pages that should
+// always show the "current" season use this so they roll forward automatically
+// when next season's IDs are added (no code change needed).
+export function latestActiveSeason(): SeasonYear {
+  const active = (Object.keys(LEAGUES) as SeasonYear[])
+    .filter((y) => LEAGUES[y].upper)
+    .sort((a, b) => Number(b) - Number(a));
+  return active[0] ?? "2025";
+}
+
 export type RosterLite = {
   owner_id: string;
   metadata?: Record<string, string>;

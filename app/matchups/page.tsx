@@ -12,7 +12,7 @@ import {
   scoreStats,
   type ScoringSettings,
 } from "@/lib/sleeper";
-import { LEAGUES, type SeasonYear } from "@/lib/leagues";
+import { LEAGUES, latestActiveSeason, type SeasonYear } from "@/lib/leagues";
 
 /* ----------------------------- types ----------------------------- */
 
@@ -61,7 +61,8 @@ function normCdf(z: number) {
   return 0.5 * (1 + erf(z / Math.SQRT2));
 }
 
-const YEAR: SeasonYear = "2025";
+// Always follow the newest season that has league IDs configured.
+const YEAR: SeasonYear = latestActiveSeason();
 const MAX_WEEK = 18;
 
 const MatchupsPage = () => {
@@ -83,6 +84,12 @@ const MatchupsPage = () => {
   const [projError, setProjError] = useState<string | null>(null);
 
   const [openLineups, setOpenLineups] = useState<Record<number, boolean>>({});
+
+  // Live-refresh plumbing: bump `refreshNonce` to re-fetch; `now` ticks each
+  // second so the "updated Xs ago" label stays current.
+  const [lastUpdated, setLastUpdated] = useState<number | null>(null);
+  const [now, setNow] = useState<number>(() => Date.now());
+  const [refreshNonce, setRefreshNonce] = useState(0);
 
   /* -------------------------- base league data -------------------------- */
   useEffect(() => {
@@ -133,11 +140,28 @@ const MatchupsPage = () => {
       const u = await getMatchups(upperId, selectedWeek);
       setUpperMatchups(u);
       if (lowerId) setLowerMatchups(await getMatchups(lowerId, selectedWeek));
+      setLastUpdated(Date.now());
     };
     load();
-    const interval = setInterval(load, 60_000);
-    return () => clearInterval(interval);
-  }, [selectedWeek]);
+  }, [selectedWeek, refreshNonce]);
+
+  // Auto-refresh every 30s, and tick a 1s clock for the "updated Xs ago" label.
+  useEffect(() => {
+    const poll = setInterval(() => setRefreshNonce((n) => n + 1), 30_000);
+    const tick = setInterval(() => setNow(Date.now()), 1_000);
+    return () => {
+      clearInterval(poll);
+      clearInterval(tick);
+    };
+  }, []);
+
+  const updatedLabel = (() => {
+    if (!lastUpdated) return "connecting…";
+    const s = Math.max(0, Math.floor((now - lastUpdated) / 1000));
+    if (s < 5) return "just now";
+    if (s < 60) return `${s}s ago`;
+    return `${Math.floor(s / 60)}m ago`;
+  })();
 
   /* ------------------------- player catalog ----------------------- */
   useEffect(() => {
@@ -385,7 +409,23 @@ const MatchupsPage = () => {
   return (
     <main className="min-h-screen bg-black p-6 font-sans text-white">
       <div className="mx-auto max-w-6xl">
-        <h1 className="mb-4 text-center text-2xl font-bold text-purple-300">Weekly Matchups</h1>
+        <h1 className="mb-2 text-center text-2xl font-bold text-purple-300">Weekly Matchups</h1>
+
+        <div className="mb-4 flex items-center justify-center gap-2 text-xs text-gray-400">
+          <span className="relative flex h-2 w-2">
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-500 opacity-75" />
+            <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
+          </span>
+          <span className="font-semibold text-emerald-400">LIVE</span>
+          <span>· updated {updatedLabel}</span>
+          <button
+            onClick={() => setRefreshNonce((n) => n + 1)}
+            className="ml-1 rounded border border-gray-700 px-2 py-0.5 text-gray-300 hover:bg-gray-800"
+          >
+            Refresh
+          </button>
+        </div>
+
         {weekNav}
 
         <section className="mb-8">

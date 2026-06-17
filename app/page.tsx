@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useEffect, useState } from "react"
+import React, { useEffect, useRef, useState } from "react"
 import { getStandings, getLeagueUsers } from "@/lib/sleeper"
 import {
   LEAGUES,
@@ -28,9 +28,25 @@ export default function StandingsPage() {
   const [provisional, setProvisional] = useState(false)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [refreshNonce, setRefreshNonce] = useState(0)
+
+  // Show the loading state only on the first load / season change — background
+  // auto-refreshes update silently so the table doesn't flash.
+  const firstLoad = useRef(true)
 
   // How many teams move based on THIS season's finish — decides where the lines go.
   const movement = movementSpots(year)
+
+  // Quietly re-fetch standings every 60s so the page stays current during games.
+  useEffect(() => {
+    const id = setInterval(() => setRefreshNonce((n) => n + 1), 60_000)
+    return () => clearInterval(id)
+  }, [])
+
+  // A new season should show the loading state again.
+  useEffect(() => {
+    firstLoad.current = true
+  }, [year])
 
   useEffect(() => {
     let cancelled = false
@@ -92,7 +108,7 @@ export default function StandingsPage() {
     }
 
     const run = async () => {
-      setLoading(true)
+      if (firstLoad.current) setLoading(true)
       setError(null)
       try {
         const cfg = LEAGUES[year]
@@ -110,7 +126,10 @@ export default function StandingsPage() {
           setLowerLeague(null)
         }
       } finally {
-        if (!cancelled) setLoading(false)
+        if (!cancelled) {
+          setLoading(false)
+          firstLoad.current = false
+        }
       }
     }
 
@@ -118,7 +137,7 @@ export default function StandingsPage() {
     return () => {
       cancelled = true
     }
-  }, [year])
+  }, [year, refreshNonce])
 
   const teamName = (r: Roster) =>
     r.metadata?.team_name || usersMap[r.owner_id]?.display_name || "Unnamed Team"

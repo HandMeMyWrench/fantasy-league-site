@@ -2,8 +2,23 @@ import "./globals.css"
 import Link from "next/link"
 
 export const metadata = {
-  title: "Fantasy League",
-  description: "Fantasy Football League Standings",
+  title: "Self Will Run Riot Fantasy League",
+  description:
+    "Upper/lower relegation fantasy league — live standings, matchups, power rankings, promotion/relegation, and history.",
+  manifest: "/manifest.webmanifest",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "SWRR League",
+  },
+  icons: {
+    icon: "/icon-192.png",
+    apple: "/apple-touch-icon.png",
+  },
+}
+
+export const viewport = {
+  themeColor: "#0a0a0a",
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
