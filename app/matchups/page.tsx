@@ -44,6 +44,30 @@ type PlayerCatalogRow = {
   team?: string;
 };
 
+/* ------------------------ league-wide storylines ------------------------- */
+
+type ScoreSide = { name: string; points: number };
+
+function pairsToSides(
+  matchups: Matchup[],
+  rosters: Roster[],
+  users: Record<string, User>
+): { t1: ScoreSide; t2: ScoreSide }[] {
+  const byRoster = new Map(rosters.map((r) => [r.roster_id, r]));
+  const pairs = Object.values(
+    matchups.reduce((acc, m) => {
+      (acc[m.matchup_id] = acc[m.matchup_id] || []).push(m);
+      return acc;
+    }, {} as Record<number, Matchup[]>)
+  );
+  const side = (m: Matchup): ScoreSide => {
+    const r = byRoster.get(m.roster_id);
+    const u = r ? users[r.owner_id] : undefined;
+    return { name: r?.metadata?.team_name || u?.display_name || "Team", points: Number(m.points ?? 0) };
+  };
+  return pairs.filter((p) => p.length === 2).map((p) => ({ t1: side(p[0]), t2: side(p[1]) }));
+}
+
 /* ---------------------- win% model (mean/variance) ----------------------- */
 
 const POS_CV: Record<string, number> = { QB: 0.32, RB: 0.5, WR: 0.5, TE: 0.55, K: 0.6, DEF: 0.6 };
@@ -213,6 +237,29 @@ const MatchupsPage = () => {
     statsMap.forEach((stats, pid) => m.set(pid, scoreStats(stats, scoringLower)));
     return m;
   }, [statsMap, scoringLower]);
+
+  // League-wide storylines across both leagues for the selected week.
+  const storylines = useMemo(() => {
+    const games = [
+      ...pairsToSides(upperMatchups, upperLeague, usersMap),
+      ...pairsToSides(lowerMatchups, lowerLeague, usersMap),
+    ];
+    const sides = games.flatMap((g) => [g.t1, g.t2]);
+    if (!sides.some((s) => s.points > 0)) return null;
+    const top = sides.reduce((m, s) => (s.points > m.points ? s : m), sides[0]);
+    const played = games.filter((g) => g.t1.points > 0 || g.t2.points > 0);
+    let blowout: { win: ScoreSide; lose: ScoreSide; margin: number } | null = null;
+    let closest: { win: ScoreSide; lose: ScoreSide; margin: number } | null = null;
+    for (const g of played) {
+      const margin = Math.abs(g.t1.points - g.t2.points);
+      const win = g.t1.points >= g.t2.points ? g.t1 : g.t2;
+      const lose = g.t1.points >= g.t2.points ? g.t2 : g.t1;
+      if (!blowout || margin > blowout.margin) blowout = { win, lose, margin };
+      if (g.t1.points > 0 && g.t2.points > 0 && (!closest || margin < closest.margin))
+        closest = { win, lose, margin };
+    }
+    return { top, blowout, closest };
+  }, [upperMatchups, lowerMatchups, upperLeague, lowerLeague, usersMap]);
 
   /* --------------------------------- helpers --------------------------------- */
   const teamName = (r?: Roster, u?: User) => r?.metadata?.team_name || u?.display_name || "Team";
@@ -427,6 +474,34 @@ const MatchupsPage = () => {
         </div>
 
         {weekNav}
+
+        {storylines && (
+          <div className="mb-6 grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <div className="rounded-lg bg-gray-900 p-3 text-center">
+              <div className="text-xs text-gray-400">🔥 Top Score</div>
+              <div className="truncate text-sm font-semibold text-white">{storylines.top.name}</div>
+              <div className="text-xs text-emerald-300">{storylines.top.points.toFixed(1)} pts</div>
+            </div>
+            {storylines.blowout && (
+              <div className="rounded-lg bg-gray-900 p-3 text-center">
+                <div className="text-xs text-gray-400">💥 Biggest Blowout</div>
+                <div className="truncate text-sm font-semibold text-white">
+                  {storylines.blowout.win.name} ▸ {storylines.blowout.lose.name}
+                </div>
+                <div className="text-xs text-emerald-300">by {storylines.blowout.margin.toFixed(1)}</div>
+              </div>
+            )}
+            {storylines.closest && (
+              <div className="rounded-lg bg-gray-900 p-3 text-center">
+                <div className="text-xs text-gray-400">😬 Closest Game</div>
+                <div className="truncate text-sm font-semibold text-white">
+                  {storylines.closest.win.name} vs {storylines.closest.lose.name}
+                </div>
+                <div className="text-xs text-emerald-300">by {storylines.closest.margin.toFixed(1)}</div>
+              </div>
+            )}
+          </div>
+        )}
 
         <section className="mb-8">
           <h2 className="mb-3 text-sm font-bold uppercase tracking-wider text-purple-400">Upper League</h2>
