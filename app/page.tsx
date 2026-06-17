@@ -2,6 +2,7 @@
 
 import React, { useEffect, useRef, useState } from "react"
 import { getStandings, getLeagueUsers } from "@/lib/sleeper"
+import RelegationSpotlight from "@/components/RelegationSpotlight"
 import {
   LEAGUES,
   movementSpots,
@@ -232,6 +233,8 @@ export default function StandingsPage() {
             ))}
           </select>
         </div>
+
+        <RelegationSpotlight />
 
         {provisional && (
           <p className="text-center text-yellow-300 text-sm mb-2">

@@ -29,9 +29,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <Link href="/" className="shrink-0 hover:text-purple-400 font-semibold">Standings</Link>
           <Link href="/scoreboard" className="shrink-0 hover:text-purple-400 font-semibold">Scoreboard</Link>
           <Link href="/matchups" className="shrink-0 hover:text-purple-400 font-semibold">Matchups</Link>
-          <Link href="/power-rankings" className="shrink-0 hover:text-purple-400 font-semibold">Power Rankings</Link>
-          <Link href="/playoff-race" className="shrink-0 hover:text-purple-400 font-semibold">Playoff Race</Link>
-          <Link href="/power-playoff" className="shrink-0 hover:text-purple-400 font-semibold">Power + Playoff</Link>
+          <Link href="/recap" className="shrink-0 hover:text-purple-400 font-semibold">Recap</Link>
           <Link href="/promotion-relegation" className="shrink-0 hover:text-purple-400 font-semibold">Promotion / Relegation</Link>
           <Link href="/history" className="shrink-0 hover:text-purple-400 font-semibold">History</Link>
         </nav>
