@@ -42,7 +42,7 @@ const MOVE_BADGE: Record<Move, { label: string; className: string }> = {
 
 // Seasons that have two leagues (i.e. promotion/relegation applies), oldest first.
 const PR_SEASONS = (Object.keys(LEAGUES) as SeasonYear[])
-  .filter((y) => LEAGUES[y].lower && LEAGUES[y].upper)
+  .filter((y) => LEAGUES[y].lower && LEAGUES[y].upper && LEAGUES[y].started)
   .sort((a, b) => Number(a) - Number(b))
 
 async function loadSeason(year: SeasonYear): Promise<SeasonRecord | null> {

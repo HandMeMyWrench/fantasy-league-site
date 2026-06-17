@@ -113,10 +113,11 @@ export default function StandingsPage() {
       setError(null)
       try {
         const cfg = LEAGUES[year]
-        if (cfg.upper) {
+        if (cfg.upper && cfg.started) {
           await loadLive(cfg.upper, cfg.lower)
         } else {
-          // No IDs yet — preview from the previous season's results.
+          // No IDs yet, or season hasn't started (pre-draft) — show the preview
+          // derived from the previous season's promotion/relegation result.
           const prevYear = String(Number(year) - 1) as SeasonYear
           await loadProvisional(prevYear)
         }

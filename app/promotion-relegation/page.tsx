@@ -33,7 +33,7 @@ const MOVE_META: Record<
 
 // Only seasons that actually have a lower league can have promotion/relegation.
 const PR_SEASONS = (Object.keys(LEAGUES) as SeasonYear[]).filter(
-  (y) => LEAGUES[y].lower
+  (y) => LEAGUES[y].lower && LEAGUES[y].started
 )
 
 export default function PromotionRelegationPage() {
