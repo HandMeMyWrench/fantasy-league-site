@@ -407,7 +407,7 @@ const MatchupsPage = () => {
   );
 
   return (
-    <main className="min-h-screen bg-black p-6 font-sans text-white">
+    <main className="min-h-screen bg-black p-3 sm:p-6 font-sans text-white">
       <div className="mx-auto max-w-6xl">
         <h1 className="mb-2 text-center text-2xl font-bold text-purple-300">Weekly Matchups</h1>
 

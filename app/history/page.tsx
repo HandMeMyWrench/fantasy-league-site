@@ -180,9 +180,9 @@ export default function HistoryPage() {
   )
 
   return (
-    <main className="min-h-screen bg-black text-white p-6 font-sans">
+    <main className="min-h-screen bg-black text-white p-3 sm:p-6 font-sans">
       <div className="max-w-7xl mx-auto">
-        <h1 className="text-4xl font-extrabold text-center mb-2 text-purple-400">
+        <h1 className="text-2xl sm:text-4xl font-extrabold text-center mb-2 text-purple-400">
           📜 League History
         </h1>
         <p className="text-center text-gray-400 mb-10">
@@ -202,7 +202,7 @@ export default function HistoryPage() {
         {/* -------- Season timeline -------- */}
         <div className="space-y-10">
           {timeline.map((rec) => (
-            <section key={rec.year} className="bg-gray-900 rounded-xl shadow-xl p-6 border border-purple-800">
+            <section key={rec.year} className="bg-gray-900 rounded-xl shadow-xl p-4 sm:p-6 border border-purple-800">
               <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
                 <h2 className="text-2xl font-bold text-purple-300">
                   {rec.year} Season{" "}

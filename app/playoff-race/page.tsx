@@ -94,26 +94,26 @@ export default function PlayoffRacePage() {
   } as const
 
   const renderLeague = (teams: LabeledRoster[], title: string, color: "purple" | "green") => (
-    <div className={`bg-gray-900 border ${COLORS[color].border} rounded-xl p-6 shadow-xl`}>
-      <h2 className={`text-2xl font-bold mb-4 ${COLORS[color].heading}`}>{title}</h2>
+    <div className={`bg-gray-900 border ${COLORS[color].border} rounded-xl p-4 sm:p-6 shadow-xl`}>
+      <h2 className={`text-xl sm:text-2xl font-bold mb-4 ${COLORS[color].heading}`}>{title}</h2>
       <ul className="divide-y divide-gray-700">
         {teams.map((team) => {
           const user = usersMap[team.owner_id]
           return (
-            <li key={team.owner_id} className="flex justify-between items-center py-3">
-              <div className="flex items-center gap-3">
+            <li key={team.owner_id} className="flex justify-between items-center py-2 sm:py-3 gap-2">
+              <div className="flex items-center gap-2 sm:gap-3 min-w-0">
                 <img
                   src={user?.avatar ? `https://sleepercdn.com/avatars/${user.avatar}` : "/default-avatar.png"}
                   alt={user?.display_name}
-                  className="w-10 h-10 rounded-full shadow"
+                  className="w-8 h-8 sm:w-10 sm:h-10 rounded-full shadow shrink-0"
                 />
-                <div>
-                  <div className="font-bold text-white">{team.metadata?.team_name || user?.display_name}</div>
-                  <div className="text-sm text-gray-400">{user?.display_name}</div>
+                <div className="min-w-0">
+                  <div className="font-bold text-white truncate text-sm sm:text-base">{team.metadata?.team_name || user?.display_name}</div>
+                  <div className="text-xs sm:text-sm text-gray-400 truncate">{user?.display_name}</div>
                 </div>
               </div>
-              <div className="text-right">
-                <div className="font-bold text-white">{team.settings?.wins ?? 0} Wins</div>
+              <div className="text-right shrink-0">
+                <div className="font-bold text-white text-sm sm:text-base">{team.settings?.wins ?? 0} Wins</div>
                 <div className={`text-sm ${
                   team.label === "In"
                     ? "text-green-400"
@@ -132,9 +132,9 @@ export default function PlayoffRacePage() {
   )
 
   return (
-    <main className="min-h-screen bg-black text-white p-6 font-sans">
+    <main className="min-h-screen bg-black text-white p-3 sm:p-6 font-sans">
       <div className="max-w-7xl mx-auto">
-        <h1 className="text-4xl font-extrabold text-center mb-10 text-blue-400">🏆 Playoff Race</h1>
+        <h1 className="text-2xl sm:text-4xl font-extrabold text-center mb-6 sm:mb-10 text-blue-400">🏆 Playoff Race</h1>
 
         <div className="mb-6 text-center">
           <label className="mr-2 font-semibold text-blue-300">Season:</label>
@@ -149,7 +149,7 @@ export default function PlayoffRacePage() {
           </select>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-8">
           {renderLeague(upperLeague, "Upper League", "purple")}
           {lowerLeague && renderLeague(lowerLeague, "Lower League", "green")}
         </div>

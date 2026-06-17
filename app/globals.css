@@ -40,3 +40,8 @@ body {
   animation: fade-in-out-rhino 6s ease-in-out infinite;
 }
 
+/* Hide the horizontal scrollbar on the mobile nav (still scrollable by swipe). */
+nav::-webkit-scrollbar {
+  display: none;
+}
+

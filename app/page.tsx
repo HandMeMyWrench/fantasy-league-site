@@ -162,21 +162,21 @@ export default function StandingsPage() {
       <ul className="divide-y divide-gray-700">
         {teams.map((team, index) => (
           <React.Fragment key={team.owner_id}>
-            <li className="flex items-center justify-between py-3">
-              <div className="flex items-center gap-3">
-                <span className="w-5 text-right text-sm text-gray-500">{index + 1}</span>
+            <li className="flex items-center justify-between py-2 sm:py-3">
+              <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+                <span className="w-4 sm:w-5 text-right text-xs sm:text-sm text-gray-500">{index + 1}</span>
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src={avatarUrl(team)}
                   alt={ownerName(team)}
-                  className="w-10 h-10 rounded-full shadow"
+                  className="w-8 h-8 sm:w-10 sm:h-10 rounded-full shadow"
                 />
-                <div className="flex flex-col">
-                  <span className="font-bold text-white">{teamName(team)}</span>
-                  <span className="text-sm text-gray-400">owned by {ownerName(team)}</span>
+                <div className="flex flex-col min-w-0">
+                  <span className="font-bold text-white truncate text-sm sm:text-base">{teamName(team)}</span>
+                  <span className="text-xs sm:text-sm text-gray-400 truncate">owned by {ownerName(team)}</span>
                 </div>
               </div>
-              <span className="text-lg font-semibold text-white">
+              <span className="shrink-0 text-base sm:text-lg font-semibold text-white">
                 {provisional ? (
                   <span className="text-sm text-gray-500">new season</span>
                 ) : (
@@ -212,9 +212,9 @@ export default function StandingsPage() {
   }
 
   return (
-    <main className="min-h-screen bg-black text-white p-6 font-sans">
+    <main className="min-h-screen bg-black text-white p-3 sm:p-6 font-sans">
       <div className="max-w-7xl mx-auto">
-        <h1 className="text-4xl font-extrabold text-center mb-4 text-purple-400">
+        <h1 className="text-xl sm:text-4xl font-extrabold text-center mb-3 sm:mb-4 text-purple-400">
           🏈 Self Will Run Riot Fantasy Relegation League
         </h1>
 
@@ -254,15 +254,15 @@ export default function StandingsPage() {
           )}
 
           {!loading && !error && (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-              <div className="bg-gray-900 rounded-xl shadow-xl p-6 border border-purple-700">
-                <h2 className="text-2xl font-semibold mb-6 text-purple-300">Upper League</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-8">
+              <div className="bg-gray-900 rounded-xl shadow-xl p-4 sm:p-6 border border-purple-700">
+                <h2 className="text-xl sm:text-2xl font-semibold mb-4 sm:mb-6 text-purple-300">Upper League</h2>
                 {renderLeague(upperLeague, "upper")}
               </div>
 
               {lowerLeague && (
-                <div className="bg-gray-900 rounded-xl shadow-xl p-6 border border-green-700">
-                  <h2 className="text-2xl font-semibold mb-6 text-green-300">Lower League</h2>
+                <div className="bg-gray-900 rounded-xl shadow-xl p-4 sm:p-6 border border-green-700">
+                  <h2 className="text-xl sm:text-2xl font-semibold mb-4 sm:mb-6 text-green-300">Lower League</h2>
                   {renderLeague(lowerLeague, "lower")}
                 </div>
               )}

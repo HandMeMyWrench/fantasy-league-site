@@ -25,14 +25,14 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en">
       <body className="bg-black text-white font-sans">
-        <nav className="bg-gray-950 text-white p-4 border-b border-purple-700 flex gap-6 flex-wrap">
-          <Link href="/" className="hover:text-purple-400 font-semibold">Standings</Link>
-          <Link href="/matchups" className="hover:text-purple-400 font-semibold">Weekly Matchups</Link>
-          <Link href="/power-rankings" className="hover:text-purple-400 font-semibold">Power Rankings</Link>
-          <Link href="/playoff-race" className="hover:text-purple-400 font-semibold">Playoff Race</Link>
-          <Link href="/power-playoff" className="hover:text-purple-400 font-semibold">Power + Playoff</Link>
-          <Link href="/promotion-relegation" className="hover:text-purple-400 font-semibold">Promotion / Relegation</Link>
-          <Link href="/history" className="hover:text-purple-400 font-semibold">History</Link>
+        <nav className="bg-gray-950 text-white border-b border-purple-700 flex gap-4 sm:gap-6 sm:flex-wrap overflow-x-auto whitespace-nowrap px-3 py-3 sm:p-4 text-sm sm:text-base [scrollbar-width:none] [-ms-overflow-style:none]">
+          <Link href="/" className="shrink-0 hover:text-purple-400 font-semibold">Standings</Link>
+          <Link href="/matchups" className="shrink-0 hover:text-purple-400 font-semibold">Matchups</Link>
+          <Link href="/power-rankings" className="shrink-0 hover:text-purple-400 font-semibold">Power Rankings</Link>
+          <Link href="/playoff-race" className="shrink-0 hover:text-purple-400 font-semibold">Playoff Race</Link>
+          <Link href="/power-playoff" className="shrink-0 hover:text-purple-400 font-semibold">Power + Playoff</Link>
+          <Link href="/promotion-relegation" className="shrink-0 hover:text-purple-400 font-semibold">Promotion / Relegation</Link>
+          <Link href="/history" className="shrink-0 hover:text-purple-400 font-semibold">History</Link>
         </nav>
         <main>{children}</main>
       </body>

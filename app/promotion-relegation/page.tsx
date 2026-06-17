@@ -132,9 +132,9 @@ export default function PromotionRelegationPage() {
   const noSecondLeague = !upperId || !lowerId
 
   return (
-    <main className="min-h-screen bg-black text-white p-6 font-sans">
+    <main className="min-h-screen bg-black text-white p-3 sm:p-6 font-sans">
       <div className="max-w-7xl mx-auto">
-        <h1 className="text-4xl font-extrabold text-center mb-2 text-purple-400">
+        <h1 className="text-2xl sm:text-4xl font-extrabold text-center mb-2 text-purple-400">
           🔄 Promotion &amp; Relegation
         </h1>
         <p className="text-center text-gray-400 mb-8">
@@ -174,8 +174,8 @@ export default function PromotionRelegationPage() {
         {!loading && !error && !noSecondLeague && (
           <>
             {/* The movement */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-12">
-              <div className="bg-gray-900 rounded-xl shadow-xl p-6 border border-green-700">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-8 mb-12">
+              <div className="bg-gray-900 rounded-xl shadow-xl p-4 sm:p-6 border border-green-700">
                 <h2 className="text-xl font-bold mb-1 text-green-300">▲ Promoted to Upper</h2>
                 <p className="text-xs text-gray-400 mb-4">
                   Top {spots} of the {year} Lower League
@@ -187,7 +187,7 @@ export default function PromotionRelegationPage() {
                 </ul>
               </div>
 
-              <div className="bg-gray-900 rounded-xl shadow-xl p-6 border border-red-700">
+              <div className="bg-gray-900 rounded-xl shadow-xl p-4 sm:p-6 border border-red-700">
                 <h2 className="text-xl font-bold mb-1 text-red-300">▼ Relegated to Lower</h2>
                 <p className="text-xs text-gray-400 mb-4">
                   Bottom {spots} of the {year} Upper League
@@ -204,8 +204,8 @@ export default function PromotionRelegationPage() {
             <h2 className="text-2xl font-extrabold text-center mb-6 text-purple-300">
               {nextYear} Leagues
             </h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-              <div className="bg-gray-900 rounded-xl shadow-xl p-6 border border-purple-700">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-8">
+              <div className="bg-gray-900 rounded-xl shadow-xl p-4 sm:p-6 border border-purple-700">
                 <h3 className="text-lg font-bold mb-4 text-purple-300">
                   {nextYear} Upper League
                 </h3>
@@ -219,7 +219,7 @@ export default function PromotionRelegationPage() {
                 </ul>
               </div>
 
-              <div className="bg-gray-900 rounded-xl shadow-xl p-6 border border-green-700">
+              <div className="bg-gray-900 rounded-xl shadow-xl p-4 sm:p-6 border border-green-700">
                 <h3 className="text-lg font-bold mb-4 text-green-300">
                   {nextYear} Lower League
                 </h3>

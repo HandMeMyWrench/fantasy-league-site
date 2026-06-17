@@ -126,25 +126,26 @@ export default function PowerRankingsPage() {
     }, league[0])
 
     return (
-      <div className={`bg-gray-900 border ${c.border} rounded-xl p-6 shadow-xl`}>
-        <h2 className={`text-2xl font-bold mb-4 ${c.heading}`}>{label}</h2>
+      <div className={`bg-gray-900 border ${c.border} rounded-xl p-4 sm:p-6 shadow-xl`}>
+        <h2 className={`text-xl sm:text-2xl font-bold mb-4 ${c.heading}`}>{label}</h2>
         {topScorer && (
-          <p className="text-sm text-gray-400 mb-2">
+          <p className="text-xs sm:text-sm text-gray-400 mb-2">
             🏅 Top Scorer: {topScorer.metadata?.team_name || usersMap[topScorer.owner_id]?.display_name} with {topScorer.settings?.points_for?.toFixed(1) ?? 0} PF
           </p>
         )}
         {league.length === 0 ? (
           <p className="text-gray-500">No teams found.</p>
         ) : (
-          <table className="w-full text-left">
+          <div className="overflow-x-auto">
+          <table className="w-full text-left text-sm sm:text-base">
             <thead>
               <tr className="border-b border-gray-700">
-                <th className="py-2">Rank</th>
-                <th className="py-2">Team</th>
-                <th className="py-2">Wins</th>
-                <th className="py-2">PF</th>
-                <th className="py-2">PA</th>
-                <th className="py-2">Power</th>
+                <th className="py-2 pr-2">Rank</th>
+                <th className="py-2 pr-2">Team</th>
+                <th className="py-2 px-2">Wins</th>
+                <th className="py-2 px-2">PF</th>
+                <th className="py-2 px-2 hidden sm:table-cell">PA</th>
+                <th className="py-2 px-2">Power</th>
               </tr>
             </thead>
             <tbody>
@@ -153,40 +154,43 @@ export default function PowerRankingsPage() {
                 const change = team.rankChange ?? 0
                 return (
                   <tr key={team.owner_id} className="border-t border-gray-800">
-                    <td className="py-2 font-bold">
+                    <td className="py-2 pr-2 font-bold whitespace-nowrap">
                       #{i + 1}
                       {change !== 0 && (
-                        <span className={`ml-1 text-sm ${change > 0 ? "text-green-400" : "text-red-400"}`}>
+                        <span className={`ml-1 text-xs sm:text-sm ${change > 0 ? "text-green-400" : "text-red-400"}`}>
                           {change > 0 ? `▲${change}` : `▼${-change}`}
                         </span>
                       )}
                     </td>
-                    <td className="flex items-center gap-2 py-2">
-                      <img
-                        src={user?.avatar ? `https://sleepercdn.com/avatars/${user.avatar}` : "/default-avatar.png"}
-                        alt="avatar"
-                        className="w-6 h-6 rounded-full"
-                      />
-                      <span>{team.metadata?.team_name || user?.display_name || "Unnamed Team"}</span>
+                    <td className="py-2 pr-2">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <img
+                          src={user?.avatar ? `https://sleepercdn.com/avatars/${user.avatar}` : "/default-avatar.png"}
+                          alt="avatar"
+                          className="w-6 h-6 rounded-full shrink-0"
+                        />
+                        <span className="truncate max-w-[8rem] sm:max-w-none">{team.metadata?.team_name || user?.display_name || "Unnamed Team"}</span>
+                      </div>
                     </td>
-                    <td className="py-2">{team.settings?.wins ?? 0}</td>
-                    <td className="py-2">{team.settings?.points_for?.toFixed(1) ?? 0}</td>
-                    <td className="py-2">{team.settings?.points_against?.toFixed(1) ?? 0}</td>
-                    <td className="py-2 font-semibold">{team.powerScore.toFixed(1)}</td>
+                    <td className="py-2 px-2">{team.settings?.wins ?? 0}</td>
+                    <td className="py-2 px-2">{team.settings?.points_for?.toFixed(1) ?? 0}</td>
+                    <td className="py-2 px-2 hidden sm:table-cell">{team.settings?.points_against?.toFixed(1) ?? 0}</td>
+                    <td className="py-2 px-2 font-semibold">{team.powerScore.toFixed(1)}</td>
                   </tr>
                 )
               })}
             </tbody>
           </table>
+          </div>
         )}
       </div>
     )
   }
 
   return (
-    <main className="min-h-screen bg-black text-white p-6 font-sans">
+    <main className="min-h-screen bg-black text-white p-3 sm:p-6 font-sans">
       <div className="max-w-7xl mx-auto">
-        <h1 className="text-4xl font-extrabold text-center mb-10 text-yellow-400">⚡ Power Rankings</h1>
+        <h1 className="text-2xl sm:text-4xl font-extrabold text-center mb-6 sm:mb-10 text-yellow-400">⚡ Power Rankings</h1>
 
         <div className="mb-6 text-center">
           <label className="mr-2 font-semibold text-yellow-300">Season:</label>
@@ -201,7 +205,7 @@ export default function PowerRankingsPage() {
           </select>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-8">
           {renderTable(upperLeague, "Upper League", "purple")}
           {lowerLeague && renderTable(lowerLeague, "Lower League", "green")}
         </div>
