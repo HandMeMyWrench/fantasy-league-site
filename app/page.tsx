@@ -216,9 +216,13 @@ export default function StandingsPage() {
   return (
     <main className="min-h-screen bg-black text-white p-3 sm:p-6 font-sans">
       <div className="max-w-7xl mx-auto">
-        <h1 className="text-xl sm:text-4xl font-extrabold text-center mb-3 sm:mb-4 text-purple-400">
-          🏈 Self Will Run Riot Fantasy Relegation League
-        </h1>
+        <div className="mb-3 sm:mb-4 flex items-center justify-center gap-3">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/icon-192.png" alt="SWRR Relegation League logo" className="h-11 w-11 sm:h-14 sm:w-14 rounded-xl" />
+          <h1 className="text-xl sm:text-4xl font-extrabold text-center text-purple-400">
+            Self Will Run Riot Fantasy Relegation League
+          </h1>
+        </div>
 
         <div className="mb-2 text-center">
           <label className="mr-2 font-semibold text-purple-300">Season:</label>
