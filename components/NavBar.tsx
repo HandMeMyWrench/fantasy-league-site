@@ -7,7 +7,7 @@ const LINKS: { href: string; label: string }[] = [
   { href: "/", label: "Standings" },
   { href: "/matchups", label: "Matchups" },
   { href: "/odds", label: "Odds" },
-  { href: "/lottery", label: "Lottery" },
+  { href: "/lottery", label: "Draft Lottery" },
   { href: "/recap", label: "Recap" },
   { href: "/promotion-relegation", label: "Pro / Rel" },
   { href: "/history", label: "History" },
