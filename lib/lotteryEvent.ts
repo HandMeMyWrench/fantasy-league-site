@@ -9,7 +9,7 @@
 
 // Tue Aug 4, 2026, 9:00 PM ET = 01:00 UTC Aug 5 (months are 0-based).
 export const EVENT_UTC = Date.UTC(2026, 7, 5, 1, 0, 0)
-export const SEED = "SWRR-2026-DRAFT-LOTTERY-v1"
+export const SEED = "SWRR-2026-DRAFT-LOTTERY-v2-equal-odds"
 
 export const INTRO_MS = 12_000 // opening beat before the first pick
 export const REVEAL_EVERY_MS = 15_000 // one pick every 15s in both leagues

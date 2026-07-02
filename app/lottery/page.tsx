@@ -41,21 +41,15 @@ function mulberry32(a: number) {
 }
 
 /* ============================ lottery draw ============================ */
-// Weighted, worst seed = most tickets. Draw pick 1 first.
+// EQUAL odds: every remaining team has the identical chance at every pick —
+// a uniform shuffle, no weighting by last season's finish.
 
 function drawOrder(teams: SeasonTeam[], rand: () => number): SeasonTeam[] {
   const pool = [...teams]
   const order: SeasonTeam[] = []
   while (pool.length) {
-    const weights = pool.map((t) => t.rank)
-    const total = weights.reduce((a, b) => a + b, 0)
-    let roll = rand() * total
-    let idx = 0
-    for (; idx < pool.length; idx++) {
-      roll -= weights[idx]
-      if (roll <= 0) break
-    }
-    order.push(pool.splice(Math.min(idx, pool.length - 1), 1)[0])
+    const idx = Math.floor(rand() * pool.length)
+    order.push(pool.splice(idx, 1)[0])
   }
   return order
 }
@@ -193,8 +187,6 @@ export default function LotteryPage() {
       minute: "2-digit",
     })
 
-    const totalTickets = (ts: SeasonTeam[]) => ts.reduce((a, t) => a + t.rank, 0)
-
     return (
       <main className="min-h-screen p-3 text-ink sm:p-6">
         <div className="mx-auto max-w-3xl text-center">
@@ -252,7 +244,7 @@ export default function LotteryPage() {
                       <img src={avatarUrl(t)} alt="" className="h-6 w-6 rounded-full ring-1 ring-line" />
                       <span className="min-w-0 flex-1 truncate text-sm text-ink">{t.name}</span>
                       <span className="tnum text-xs text-ink-dim">
-                        {Math.round((t.rank / totalTickets(ts)) * 100)}%
+                        {(100 / ts.length).toFixed(1)}%
                       </span>
                     </li>
                   ))}
@@ -262,8 +254,8 @@ export default function LotteryPage() {
           </div>
 
           <p className="mt-6 text-xs text-ink-faint">
-            Weighted odds: the worse your seed coming into {YEAR}, the more
-            tickets you hold.
+            Equal odds: every team has the exact same chance at every pick.
+            Pure luck. No excuses.
           </p>
         </div>
       </main>
