@@ -19,7 +19,6 @@ const SEED = "SWRR-2026-DRAFT-LOTTERY-v1"
 const INTRO_MS = 12_000 // opening card before the first draw
 const REVEAL_EVERY_MS = 15_000 // one pick every 15s (10s spin + 5s to breathe)
 const SPIN_MS = 10_000 // suspense portion of each reveal window
-const INTERMISSION_MS = 25_000 // break between the two leagues
 
 const YEAR = "2026"
 
@@ -69,24 +68,9 @@ function drawOrder(teams: SeasonTeam[], rand: () => number): SeasonTeam[] {
   return order
 }
 
-/* ============================ show timeline ============================ */
-
-type Segment = {
-  key: "lower" | "upper"
-  label: string
-  start: number // ms offset from event start to this segment's first spin
-  picks: number
-}
-
-function buildTimeline(lowerPicks: number, upperPicks: number): Segment[] {
-  const lowerStart = INTRO_MS
-  const lowerEnd = lowerStart + lowerPicks * REVEAL_EVERY_MS
-  const upperStart = lowerEnd + INTERMISSION_MS
-  return [
-    { key: "lower", label: "Lower League — the undercard", start: lowerStart, picks: lowerPicks },
-    { key: "upper", label: "Upper League — the main event", start: upperStart, picks: upperPicks },
-  ]
-}
+/* ============================ show timeline ============================
+   Both leagues draw simultaneously: round k reveals pick #k in BOTH
+   leagues at INTRO_MS + k * REVEAL_EVERY_MS. Picks go 1 -> 12. */
 
 /* ============================ page ============================ */
 
@@ -129,29 +113,20 @@ export default function LotteryPage() {
     }
   }, [lineups, isPreview, previewStart])
 
-  const timeline = useMemo(
-    () =>
-      lineups ? buildTimeline(lineups.lower.length, lineups.upper.length) : null,
-    [lineups]
-  )
+  const totalPicks = lineups ? Math.max(lineups.upper.length, lineups.lower.length) : 0
 
   const elapsed = now - eventStart
-  const showOver =
-    timeline !== null &&
-    elapsed > timeline[1].start + timeline[1].picks * REVEAL_EVERY_MS
+  const showOver = lineups !== null && elapsed > INTRO_MS + totalPicks * REVEAL_EVERY_MS
 
-  /* ---------- per-segment reveal math ---------- */
-  // Picks reveal LAST first: reveal #k (0-based) locks in at
-  // segment.start + (k+1)*REVEAL_EVERY_MS, and its spin runs for the
-  // SPIN_MS before the lock.
-  const segState = (seg: Segment) => {
-    const local = elapsed - seg.start
-    const revealed = Math.max(0, Math.min(seg.picks, Math.floor(local / REVEAL_EVERY_MS)))
-    const windowPos = local - revealed * REVEAL_EVERY_MS
-    const spinning =
-      local >= 0 && revealed < seg.picks && windowPos >= REVEAL_EVERY_MS - SPIN_MS
-    return { revealed, spinning }
-  }
+  /* ---------- shared reveal math ---------- */
+  // Pick #1 locks first: pick #(k+1) locks at INTRO_MS + (k+1)*REVEAL_EVERY_MS
+  // in both leagues at once; each pick's spin runs for the SPIN_MS before it
+  // locks.
+  const local = elapsed - INTRO_MS
+  const revealed = Math.max(0, Math.min(totalPicks, Math.floor(local / REVEAL_EVERY_MS)))
+  const windowPos = local - revealed * REVEAL_EVERY_MS
+  const spinning =
+    local >= 0 && revealed < totalPicks && windowPos >= REVEAL_EVERY_MS - SPIN_MS
 
   /* ---------- cosmetic spin face (doesn't affect the result) ---------- */
   const [spinTick, setSpinTick] = useState(0)
@@ -196,7 +171,7 @@ export default function LotteryPage() {
       </main>
     )
 
-  if (!lineups || !results || !timeline)
+  if (!lineups || !results)
     return (
       <main className="min-h-screen p-6 text-center text-ink-dim">Loading…</main>
     )
@@ -250,10 +225,11 @@ export default function LotteryPage() {
           </div>
 
           <p className="mx-auto mt-6 max-w-lg text-sm text-ink-dim">
-            When the clock hits zero the show starts right here — Lower League
-            undercard first, Upper League main event after the break. One pick
-            every {REVEAL_EVERY_MS / 1000} seconds, drawn worst-to-first. The
-            order is locked to this event; nobody can re-roll it. 🦏
+            When the clock hits zero the show starts right here — both leagues
+            drawing side by side, pick #1 revealed first, one pick every{" "}
+            {REVEAL_EVERY_MS / 1000} seconds until the last team standing gets
+            the rhino. The order is locked to this event; nobody can re-roll
+            it. 🦏
           </p>
 
           <div className="mt-8 grid grid-cols-1 gap-4 text-left sm:grid-cols-2">
@@ -294,126 +270,118 @@ export default function LotteryPage() {
 
   /* ---------- live show + final board ---------- */
 
-  const renderBoard = (seg: Segment, order: SeasonTeam[], teams: SeasonTeam[]) => {
-    const { revealed, spinning } = segState(seg)
-    const nextPickNumber = order.length - revealed // pick currently up
-    const live = elapsed >= seg.start - INTERMISSION_MS && revealed < order.length
-    const started = elapsed >= seg.start - 1
+  const renderBoard = (label: string, order: SeasonTeam[], teams: SeasonTeam[]) => {
+    const nextPickNumber = revealed + 1 // pick currently up
+    const live = elapsed >= 0 && revealed < order.length
 
     return (
-      <section key={seg.key} className="panel overflow-hidden">
+      <section className="panel overflow-hidden">
         <div className="flex items-center justify-between gap-2 border-b border-line bg-surface-2 px-4 py-2.5">
-          <h2 className="display text-sm text-brand sm:text-base">{seg.label}</h2>
-          {live && started && (
+          <h2 className="display text-sm text-brand sm:text-base">{label}</h2>
+          {live && (
             <span className="flex items-center gap-1.5 text-xs font-semibold text-drop">
               <span className="h-2 w-2 animate-pulse rounded-full bg-drop" /> LIVE
             </span>
           )}
         </div>
 
-        {!started ? (
-          <p className="px-4 py-6 text-center text-sm text-ink-dim">
-            {seg.key === "upper" ? "Coming up after the Lower League…" : "Starting…"}
-          </p>
-        ) : (
-          <ol className="space-y-1.5 p-2 sm:p-3">
-            {order.map((t, i) => {
-              const pick = i + 1
-              const isRevealed = i >= order.length - revealed
-              const isNext = pick === nextPickNumber && revealed < order.length
-              const isFirst = pick === 1
-              const isLast = pick === order.length
-              const face =
-                isNext && spinning && !reducedMotion.current
-                  ? teams[(spinTick + i) % teams.length]
-                  : null
-              return (
-                <li
-                  key={pick}
-                  className={`relative flex items-center gap-3 overflow-hidden rounded-xl border px-3 py-2 transition-all ${
+        <ol className="space-y-1.5 p-2 sm:p-3">
+          {order.map((t, i) => {
+            const pick = i + 1
+            const isRevealed = pick <= revealed
+            const isNext = pick === nextPickNumber && revealed < order.length
+            const isFirst = pick === 1
+            const isLast = pick === order.length
+            const face =
+              isNext && spinning && !reducedMotion.current
+                ? teams[(spinTick + i) % teams.length]
+                : null
+            return (
+              <li
+                key={pick}
+                className={`relative flex items-center gap-3 overflow-hidden rounded-xl border px-3 py-2 transition-all ${
+                  isRevealed
+                    ? isFirst
+                      ? "border-gold/60 bg-gold/10"
+                      : isLast
+                      ? "border-drop/50 bg-drop/5"
+                      : "border-line bg-surface"
+                    : isNext && spinning
+                    ? "border-brand/70 bg-surface-2 shadow-[0_0_20px_rgba(167,139,250,0.15)]"
+                    : "border-line bg-surface-2/40"
+                }`}
+              >
+                <span
+                  className={`display w-8 shrink-0 text-center text-lg ${
                     isRevealed
                       ? isFirst
-                        ? "border-gold/60 bg-gold/10"
+                        ? "text-gold"
                         : isLast
-                        ? "border-drop/50 bg-drop/5"
-                        : "border-line bg-surface"
-                      : isNext && spinning
-                      ? "border-brand/70 bg-surface-2 shadow-[0_0_20px_rgba(167,139,250,0.15)]"
-                      : "border-line bg-surface-2/40"
+                        ? "text-drop"
+                        : "text-brand"
+                      : "text-ink-faint"
                   }`}
                 >
-                  <span
-                    className={`display w-8 shrink-0 text-center text-lg ${
-                      isRevealed
-                        ? isFirst
-                          ? "text-gold"
-                          : isLast
-                          ? "text-drop"
-                          : "text-brand"
-                        : "text-ink-faint"
-                    }`}
-                  >
-                    {pick}
-                  </span>
+                  {pick}
+                </span>
 
-                  {isRevealed ? (
-                    <>
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={avatarUrl(t)} alt="" className="h-9 w-9 shrink-0 rounded-full ring-1 ring-line" />
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-semibold text-ink">
-                          {t.name}
-                          {isFirst && " 🥇"}
-                        </p>
-                        <p className="truncate text-xs text-ink-dim">{t.owner}</p>
-                      </div>
-                      {isLast && (
-                        /* eslint-disable-next-line @next/next/no-img-element */
-                        <img
-                          src="/Rhino.gif"
-                          alt=""
-                          aria-hidden
-                          className="animate-fade-in-out-rhino pointer-events-none absolute inset-0 z-10 h-full w-full object-contain"
-                        />
-                      )}
-                    </>
-                  ) : isNext && spinning ? (
-                    <>
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                {isRevealed ? (
+                  <>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={avatarUrl(t)} alt="" className="h-9 w-9 shrink-0 rounded-full ring-1 ring-line" />
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-semibold text-ink">
+                        {t.name}
+                        {isFirst && " 🥇"}
+                      </p>
+                      <p className="truncate text-xs text-ink-dim">{t.owner}</p>
+                    </div>
+                    {isLast && (
+                      /* eslint-disable-next-line @next/next/no-img-element */
                       <img
-                        src={avatarUrl(face)}
+                        src="/Rhino.gif"
                         alt=""
-                        className="h-9 w-9 shrink-0 rounded-full opacity-80 ring-1 ring-brand/40"
+                        aria-hidden
+                        className="animate-fade-in-out-rhino pointer-events-none absolute inset-0 z-10 h-full w-full object-contain"
                       />
-                      <span className="min-w-0 flex-1 truncate text-sm text-ink-dim">
-                        {face?.name ?? "…"}
-                      </span>
-                      <span className="display shrink-0 animate-pulse text-[11px] tracking-widest text-brand">
-                        Drawing
-                      </span>
-                    </>
-                  ) : (
-                    <>
-                      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-surface text-ink-faint ring-1 ring-line">
-                        ?
-                      </span>
-                      <span className="text-sm text-ink-faint">
-                        {isNext ? "Up next…" : ""}
-                      </span>
-                    </>
-                  )}
-                </li>
-              )
-            })}
-          </ol>
-        )}
+                    )}
+                  </>
+                ) : isNext && spinning ? (
+                  <>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={avatarUrl(face)}
+                      alt=""
+                      className="h-9 w-9 shrink-0 rounded-full opacity-80 ring-1 ring-brand/40"
+                    />
+                    <span className="min-w-0 flex-1 truncate text-sm text-ink-dim">
+                      {face?.name ?? "…"}
+                    </span>
+                    <span className="display shrink-0 animate-pulse text-[11px] tracking-widest text-brand">
+                      Drawing
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-surface text-ink-faint ring-1 ring-line">
+                      ?
+                    </span>
+                    <span className="text-sm text-ink-faint">
+                      {isNext ? "Up next…" : ""}
+                    </span>
+                  </>
+                )}
+              </li>
+            )
+          })}
+        </ol>
       </section>
     )
   }
 
   return (
     <main className="min-h-screen p-3 text-ink sm:p-6">
-      <div className="mx-auto max-w-3xl">
+      <div className="mx-auto max-w-6xl">
         {isPreview && (
           <p className="display mb-3 mt-2 rounded-lg border border-gold/40 bg-gold/10 px-3 py-2 text-center text-xs tracking-widest text-gold">
             Rehearsal mode — this is NOT the real order
@@ -425,10 +393,10 @@ export default function LotteryPage() {
         </h1>
         <p className="mb-5 text-center text-sm text-ink-dim">
           {showOver
-            ? "Final — the board is set. See you at the draft."
+            ? "Final — the boards are set. See you at the draft."
             : elapsed < INTRO_MS
-            ? "We're live. First draw in a moment…"
-            : "Live — one pick every 15 seconds, worst to first."}
+            ? "We're live. First pick in a moment…"
+            : "Live — both leagues drawing together, one pick every 15 seconds, #1 first."}
         </p>
 
         {showOver && (
@@ -442,9 +410,9 @@ export default function LotteryPage() {
           </div>
         )}
 
-        <div className="space-y-5">
-          {renderBoard(timeline[0], results.lower, lineups.lower)}
-          {renderBoard(timeline[1], results.upper, lineups.upper)}
+        <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
+          {renderBoard("Upper League", results.upper, lineups.upper)}
+          {renderBoard("Lower League", results.lower, lineups.lower)}
         </div>
       </div>
     </main>
