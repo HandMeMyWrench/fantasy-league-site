@@ -2,21 +2,63 @@
 
 import React, { useEffect, useMemo, useRef, useState } from "react"
 import { getSeasonLineups, type SeasonTeam } from "@/lib/season"
-import { latestActiveSeason, LEAGUES, type SeasonYear } from "@/lib/leagues"
 
-/* ------------------------------ lottery core ------------------------------ */
+/* ============================ EVENT CONFIG ============================
+   The whole broadcast is driven by these constants. Change the date/seed
+   and redeploy to reschedule. Everything is deterministic from the seed,
+   so every viewer's device computes the identical order and reveals it
+   on the identical schedule — a live show with no backend.
 
-type OddsMode = "equal" | "weighted"
+   NOTE: bump the SEED string any time the event is rescheduled so a
+   previously-derivable order is discarded. */
 
-// Draw the full draft order, pick 1 first. Weighted mode: lottery tickets
-// scale with how bad your seed is — worst seed gets N tickets, best gets 1.
-function drawOrder(teams: SeasonTeam[], mode: OddsMode): SeasonTeam[] {
+// Monday “Aug 4, 9:00 PM ET” = 01:00 UTC on Aug 5 (months are 0-based).
+const EVENT_UTC = Date.UTC(2026, 7, 5, 1, 0, 0)
+const SEED = "SWRR-2026-DRAFT-LOTTERY-v1"
+
+const INTRO_MS = 12_000 // opening card before the first draw
+const REVEAL_EVERY_MS = 15_000 // one pick every 15s (10s spin + 5s to breathe)
+const SPIN_MS = 10_000 // suspense portion of each reveal window
+const INTERMISSION_MS = 25_000 // break between the two leagues
+
+const YEAR = "2026"
+
+/* ============================ seeded RNG ============================ */
+// xmur3 string hash -> mulberry32 PRNG. Deterministic across every device.
+
+function xmur3(str: string) {
+  let h = 1779033703 ^ str.length
+  for (let i = 0; i < str.length; i++) {
+    h = Math.imul(h ^ str.charCodeAt(i), 3432918353)
+    h = (h << 13) | (h >>> 19)
+  }
+  return () => {
+    h = Math.imul(h ^ (h >>> 16), 2246822507)
+    h = Math.imul(h ^ (h >>> 13), 3266489909)
+    return (h ^= h >>> 16) >>> 0
+  }
+}
+
+function mulberry32(a: number) {
+  return () => {
+    a |= 0
+    a = (a + 0x6d2b79f5) | 0
+    let t = Math.imul(a ^ (a >>> 15), 1 | a)
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296
+  }
+}
+
+/* ============================ lottery draw ============================ */
+// Weighted, worst seed = most tickets. Draw pick 1 first.
+
+function drawOrder(teams: SeasonTeam[], rand: () => number): SeasonTeam[] {
   const pool = [...teams]
   const order: SeasonTeam[] = []
   while (pool.length) {
-    const weights = pool.map((t) => (mode === "weighted" ? t.rank : 1))
+    const weights = pool.map((t) => t.rank)
     const total = weights.reduce((a, b) => a + b, 0)
-    let roll = Math.random() * total
+    let roll = rand() * total
     let idx = 0
     for (; idx < pool.length; idx++) {
       roll -= weights[idx]
@@ -27,267 +69,268 @@ function drawOrder(teams: SeasonTeam[], mode: OddsMode): SeasonTeam[] {
   return order
 }
 
-function ticketCounts(teams: SeasonTeam[], mode: OddsMode): Map<string, number> {
-  const m = new Map<string, number>()
-  for (const t of teams) m.set(t.owner_id, mode === "weighted" ? t.rank : 1)
-  return m
+/* ============================ show timeline ============================ */
+
+type Segment = {
+  key: "lower" | "upper"
+  label: string
+  start: number // ms offset from event start to this segment's first spin
+  picks: number
 }
 
-/* --------------------------------- page ---------------------------------- */
+function buildTimeline(lowerPicks: number, upperPicks: number): Segment[] {
+  const lowerStart = INTRO_MS
+  const lowerEnd = lowerStart + lowerPicks * REVEAL_EVERY_MS
+  const upperStart = lowerEnd + INTERMISSION_MS
+  return [
+    { key: "lower", label: "Lower League — the undercard", start: lowerStart, picks: lowerPicks },
+    { key: "upper", label: "Upper League — the main event", start: upperStart, picks: upperPicks },
+  ]
+}
 
-const SPIN_MS = 1800
-const SPIN_TICK = 90
+/* ============================ page ============================ */
+
+type Lineups = { upper: SeasonTeam[]; lower: SeasonTeam[] }
 
 export default function LotteryPage() {
-  const year: SeasonYear = useMemo(() => {
-    // The lottery is for the NEXT draft: if the newest season with IDs hasn't
-    // started, that's the one being drafted; otherwise fall back to latest.
-    const years = (Object.keys(LEAGUES) as SeasonYear[]).sort(
-      (a, b) => Number(b) - Number(a)
-    )
-    const pending = years.find((y) => LEAGUES[y].upper && !LEAGUES[y].started)
-    return pending ?? latestActiveSeason()
-  }, [])
-
-  const [tab, setTab] = useState<"upper" | "lower">("upper")
-  const [mode, setMode] = useState<OddsMode>("weighted")
-  const [lineups, setLineups] = useState<{ upper: SeasonTeam[]; lower: SeasonTeam[] } | null>(null)
+  const [lineups, setLineups] = useState<Lineups | null>(null)
   const [error, setError] = useState<string | null>(null)
-
-  // Result state — the full order is decided the moment the lottery runs;
-  // the reveal is pure theater, last pick first.
-  const [order, setOrder] = useState<SeasonTeam[] | null>(null)
-  const [revealed, setRevealed] = useState(0) // how many picks (from the bottom) are shown
-  const [spinning, setSpinning] = useState(false)
-  const [spinFace, setSpinFace] = useState<SeasonTeam | null>(null)
+  const [now, setNow] = useState<number>(() => Date.now())
+  // Preview mode (?preview in the URL): starts a rehearsal show a few
+  // seconds after load with a throwaway seed — NOT the real order.
+  const [previewStart, setPreviewStart] = useState<number | null>(null)
   const [copied, setCopied] = useState(false)
-  const spinTimer = useRef<ReturnType<typeof setInterval> | null>(null)
   const reducedMotion = useRef(false)
 
   useEffect(() => {
-    reducedMotion.current =
-      typeof window !== "undefined" &&
-      window.matchMedia("(prefers-reduced-motion: reduce)").matches
-    getSeasonLineups(year)
+    reducedMotion.current = window.matchMedia("(prefers-reduced-motion: reduce)").matches
+    if (new URLSearchParams(window.location.search).has("preview")) {
+      setPreviewStart(Date.now() + 5_000)
+    }
+    getSeasonLineups(YEAR)
       .then((l) => setLineups({ upper: l.upper, lower: l.lower }))
       .catch((e) => setError(e instanceof Error ? e.message : "Failed to load teams"))
-    return () => {
-      if (spinTimer.current) clearInterval(spinTimer.current)
+    const id = setInterval(() => setNow(Date.now()), 250)
+    return () => clearInterval(id)
+  }, [])
+
+  const isPreview = previewStart !== null
+  const eventStart = isPreview ? previewStart! : EVENT_UTC
+
+  // Deterministic draw: lower league consumed from the stream first, then
+  // upper — one shared PRNG so the whole night comes from one seed.
+  const results = useMemo(() => {
+    if (!lineups) return null
+    const seed = isPreview ? `${SEED}-preview-${previewStart}` : SEED
+    const rand = mulberry32(xmur3(seed)())
+    return {
+      lower: drawOrder(lineups.lower, rand),
+      upper: drawOrder(lineups.upper, rand),
     }
-  }, [year])
+  }, [lineups, isPreview, previewStart])
 
-  const teams = useMemo(
-    () => (lineups ? lineups[tab] : []),
-    [lineups, tab]
-  )
-  const tickets = useMemo(() => ticketCounts(teams, mode), [teams, mode])
-  const totalTickets = useMemo(
-    () => [...tickets.values()].reduce((a, b) => a + b, 0),
-    [tickets]
+  const timeline = useMemo(
+    () =>
+      lineups ? buildTimeline(lineups.lower.length, lineups.upper.length) : null,
+    [lineups]
   )
 
-  const reset = () => {
-    if (spinTimer.current) clearInterval(spinTimer.current)
-    setOrder(null)
-    setRevealed(0)
-    setSpinning(false)
-    setSpinFace(null)
-    setCopied(false)
+  const elapsed = now - eventStart
+  const showOver =
+    timeline !== null &&
+    elapsed > timeline[1].start + timeline[1].picks * REVEAL_EVERY_MS
+
+  /* ---------- per-segment reveal math ---------- */
+  // Picks reveal LAST first: reveal #k (0-based) locks in at
+  // segment.start + (k+1)*REVEAL_EVERY_MS, and its spin runs for the
+  // SPIN_MS before the lock.
+  const segState = (seg: Segment) => {
+    const local = elapsed - seg.start
+    const revealed = Math.max(0, Math.min(seg.picks, Math.floor(local / REVEAL_EVERY_MS)))
+    const windowPos = local - revealed * REVEAL_EVERY_MS
+    const spinning =
+      local >= 0 && revealed < seg.picks && windowPos >= REVEAL_EVERY_MS - SPIN_MS
+    return { revealed, spinning }
   }
 
-  const run = () => {
-    reset()
-    setOrder(drawOrder(teams, mode))
-  }
+  /* ---------- cosmetic spin face (doesn't affect the result) ---------- */
+  const [spinTick, setSpinTick] = useState(0)
+  useEffect(() => {
+    if (reducedMotion.current) return
+    const id = setInterval(() => setSpinTick((t) => t + 1), 120)
+    return () => clearInterval(id)
+  }, [])
 
-  const revealNext = () => {
-    if (!order || spinning || revealed >= order.length) return
-    const target = order[order.length - 1 - revealed]
-    if (reducedMotion.current) {
-      setRevealed((r) => r + 1)
-      return
-    }
-    setSpinning(true)
-    // Slot-machine flicker: cycle random faces, then lock in the real one.
-    spinTimer.current = setInterval(() => {
-      setSpinFace(teams[Math.floor(Math.random() * teams.length)])
-    }, SPIN_TICK)
-    setTimeout(() => {
-      if (spinTimer.current) clearInterval(spinTimer.current)
-      setSpinFace(target)
-      setTimeout(() => {
-        setSpinning(false)
-        setSpinFace(null)
-        setRevealed((r) => r + 1)
-      }, 350)
-    }, SPIN_MS)
-  }
-
-  const done = order !== null && revealed >= (order?.length ?? 0)
-  const nextPickNumber = order ? order.length - revealed : 0
+  const avatarUrl = (t: SeasonTeam | null) =>
+    t?.avatar ? `https://sleepercdn.com/avatars/${t.avatar}` : "/default-avatar.png"
 
   const copyResults = async () => {
-    if (!order) return
-    const league = tab === "upper" ? "Upper League" : "Lower League"
-    const lines = order.map(
-      (t, i) => `${i + 1}. ${t.name} (${t.owner})${i === 0 ? " 🥇" : i === order.length - 1 ? " 🦏" : ""}`
-    )
-    const text = `🏈 SWRR ${year} Draft Lottery — ${league}\n${
-      mode === "weighted" ? "Weighted odds (worse seed = more tickets)" : "Equal odds"
-    }\n\n${lines.join("\n")}\n\nRun live at https://fantasy-league-site-green.vercel.app/lottery`
+    if (!results) return
+    const fmt = (label: string, order: SeasonTeam[]) =>
+      `${label}\n` +
+      order
+        .map(
+          (t, i) =>
+            `${i + 1}. ${t.name} (${t.owner})${i === 0 ? " 🥇" : i === order.length - 1 ? " 🦏" : ""}`
+        )
+        .join("\n")
+    const text = `🏈 SWRR ${YEAR} Draft Lottery — official order\n\n${fmt(
+      "UPPER LEAGUE",
+      results.upper
+    )}\n\n${fmt("LOWER LEAGUE", results.lower)}\n\nhttps://fantasy-league-site-green.vercel.app/lottery`
     try {
       await navigator.clipboard.writeText(text)
       setCopied(true)
       setTimeout(() => setCopied(false), 2000)
     } catch {
-      // Clipboard can fail outside secure contexts — no-op.
+      /* clipboard unavailable — no-op */
     }
   }
 
-  const avatarUrl = (t: SeasonTeam | null) =>
-    t?.avatar ? `https://sleepercdn.com/avatars/${t.avatar}` : "/default-avatar.png"
+  /* ============================ render ============================ */
 
-  const oddsPct = (t: SeasonTeam) =>
-    totalTickets ? Math.round(((tickets.get(t.owner_id) ?? 1) / totalTickets) * 100) : 0
+  if (error)
+    return (
+      <main className="min-h-screen p-6 text-center text-drop">
+        Couldn&apos;t load teams: {error}
+      </main>
+    )
 
-  return (
-    <main className="min-h-screen p-3 text-ink sm:p-6">
-      <div className="mx-auto max-w-3xl">
-        <h1 className="display mb-1 mt-2 text-center text-2xl text-ink sm:text-3xl">
-          {year} Draft Lottery
-        </h1>
-        <p className="mb-5 text-center text-sm text-ink-dim">
-          The order is drawn the moment you hit the button — the reveal goes
-          last pick first. No re-rolls. The rhino remembers.
-        </p>
+  if (!lineups || !results || !timeline)
+    return (
+      <main className="min-h-screen p-6 text-center text-ink-dim">Loading…</main>
+    )
 
-        {/* controls */}
-        <div className="panel mb-5 p-4">
-          <div className="flex flex-wrap items-center justify-center gap-2">
-            <div className="flex rounded-full border border-line bg-surface-2 p-1">
-              {(["upper", "lower"] as const).map((t) => (
-                <button
-                  key={t}
-                  onClick={() => {
-                    setTab(t)
-                    reset()
-                  }}
-                  className={`rounded-full px-4 py-1.5 text-sm font-medium transition-colors ${
-                    tab === t ? "bg-brand-deep/40 text-brand" : "text-ink-dim hover:text-ink"
-                  }`}
-                >
-                  {t === "upper" ? "Upper League" : "Lower League"}
-                </button>
-              ))}
-            </div>
+  /* ---------- pre-show countdown ---------- */
+  if (elapsed < 0) {
+    const remain = -elapsed
+    const d = Math.floor(remain / 86_400_000)
+    const h = Math.floor((remain % 86_400_000) / 3_600_000)
+    const m = Math.floor((remain % 3_600_000) / 60_000)
+    const s = Math.floor((remain % 60_000) / 1_000)
+    const local = new Date(eventStart).toLocaleString(undefined, {
+      weekday: "long",
+      month: "long",
+      day: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+    })
 
-            <div className="flex rounded-full border border-line bg-surface-2 p-1">
-              {(
-                [
-                  ["weighted", "Weighted odds"],
-                  ["equal", "Equal odds"],
-                ] as const
-              ).map(([m, label]) => (
-                <button
-                  key={m}
-                  onClick={() => {
-                    setMode(m)
-                    reset()
-                  }}
-                  className={`rounded-full px-4 py-1.5 text-sm font-medium transition-colors ${
-                    mode === m ? "bg-brand-deep/40 text-brand" : "text-ink-dim hover:text-ink"
-                  }`}
-                >
+    const totalTickets = (ts: SeasonTeam[]) => ts.reduce((a, t) => a + t.rank, 0)
+
+    return (
+      <main className="min-h-screen p-3 text-ink sm:p-6">
+        <div className="mx-auto max-w-3xl text-center">
+          <p className="display mt-6 text-sm tracking-widest text-brand">
+            Live lottery event
+          </p>
+          <h1 className="display mt-1 text-3xl text-ink sm:text-5xl">
+            {YEAR} Draft Lottery
+          </h1>
+          <p className="mt-2 text-sm text-ink-dim">
+            {local} <span className="text-ink-faint">(your local time)</span>
+          </p>
+
+          <div className="mx-auto mt-6 flex max-w-md items-stretch justify-center gap-2">
+            {[
+              [d, "days"],
+              [h, "hrs"],
+              [m, "min"],
+              [s, "sec"],
+            ].map(([v, label]) => (
+              <div key={label as string} className="panel flex-1 px-2 py-4">
+                <div className="display tnum text-3xl text-ink sm:text-5xl">
+                  {String(v).padStart(2, "0")}
+                </div>
+                <div className="mt-1 text-[11px] uppercase tracking-widest text-ink-faint">
                   {label}
-                </button>
-              ))}
-            </div>
+                </div>
+              </div>
+            ))}
           </div>
 
-          {mode === "weighted" && (
-            <p className="mt-3 text-center text-xs text-ink-faint">
-              Weighted: the worse your seed coming into {year}, the more lottery
-              tickets you hold. Ticket odds are shown on each team below.
-            </p>
-          )}
+          <p className="mx-auto mt-6 max-w-lg text-sm text-ink-dim">
+            When the clock hits zero the show starts right here — Lower League
+            undercard first, Upper League main event after the break. One pick
+            every {REVEAL_EVERY_MS / 1000} seconds, drawn worst-to-first. The
+            order is locked to this event; nobody can re-roll it. 🦏
+          </p>
 
-          {/* team pool with odds */}
-          {!order && teams.length > 0 && (
-            <ul className="mt-4 grid grid-cols-1 gap-1.5 sm:grid-cols-2">
-              {teams.map((t) => (
-                <li
-                  key={t.owner_id}
-                  className="flex items-center gap-2.5 rounded-lg border border-line bg-surface-2/60 px-3 py-2"
-                >
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={avatarUrl(t)}
-                    alt=""
-                    className="h-7 w-7 rounded-full ring-1 ring-line"
-                  />
-                  <span className="min-w-0 flex-1 truncate text-sm text-ink">{t.name}</span>
-                  <span className="tnum shrink-0 text-xs text-ink-dim">{oddsPct(t)}%</span>
-                </li>
-              ))}
-            </ul>
-          )}
-
-          <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
-            {!order && (
-              <button
-                onClick={run}
-                disabled={!teams.length}
-                className="display rounded-xl bg-brand-deep px-6 py-3 text-base tracking-wider text-white transition-colors hover:bg-brand-deep/80 disabled:opacity-40"
-              >
-                Run the lottery
-              </button>
-            )}
-            {order && !done && (
-              <button
-                onClick={revealNext}
-                disabled={spinning}
-                className="display rounded-xl bg-brand-deep px-6 py-3 text-base tracking-wider text-white transition-colors hover:bg-brand-deep/80 disabled:opacity-40"
-              >
-                {spinning ? "Drawing…" : `Reveal pick #${nextPickNumber}`}
-              </button>
-            )}
-            {done && (
-              <>
-                <button
-                  onClick={copyResults}
-                  className="display rounded-xl bg-promo/20 px-5 py-3 text-base tracking-wider text-promo transition-colors hover:bg-promo/30"
-                >
-                  {copied ? "Copied ✓" : "Copy results"}
-                </button>
-                <button
-                  onClick={reset}
-                  className="rounded-xl border border-line px-5 py-3 text-sm text-ink-dim transition-colors hover:text-ink"
-                >
-                  Run it again
-                </button>
-              </>
-            )}
+          <div className="mt-8 grid grid-cols-1 gap-4 text-left sm:grid-cols-2">
+            {(
+              [
+                ["Upper League", lineups.upper],
+                ["Lower League", lineups.lower],
+              ] as const
+            ).map(([label, ts]) => (
+              <section key={label} className="panel overflow-hidden">
+                <h2 className="display border-b border-line bg-surface-2 px-4 py-2.5 text-sm text-brand">
+                  {label} — lottery odds
+                </h2>
+                <ul className="p-2">
+                  {ts.map((t) => (
+                    <li key={t.owner_id} className="flex items-center gap-2.5 px-2 py-1.5">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={avatarUrl(t)} alt="" className="h-6 w-6 rounded-full ring-1 ring-line" />
+                      <span className="min-w-0 flex-1 truncate text-sm text-ink">{t.name}</span>
+                      <span className="tnum text-xs text-ink-dim">
+                        {Math.round((t.rank / totalTickets(ts)) * 100)}%
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            ))}
           </div>
+
+          <p className="mt-6 text-xs text-ink-faint">
+            Weighted odds: the worse your seed coming into {YEAR}, the more
+            tickets you hold.
+          </p>
+        </div>
+      </main>
+    )
+  }
+
+  /* ---------- live show + final board ---------- */
+
+  const renderBoard = (seg: Segment, order: SeasonTeam[], teams: SeasonTeam[]) => {
+    const { revealed, spinning } = segState(seg)
+    const nextPickNumber = order.length - revealed // pick currently up
+    const live = elapsed >= seg.start - INTERMISSION_MS && revealed < order.length
+    const started = elapsed >= seg.start - 1
+
+    return (
+      <section key={seg.key} className="panel overflow-hidden">
+        <div className="flex items-center justify-between gap-2 border-b border-line bg-surface-2 px-4 py-2.5">
+          <h2 className="display text-sm text-brand sm:text-base">{seg.label}</h2>
+          {live && started && (
+            <span className="flex items-center gap-1.5 text-xs font-semibold text-drop">
+              <span className="h-2 w-2 animate-pulse rounded-full bg-drop" /> LIVE
+            </span>
+          )}
         </div>
 
-        {error && <p className="text-center text-drop">Couldn&apos;t load teams: {error}</p>}
-        {!lineups && !error && (
-          <p className="text-center text-ink-dim">Loading teams…</p>
-        )}
-
-        {/* the board */}
-        {order && (
-          <ol className="space-y-1.5">
+        {!started ? (
+          <p className="px-4 py-6 text-center text-sm text-ink-dim">
+            {seg.key === "upper" ? "Coming up after the Lower League…" : "Starting…"}
+          </p>
+        ) : (
+          <ol className="space-y-1.5 p-2 sm:p-3">
             {order.map((t, i) => {
               const pick = i + 1
               const isRevealed = i >= order.length - revealed
-              const isNext = !isRevealed && pick === nextPickNumber
+              const isNext = pick === nextPickNumber && revealed < order.length
               const isFirst = pick === 1
               const isLast = pick === order.length
+              const face =
+                isNext && spinning && !reducedMotion.current
+                  ? teams[(spinTick + i) % teams.length]
+                  : null
               return (
                 <li
                   key={pick}
-                  className={`relative flex items-center gap-3 overflow-hidden rounded-xl border px-3 py-2.5 transition-all ${
+                  className={`relative flex items-center gap-3 overflow-hidden rounded-xl border px-3 py-2 transition-all ${
                     isRevealed
                       ? isFirst
                         ? "border-gold/60 bg-gold/10"
@@ -295,12 +338,12 @@ export default function LotteryPage() {
                         ? "border-drop/50 bg-drop/5"
                         : "border-line bg-surface"
                       : isNext && spinning
-                      ? "border-brand/60 bg-surface-2"
+                      ? "border-brand/70 bg-surface-2 shadow-[0_0_20px_rgba(167,139,250,0.15)]"
                       : "border-line bg-surface-2/40"
                   }`}
                 >
                   <span
-                    className={`display w-9 shrink-0 text-center text-lg ${
+                    className={`display w-8 shrink-0 text-center text-lg ${
                       isRevealed
                         ? isFirst
                           ? "text-gold"
@@ -316,13 +359,9 @@ export default function LotteryPage() {
                   {isRevealed ? (
                     <>
                       {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        src={avatarUrl(t)}
-                        alt=""
-                        className="h-9 w-9 shrink-0 rounded-full ring-1 ring-line"
-                      />
+                      <img src={avatarUrl(t)} alt="" className="h-9 w-9 shrink-0 rounded-full ring-1 ring-line" />
                       <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-semibold text-ink sm:text-[15px]">
+                        <p className="truncate text-sm font-semibold text-ink">
                           {t.name}
                           {isFirst && " 🥇"}
                         </p>
@@ -342,18 +381,25 @@ export default function LotteryPage() {
                     <>
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img
-                        src={avatarUrl(spinFace)}
+                        src={avatarUrl(face)}
                         alt=""
                         className="h-9 w-9 shrink-0 rounded-full opacity-80 ring-1 ring-brand/40"
                       />
-                      <span className="text-sm text-ink-dim">{spinFace?.name ?? "…"}</span>
+                      <span className="min-w-0 flex-1 truncate text-sm text-ink-dim">
+                        {face?.name ?? "…"}
+                      </span>
+                      <span className="display shrink-0 animate-pulse text-[11px] tracking-widest text-brand">
+                        Drawing
+                      </span>
                     </>
                   ) : (
                     <>
                       <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-surface text-ink-faint ring-1 ring-line">
                         ?
                       </span>
-                      <span className="text-sm text-ink-faint">Not yet revealed</span>
+                      <span className="text-sm text-ink-faint">
+                        {isNext ? "Up next…" : ""}
+                      </span>
                     </>
                   )}
                 </li>
@@ -361,6 +407,45 @@ export default function LotteryPage() {
             })}
           </ol>
         )}
+      </section>
+    )
+  }
+
+  return (
+    <main className="min-h-screen p-3 text-ink sm:p-6">
+      <div className="mx-auto max-w-3xl">
+        {isPreview && (
+          <p className="display mb-3 mt-2 rounded-lg border border-gold/40 bg-gold/10 px-3 py-2 text-center text-xs tracking-widest text-gold">
+            Rehearsal mode — this is NOT the real order
+          </p>
+        )}
+
+        <h1 className="display mb-1 mt-2 text-center text-2xl text-ink sm:text-3xl">
+          {YEAR} Draft Lottery
+        </h1>
+        <p className="mb-5 text-center text-sm text-ink-dim">
+          {showOver
+            ? "Final — the board is set. See you at the draft."
+            : elapsed < INTRO_MS
+            ? "We're live. First draw in a moment…"
+            : "Live — one pick every 15 seconds, worst to first."}
+        </p>
+
+        {showOver && (
+          <div className="mb-5 text-center">
+            <button
+              onClick={copyResults}
+              className="display rounded-xl bg-promo/20 px-5 py-3 text-base tracking-wider text-promo transition-colors hover:bg-promo/30"
+            >
+              {copied ? "Copied ✓" : "Copy official results"}
+            </button>
+          </div>
+        )}
+
+        <div className="space-y-5">
+          {renderBoard(timeline[0], results.lower, lineups.lower)}
+          {renderBoard(timeline[1], results.upper, lineups.upper)}
+        </div>
       </div>
     </main>
   )
