@@ -142,11 +142,11 @@ export default function RecapPage() {
           {rows.map((r, i) => (
             <li key={i} className="flex items-baseline justify-between gap-2">
               <span className="truncate">
-                <span className="font-semibold text-white">{r.win.name}</span>
-                <span className="text-gray-500"> def. </span>
-                <span className="text-gray-300">{r.lose.name}</span>
+                <span className="font-semibold text-ink">{r.win.name}</span>
+                <span className="text-ink-faint"> def. </span>
+                <span className="text-ink-dim">{r.lose.name}</span>
               </span>
-              <span className="shrink-0 tabular-nums text-gray-400">
+              <span className="shrink-0 tabular-nums text-ink-dim">
                 {r.win.points.toFixed(1)}–{r.lose.points.toFixed(1)}
               </span>
             </li>
@@ -156,71 +156,71 @@ export default function RecapPage() {
     ) : null
 
   return (
-    <main className="min-h-screen bg-black p-3 font-sans text-white sm:p-6">
+    <main className="min-h-screen bg-surface p-3 font-sans text-ink sm:p-6">
       <div className="mx-auto max-w-3xl">
-        <h1 className="mb-1 text-center text-2xl font-bold text-purple-300">
+        <h1 className="display mb-1 text-center text-2xl text-ink sm:text-3xl">
           Week {selectedWeek ?? "–"} Recap
         </h1>
-        <p className="mb-4 text-center text-xs text-gray-500">Self Will Run Riot — auto-generated weekly wrap</p>
+        <p className="mb-4 text-center text-xs text-ink-faint">Self Will Run Riot — auto-generated weekly wrap</p>
 
         <div className="mb-6 flex items-center justify-center gap-2">
           <button
             onClick={() => setSelectedWeek((w) => Math.max(1, (w ?? 1) - 1))}
             disabled={!selectedWeek || selectedWeek <= 1}
-            className="rounded bg-gray-800 px-3 py-1 text-sm font-medium hover:bg-gray-700 disabled:opacity-40"
+            className="rounded bg-surface-2 px-3 py-1 text-sm font-medium hover:bg-white/10 disabled:opacity-40"
           >
             ← Prev
           </button>
-          <span className="min-w-[80px] text-center text-sm font-semibold text-purple-300">Week {selectedWeek ?? "–"}</span>
+          <span className="min-w-[80px] text-center text-sm font-semibold text-brand">Week {selectedWeek ?? "–"}</span>
           <button
             onClick={() => setSelectedWeek((w) => Math.min(MAX_WEEK, (w ?? 1) + 1))}
             disabled={!selectedWeek || selectedWeek >= MAX_WEEK}
-            className="rounded bg-gray-800 px-3 py-1 text-sm font-medium hover:bg-gray-700 disabled:opacity-40"
+            className="rounded bg-surface-2 px-3 py-1 text-sm font-medium hover:bg-white/10 disabled:opacity-40"
           >
             Next →
           </button>
           {selectedWeek !== currentWeek && currentWeek && (
-            <button onClick={() => setSelectedWeek(currentWeek)} className="ml-1 rounded bg-purple-800 px-2 py-1 text-xs hover:bg-purple-700">
+            <button onClick={() => setSelectedWeek(currentWeek)} className="ml-1 rounded bg-brand-deep px-2 py-1 text-xs hover:bg-brand-deep/80">
               Current
             </button>
           )}
         </div>
 
         {!recap ? (
-          <p className="text-center text-sm text-gray-500">No completed games for this week yet.</p>
+          <p className="text-center text-sm text-ink-faint">No completed games for this week yet.</p>
         ) : (
           <>
-            <div className="mb-6 space-y-2 rounded-xl border border-purple-800 bg-gray-900 p-4 text-sm leading-relaxed">
+            <div className="mb-6 space-y-2 rounded-xl border border-line bg-surface p-4 text-sm leading-relaxed">
               <p>
-                🔥 <span className="font-semibold text-white">{recap.top.name}</span> led the entire league with{" "}
-                <span className="font-semibold text-emerald-300">{recap.top.points.toFixed(1)}</span> points.
+                🔥 <span className="font-semibold text-ink">{recap.top.name}</span> led the entire league with{" "}
+                <span className="font-semibold text-promo">{recap.top.points.toFixed(1)}</span> points.
               </p>
               {recap.blowout && (
                 <p>
                   💥 Blowout of the week:{" "}
-                  <span className="font-semibold text-white">{recap.blowout.win.name}</span> routed{" "}
-                  <span className="text-gray-300">{recap.blowout.lose.name}</span> by{" "}
-                  <span className="font-semibold text-red-300">{recap.blowout.margin.toFixed(1)}</span>.
+                  <span className="font-semibold text-ink">{recap.blowout.win.name}</span> routed{" "}
+                  <span className="text-ink-dim">{recap.blowout.lose.name}</span> by{" "}
+                  <span className="font-semibold text-drop">{recap.blowout.margin.toFixed(1)}</span>.
                 </p>
               )}
               {recap.closest && (
                 <p>
                   😬 Nail-biter:{" "}
-                  <span className="font-semibold text-white">{recap.closest.win.name}</span> edged{" "}
-                  <span className="text-gray-300">{recap.closest.lose.name}</span> by just{" "}
-                  <span className="font-semibold text-yellow-300">{recap.closest.margin.toFixed(1)}</span>.
+                  <span className="font-semibold text-ink">{recap.closest.win.name}</span> edged{" "}
+                  <span className="text-ink-dim">{recap.closest.lose.name}</span> by just{" "}
+                  <span className="font-semibold text-gold">{recap.closest.margin.toFixed(1)}</span>.
                 </p>
               )}
               {recap.dropZone.length > 0 && (
-                <p className="border-t border-gray-800 pt-2 text-gray-300">
-                  🔻 Relegation watch: <span className="text-red-300">{recap.dropZone.join(", ")}</span> sit in the drop zone.
+                <p className="border-t border-line pt-2 text-ink-dim">
+                  🔻 Relegation watch: <span className="text-drop">{recap.dropZone.join(", ")}</span> sit in the drop zone.
                 </p>
               )}
             </div>
 
             <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
-              <ResultList title="Upper League" color="text-purple-400" rows={recap.upperResults} />
-              <ResultList title="Lower League" color="text-emerald-400" rows={recap.lowerResults} />
+              <ResultList title="Upper League" color="text-brand" rows={recap.upperResults} />
+              <ResultList title="Lower League" color="text-promo" rows={recap.lowerResults} />
             </div>
           </>
         )}

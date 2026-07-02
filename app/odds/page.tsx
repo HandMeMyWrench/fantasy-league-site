@@ -129,10 +129,10 @@ export default function OddsPage() {
 
   const Pct = ({ v, tone }: { v: number; tone: "good" | "bad" }) => (
     <div className="flex items-center justify-end gap-2">
-      <div className="hidden h-1.5 w-12 overflow-hidden rounded-full bg-gray-700 sm:block">
+      <div className="hidden h-1.5 w-12 overflow-hidden rounded-full bg-white/10 sm:block">
         <div className={`h-full ${tone === "good" ? "bg-emerald-500" : "bg-rose-500"}`} style={{ width: `${v * 100}%` }} />
       </div>
-      <span className="w-9 text-right text-xs tabular-nums text-gray-200">{Math.round(v * 100)}%</span>
+      <span className="w-9 text-right text-xs tabular-nums text-ink">{Math.round(v * 100)}%</span>
     </div>
   )
 
@@ -140,17 +140,17 @@ export default function OddsPage() {
     const final = lg.remainingWeeks.length === 0
     const edgeLabel = lg.edge === "bottom" ? "Relegation" : "Promotion"
     return (
-      <div className={`rounded-xl border bg-gray-900 p-4 sm:p-5 ${color}`}>
+      <div className={`rounded-xl border bg-surface p-4 sm:p-5 ${color}`}>
         <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
-          <h2 className="text-lg font-bold text-white">{title}</h2>
-          <span className="text-xs text-gray-400">
+          <h2 className="text-lg font-bold text-ink">{title}</h2>
+          <span className="text-xs text-ink-dim">
             {final ? "season complete — final" : `${lg.remainingWeeks.length} weeks left · ${SIMS.toLocaleString()} sims`}
           </span>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm">
             <thead>
-              <tr className="border-b border-gray-700 text-xs text-gray-400">
+              <tr className="border-b border-line text-xs text-ink-dim">
                 <th className="py-2 pr-2">#</th>
                 <th className="py-2 pr-2">Team</th>
                 <th className="py-2 px-2 text-center">W</th>
@@ -163,12 +163,12 @@ export default function OddsPage() {
                 const o = lg.odds.get(r.roster_id)
                 const name = r.metadata?.team_name || lg.users[r.owner_id]?.display_name || "Team"
                 return (
-                  <tr key={r.roster_id} className="border-t border-gray-800">
-                    <td className="py-2 pr-2 text-gray-500">{i + 1}</td>
+                  <tr key={r.roster_id} className="border-t border-line">
+                    <td className="py-2 pr-2 text-ink-faint">{i + 1}</td>
                     <td className="py-2 pr-2">
-                      <span className="block max-w-[9rem] truncate text-white sm:max-w-none">{name}</span>
+                      <span className="block max-w-[9rem] truncate text-ink sm:max-w-none">{name}</span>
                     </td>
-                    <td className="py-2 px-2 text-center tabular-nums text-gray-300">{r.settings?.wins ?? 0}</td>
+                    <td className="py-2 px-2 text-center tabular-nums text-ink-dim">{r.settings?.wins ?? 0}</td>
                     <td className="py-2 px-2">
                       <Pct v={o?.playoff ?? 0} tone="good" />
                     </td>
@@ -186,24 +186,24 @@ export default function OddsPage() {
   }
 
   return (
-    <main className="min-h-screen bg-black p-3 font-sans text-white sm:p-6">
+    <main className="min-h-screen bg-surface p-3 font-sans text-ink sm:p-6">
       <div className="mx-auto max-w-6xl">
-        <h1 className="mb-1 text-center text-2xl font-bold text-purple-300">Playoff &amp; Relegation Odds</h1>
-        <p className="mb-6 text-center text-xs text-gray-500">
+        <h1 className="display mb-1 text-center text-2xl text-ink sm:text-3xl">Playoff &amp; Relegation Odds</h1>
+        <p className="mb-6 text-center text-xs text-ink-faint">
           Monte Carlo simulation of the rest of the regular season, from each team&apos;s scoring form and the remaining schedule.
         </p>
 
-        {loading && <p className="text-center text-sm text-gray-400">Crunching the simulations…</p>}
-        {error && !loading && <p className="text-center text-sm text-red-400">Couldn&apos;t compute odds: {error}</p>}
+        {loading && <p className="text-center text-sm text-ink-dim">Crunching the simulations…</p>}
+        {error && !loading && <p className="text-center text-sm text-drop">Couldn&apos;t compute odds: {error}</p>}
         {!loading && !error && status === "pre_draft" && (
-          <p className="text-center text-sm text-gray-400">
+          <p className="text-center text-sm text-ink-dim">
             The {YEAR} season hasn&apos;t kicked off yet — odds open once games are played.
           </p>
         )}
 
         {!loading && !error && status !== "pre_draft" && (
           <div className="grid grid-cols-1 gap-4 sm:gap-6 lg:grid-cols-2">
-            {upper && table(upper, "Upper League", "border-purple-800")}
+            {upper && table(upper, "Upper League", "border-line")}
             {lower && table(lower, "Lower League", "border-emerald-800")}
           </div>
         )}

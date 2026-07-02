@@ -25,10 +25,10 @@ const MOVE_META: Record<
   Move,
   { label: string; className: string }
 > = {
-  "stay-up": { label: "Stays up", className: "text-gray-300" },
-  promoted: { label: "▲ Promoted", className: "text-green-400 font-semibold" },
-  relegated: { label: "▼ Relegated", className: "text-red-400 font-semibold" },
-  "stay-down": { label: "Stays down", className: "text-gray-300" },
+  "stay-up": { label: "Stays up", className: "text-ink-dim" },
+  promoted: { label: "▲ Promoted", className: "text-promo font-semibold" },
+  relegated: { label: "▼ Relegated", className: "text-drop font-semibold" },
+  "stay-down": { label: "Stays down", className: "text-ink-dim" },
 }
 
 // Only seasons that actually have a lower league can have promotion/relegation.
@@ -119,8 +119,8 @@ export default function PromotionRelegationPage() {
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src={avatarUrl(r)} alt={ownerName(r)} className="w-8 h-8 rounded-full shadow" />
         <div className="flex flex-col">
-          <span className="font-semibold text-white leading-tight">{teamName(r)}</span>
-          <span className="text-xs text-gray-400">
+          <span className="font-semibold text-ink leading-tight">{teamName(r)}</span>
+          <span className="text-xs text-ink-dim">
             {ownerName(r)} · {r.settings?.wins ?? 0}W · {pointsFor(r).toFixed(1)} PF
           </span>
         </div>
@@ -132,16 +132,16 @@ export default function PromotionRelegationPage() {
   const noSecondLeague = !upperId || !lowerId
 
   return (
-    <main className="min-h-screen bg-black text-white p-3 sm:p-6 font-sans">
+    <main className="min-h-screen text-ink p-3 sm:p-6 font-sans">
       <div className="max-w-7xl mx-auto">
-        <h1 className="text-2xl sm:text-4xl font-extrabold text-center mb-2 text-purple-400">
+        <h1 className="display text-2xl sm:text-3xl text-center mb-2 text-ink">
           🔄 Promotion &amp; Relegation
         </h1>
-        <p className="text-center text-gray-400 mb-8">
+        <p className="text-center text-ink-dim mb-8">
           End-of-season movement based on final standings (wins, then points-for). Top{" "}
           {spots} of the lower league go up; bottom {spots} of the upper league go down.
           {year === "2025" && (
-            <span className="block text-xs text-gray-500 mt-1">
+            <span className="block text-xs text-ink-faint mt-1">
               2025 was the inaugural season — a one-time 6-up / 6-down split to seed the two
               tiers. From 2026 on it&apos;s 3 up / 3 down.
             </span>
@@ -149,11 +149,11 @@ export default function PromotionRelegationPage() {
         </p>
 
         <div className="mb-8 text-center">
-          <label className="mr-2 font-semibold text-purple-300">Season:</label>
+          <label className="mr-2 font-semibold text-brand">Season:</label>
           <select
             value={year}
             onChange={(e) => setYear(e.target.value as SeasonYear)}
-            className="bg-black border border-purple-500 text-white rounded px-3 py-1 focus:outline-none focus:ring-2 focus:ring-purple-600"
+            className="bg-surface border border-line text-ink rounded px-3 py-1 focus:outline-none focus:ring-2 focus:ring-brand-deep"
           >
             {PR_SEASONS.map((y) => (
               <option key={y} value={y}>
@@ -163,10 +163,10 @@ export default function PromotionRelegationPage() {
           </select>
         </div>
 
-        {loading && <p className="text-center text-gray-400">Loading final standings…</p>}
-        {error && <p className="text-center text-red-400">Couldn’t load standings: {error}</p>}
+        {loading && <p className="text-center text-ink-dim">Loading final standings…</p>}
+        {error && <p className="text-center text-drop">Couldn’t load standings: {error}</p>}
         {noSecondLeague && !loading && (
-          <p className="text-center text-gray-400">
+          <p className="text-center text-ink-dim">
             {year} ran as a single league, so there’s no promotion/relegation to show.
           </p>
         )}
@@ -175,24 +175,24 @@ export default function PromotionRelegationPage() {
           <>
             {/* The movement */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-8 mb-12">
-              <div className="bg-gray-900 rounded-xl shadow-xl p-4 sm:p-6 border border-green-700">
-                <h2 className="text-xl font-bold mb-1 text-green-300">▲ Promoted to Upper</h2>
-                <p className="text-xs text-gray-400 mb-4">
+              <div className="bg-surface rounded-xl shadow-xl p-4 sm:p-6 border border-line">
+                <h2 className="text-xl font-bold mb-1 text-promo">▲ Promoted to Upper</h2>
+                <p className="text-xs text-ink-dim mb-4">
                   Top {spots} of the {year} Lower League
                 </p>
-                <ul className="divide-y divide-gray-800">
+                <ul className="divide-y divide-line">
                   {split.promoted.map((r) => (
                     <TeamRow key={r.roster_id} r={r} move="promoted" />
                   ))}
                 </ul>
               </div>
 
-              <div className="bg-gray-900 rounded-xl shadow-xl p-4 sm:p-6 border border-red-700">
-                <h2 className="text-xl font-bold mb-1 text-red-300">▼ Relegated to Lower</h2>
-                <p className="text-xs text-gray-400 mb-4">
+              <div className="bg-surface rounded-xl shadow-xl p-4 sm:p-6 border border-line">
+                <h2 className="text-xl font-bold mb-1 text-drop">▼ Relegated to Lower</h2>
+                <p className="text-xs text-ink-dim mb-4">
                   Bottom {spots} of the {year} Upper League
                 </p>
-                <ul className="divide-y divide-gray-800">
+                <ul className="divide-y divide-line">
                   {split.relegated.map((r) => (
                     <TeamRow key={r.roster_id} r={r} move="relegated" />
                   ))}
@@ -201,15 +201,15 @@ export default function PromotionRelegationPage() {
             </div>
 
             {/* The resulting next-season leagues */}
-            <h2 className="text-2xl font-extrabold text-center mb-6 text-purple-300">
+            <h2 className="text-2xl font-extrabold text-center mb-6 text-brand">
               {nextYear} Leagues
             </h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-8">
-              <div className="bg-gray-900 rounded-xl shadow-xl p-4 sm:p-6 border border-purple-700">
-                <h3 className="text-lg font-bold mb-4 text-purple-300">
+              <div className="bg-surface rounded-xl shadow-xl p-4 sm:p-6 border border-line">
+                <h3 className="text-lg font-bold mb-4 text-brand">
                   {nextYear} Upper League
                 </h3>
-                <ul className="divide-y divide-gray-800">
+                <ul className="divide-y divide-line">
                   {split.stayUp.map((r) => (
                     <TeamRow key={r.roster_id} r={r} move="stay-up" />
                   ))}
@@ -219,11 +219,11 @@ export default function PromotionRelegationPage() {
                 </ul>
               </div>
 
-              <div className="bg-gray-900 rounded-xl shadow-xl p-4 sm:p-6 border border-green-700">
-                <h3 className="text-lg font-bold mb-4 text-green-300">
+              <div className="bg-surface rounded-xl shadow-xl p-4 sm:p-6 border border-line">
+                <h3 className="text-lg font-bold mb-4 text-promo">
                   {nextYear} Lower League
                 </h3>
-                <ul className="divide-y divide-gray-800">
+                <ul className="divide-y divide-line">
                   {split.relegated.map((r) => (
                     <TeamRow key={`r-${r.roster_id}`} r={r} move="relegated" />
                   ))}
