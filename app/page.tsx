@@ -3,6 +3,7 @@
 import React, { useEffect, useRef, useState } from "react"
 import { getStandings, getLeagueUsers } from "@/lib/sleeper"
 import RelegationSpotlight from "@/components/RelegationSpotlight"
+import LotteryBanner from "@/components/LotteryBanner"
 import {
   LEAGUES,
   movementSpots,
@@ -282,6 +283,8 @@ export default function StandingsPage() {
   return (
     <main className="min-h-screen p-3 text-ink sm:p-6">
       <div className="mx-auto max-w-7xl">
+        <LotteryBanner />
+
         <div className="mb-5 mt-2 flex items-center justify-center gap-3 sm:mb-6 sm:gap-4">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img

@@ -2,12 +2,13 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
+import { useEffect, useState } from "react"
+import { lotteryPhase } from "@/lib/lotteryEvent"
 
-const LINKS: { href: string; label: string }[] = [
+const BASE_LINKS: { href: string; label: string }[] = [
   { href: "/", label: "Standings" },
   { href: "/matchups", label: "Matchups" },
   { href: "/odds", label: "Odds" },
-  { href: "/lottery", label: "Draft Lottery" },
   { href: "/recap", label: "Recap" },
   { href: "/promotion-relegation", label: "Pro / Rel" },
   { href: "/history", label: "History" },
@@ -15,6 +16,21 @@ const LINKS: { href: string; label: string }[] = [
 
 export default function NavBar() {
   const pathname = usePathname()
+
+  // During the lottery's season-relevant window, the Draft Lottery link
+  // leads the nav; afterwards it removes itself. Decided after mount so the
+  // static prerender never disagrees with the viewer's clock.
+  const [showLottery, setShowLottery] = useState(false)
+  useEffect(() => {
+    const check = () => setShowLottery(lotteryPhase(Date.now()) !== "hidden")
+    check()
+    const id = setInterval(check, 60_000)
+    return () => clearInterval(id)
+  }, [])
+
+  const LINKS = showLottery
+    ? [{ href: "/lottery", label: "Draft Lottery" }, ...BASE_LINKS]
+    : BASE_LINKS
 
   return (
     <header className="sticky top-0 z-50 border-b border-line bg-[rgba(10,10,16,0.82)] backdrop-blur-md">

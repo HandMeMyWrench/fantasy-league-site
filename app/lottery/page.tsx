@@ -1,24 +1,16 @@
 "use client"
 
 import React, { useEffect, useMemo, useRef, useState } from "react"
+import { useRouter } from "next/navigation"
 import { getSeasonLineups, type SeasonTeam } from "@/lib/season"
-
-/* ============================ EVENT CONFIG ============================
-   The whole broadcast is driven by these constants. Change the date/seed
-   and redeploy to reschedule. Everything is deterministic from the seed,
-   so every viewer's device computes the identical order and reveals it
-   on the identical schedule — a live show with no backend.
-
-   NOTE: bump the SEED string any time the event is rescheduled so a
-   previously-derivable order is discarded. */
-
-// Monday “Aug 4, 9:00 PM ET” = 01:00 UTC on Aug 5 (months are 0-based).
-const EVENT_UTC = Date.UTC(2026, 7, 5, 1, 0, 0)
-const SEED = "SWRR-2026-DRAFT-LOTTERY-v1"
-
-const INTRO_MS = 12_000 // opening card before the first draw
-const REVEAL_EVERY_MS = 15_000 // one pick every 15s (10s spin + 5s to breathe)
-const SPIN_MS = 10_000 // suspense portion of each reveal window
+import {
+  EVENT_UTC,
+  SEED,
+  INTRO_MS,
+  REVEAL_EVERY_MS,
+  SPIN_MS,
+  HIDE_AFTER_UTC,
+} from "@/lib/lotteryEvent"
 
 const YEAR = "2026"
 
@@ -85,6 +77,7 @@ export default function LotteryPage() {
   const [previewStart, setPreviewStart] = useState<number | null>(null)
   const [copied, setCopied] = useState(false)
   const reducedMotion = useRef(false)
+  const router = useRouter()
 
   useEffect(() => {
     reducedMotion.current = window.matchMedia("(prefers-reduced-motion: reduce)").matches
@@ -100,6 +93,13 @@ export default function LotteryPage() {
 
   const isPreview = previewStart !== null
   const eventStart = isPreview ? previewStart! : EVENT_UTC
+
+  // Season mode: 7 days after the show ends, this page hides itself and
+  // sends visitors back to the standings (rehearsals via ?preview exempt).
+  const hidden = !isPreview && now >= HIDE_AFTER_UTC
+  useEffect(() => {
+    if (hidden) router.replace("/")
+  }, [hidden, router])
 
   // Deterministic draw: lower league consumed from the stream first, then
   // upper — one shared PRNG so the whole night comes from one seed.
@@ -163,6 +163,8 @@ export default function LotteryPage() {
   }
 
   /* ============================ render ============================ */
+
+  if (hidden) return null
 
   if (error)
     return (
