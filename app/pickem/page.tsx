@@ -2,6 +2,7 @@
 
 import React, { useCallback, useEffect, useMemo, useState } from "react"
 import type { Board, Side } from "@/lib/pickem/types"
+import { getSeasonLineups, type SeasonTeam } from "@/lib/season"
 
 /* SWRR Pick'em — weekly board + submission, leaderboard, rules.
    Picks are stored server-side (see /api/pickem/*); each manager claims
@@ -69,12 +70,52 @@ export default function PickemPage() {
   const [pin, setPin] = useState("")
   const [msg, setMsg] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  // ?preview — rehearsal mode: a mock Week 1 board built from the real 24
+  // teams, never touching the server. previewPhase flips deadline states.
+  const [preview, setPreview] = useState(false)
+  const [previewPhase, setPreviewPhase] = useState<"open" | "buyback" | "closed">("open")
 
   useEffect(() => {
-    fetch("/api/pickem/board")
-      .then((r) => r.json())
-      .then(setResp)
-      .catch(() => setResp({ status: "preseason" }))
+    if (new URLSearchParams(window.location.search).has("preview")) {
+      setPreview(true)
+      getSeasonLineups("2026")
+        .then((l) => {
+          const mk = (league: "upper" | "lower", ts: SeasonTeam[]) =>
+            Array.from({ length: Math.floor(ts.length / 2) }, (_, i) => {
+              const a = ts[i]
+              const b = ts[ts.length - 1 - i]
+              const team = (t: SeasonTeam) => ({
+                rosterId: t.rank,
+                ownerId: t.owner_id,
+                name: t.name,
+                owner: t.owner,
+                avatar: t.avatar,
+              })
+              return {
+                id: `${league}-${i + 1}`,
+                league,
+                a: team(a),
+                b: team(b),
+                favorite: (a.rank <= b.rank ? "a" : "b") as Side,
+              }
+            })
+          const board: Board = {
+            season: "2026",
+            week: 1,
+            createdAt: Date.now(),
+            lockUtc: Date.now() + 2 * 86_400_000,
+            buybackEndUtc: Date.now() + 5 * 86_400_000,
+            games: [...mk("upper", l.upper), ...mk("lower", l.lower)],
+          }
+          setResp({ status: "ok", board, currentWeek: 1 })
+        })
+        .catch(() => setResp({ status: "preseason" }))
+    } else {
+      fetch("/api/pickem/board")
+        .then((r) => r.json())
+        .then(setResp)
+        .catch(() => setResp({ status: "preseason" }))
+    }
     const id = setInterval(() => setNow(Date.now()), 1_000)
     return () => clearInterval(id)
   }, [])
@@ -88,18 +129,30 @@ export default function PickemPage() {
   }, [tab, leader])
 
   const board = resp?.status === "ok" ? resp.board : null
-  const locked = board ? now >= board.lockUtc : false
-  const buybackOpen = board ? locked && now < board.buybackEndUtc : false
-  const closed = board ? now >= board.buybackEndUtc : false
+  const locked = board
+    ? preview
+      ? previewPhase !== "open"
+      : now >= board.lockUtc
+    : false
+  const buybackOpen = board
+    ? preview
+      ? previewPhase === "buyback"
+      : locked && now < board.buybackEndUtc
+    : false
+  const closed = board
+    ? preview
+      ? previewPhase === "closed"
+      : now >= board.buybackEndUtc
+    : false
 
   // After lock, everyone's picks are public
   useEffect(() => {
-    if (board && locked && !allPicks)
+    if (board && locked && !allPicks && !preview)
       fetch(`/api/pickem/picks?week=${board.week}&all=1`)
         .then((r) => r.json())
         .then((j) => setAllPicks(j.rows ?? []))
         .catch(() => null)
-  }, [board, locked, allPicks])
+  }, [board, locked, allPicks, preview])
 
   const managers = useMemo(() => {
     if (!board) return []
@@ -118,6 +171,14 @@ export default function PickemPage() {
 
   const submit = useCallback(async () => {
     if (!board) return
+    if (preview) {
+      setMsg(
+        buybackOpen
+          ? "✅ (Rehearsal) Buyback would be saved — changes cost 0.5 pts each"
+          : "✅ (Rehearsal) Picks would be saved — nothing is stored in preview"
+      )
+      return
+    }
     setBusy(true)
     setMsg(null)
     try {
@@ -136,7 +197,7 @@ export default function PickemPage() {
     } finally {
       setBusy(false)
     }
-  }, [board, ownerId, pin, picks, lockGameId])
+  }, [board, ownerId, pin, picks, lockGameId, preview, buybackOpen])
 
   const avatar = (a: string | null) =>
     a ? `https://sleepercdn.com/avatars/${a}` : "/default-avatar.png"
@@ -146,6 +207,34 @@ export default function PickemPage() {
   return (
     <main className="min-h-screen p-3 text-ink sm:p-6">
       <div className="mx-auto max-w-3xl">
+        {preview && (
+          <div className="mb-3 mt-2 rounded-lg border border-gold/40 bg-gold/10 px-3 py-2 text-center">
+            <p className="display text-xs tracking-widest text-gold">
+              Rehearsal mode — mock matchups, nothing is saved
+            </p>
+            <div className="mt-2 flex justify-center gap-1">
+              {(
+                [
+                  ["open", "Before lock"],
+                  ["buyback", "Buyback"],
+                  ["closed", "Closed"],
+                ] as const
+              ).map(([p, label]) => (
+                <button
+                  key={p}
+                  onClick={() => setPreviewPhase(p)}
+                  className={`rounded-full px-3 py-1 text-xs transition-colors ${
+                    previewPhase === p
+                      ? "bg-gold/25 text-gold"
+                      : "text-ink-faint hover:text-ink"
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
         <h1 className="display mb-1 mt-2 text-center text-2xl text-ink sm:text-3xl">
           SWRR Pick&apos;em
         </h1>
