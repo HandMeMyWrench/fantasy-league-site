@@ -1,6 +1,8 @@
 "use client"
 
 import React, { useEffect, useRef, useState } from "react"
+import { computeLeagueOdds } from "@/lib/leagueOdds"
+import type { OddsRow } from "@/lib/odds"
 import { getStandings, getLeagueUsers } from "@/lib/sleeper"
 import RelegationSpotlight from "@/components/RelegationSpotlight"
 import LotteryBanner from "@/components/LotteryBanner"
@@ -36,6 +38,10 @@ export default function StandingsPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [refreshNonce, setRefreshNonce] = useState(0)
+  // Live-season probabilities (merged in from the retired /odds page).
+  // Computed in the background after standings render; null = no columns.
+  const [oddsUpper, setOddsUpper] = useState<Map<number, OddsRow> | null>(null)
+  const [oddsLower, setOddsLower] = useState<Map<number, OddsRow> | null>(null)
 
   // Show the loading state only on the first load / season change — background
   // auto-refreshes update silently so the table doesn't flash.
@@ -162,8 +168,42 @@ export default function StandingsPage() {
    * relegation line (rhino included), the top `movement` rows of the lower
    * league wash green above a promotion line.
    */
+  // Kick off the Monte Carlo odds once standings are up, only for a live
+  // season with games played and games remaining — otherwise the columns
+  // simply don't render (provisional lineups, completed seasons, week 0).
+  useEffect(() => {
+    setOddsUpper(null)
+    setOddsLower(null)
+    if (loading || provisional || year !== latestActiveSeason()) return
+    const anyPlayed = upperLeague.some(
+      (r) => (r.settings?.wins ?? 0) + (r.settings?.losses ?? 0) + (r.settings?.ties ?? 0) > 0
+    )
+    if (!anyPlayed) return
+    const cfg = LEAGUES[year]
+    if (!cfg.upper || !cfg.lower) return
+    let cancelled = false
+    ;(async () => {
+      try {
+        const u = await computeLeagueOdds(cfg.upper!, movement, "bottom")
+        if (!cancelled && u.status === "in_season" && u.remainingWeeks.length)
+          setOddsUpper(u.odds)
+        const l = await computeLeagueOdds(cfg.lower!, movement, "top")
+        if (!cancelled && l.status === "in_season" && l.remainingWeeks.length)
+          setOddsLower(l.odds)
+      } catch {
+        /* odds are decorative — fail silently */
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading, provisional, year, upperLeague])
+
   const renderLeague = (teams: Roster[], tier: "upper" | "lower") => {
     const isUpper = tier === "upper"
+    const oddsMap = isUpper ? oddsUpper : oddsLower
+    const pct = (x: number) => `${Math.round(x * 100)}%`
     const lineAfter = isUpper ? teams.length - movement - 1 : movement - 1
     const showLine = movement > 0 && lineAfter >= 0 && lineAfter < teams.length - 1
 
@@ -188,6 +228,12 @@ export default function StandingsPage() {
             <>
               <span className="w-12 text-right">W-L</span>
               <span className="hidden w-16 text-right sm:block">PF</span>
+              {oddsMap && (
+                <>
+                  <span className="hidden w-11 text-right sm:block">Ploff</span>
+                  <span className="w-11 text-right">{isUpper ? "Drop" : "Promo"}</span>
+                </>
+              )}
             </>
           )}
         </div>
@@ -243,6 +289,24 @@ export default function StandingsPage() {
                       <span className="tnum hidden w-16 shrink-0 text-right text-sm text-ink-dim sm:block">
                         {pointsFor(team).toFixed(1)}
                       </span>
+                      {oddsMap && (
+                        <>
+                          <span className="tnum hidden w-11 shrink-0 text-right text-xs text-ink-dim sm:block">
+                            {pct(oddsMap.get(team.roster_id)?.playoff ?? 0)}
+                          </span>
+                          <span
+                            className={`tnum w-11 shrink-0 text-right text-xs ${
+                              (oddsMap.get(team.roster_id)?.edge ?? 0) >= 0.005
+                                ? isUpper
+                                  ? "font-semibold text-drop"
+                                  : "font-semibold text-promo"
+                                : "text-ink-faint"
+                            }`}
+                          >
+                            {pct(oddsMap.get(team.roster_id)?.edge ?? 0)}
+                          </span>
+                        </>
+                      )}
                     </>
                   )}
                 </li>

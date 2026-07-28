@@ -74,3 +74,14 @@ on first submission (sha256, server-side). Deadlines enforced server-side:
 free edits until Thu 8PM ET, buyback (-0.5/change) until Sun 1PM ET, then
 closed. All picks become public after lock. Completed weeks are scored
 lazily on first leaderboard view and cached permanently in Redis.
+
+## Nav consolidation (July 2026)
+
+Season nav is now: Standings, Matchups, Pick'em, History (+ Draft Lottery
+first while its event window is live). Retired with redirect stubs, same
+pattern as the old Scoreboard: /odds -> / (Monte Carlo probabilities now
+render as Ploff and Drop/Promo columns inside the standings tables via
+lib/leagueOdds.ts, computed in the background only for a live in-season
+year with games played and games remaining), /recap -> /matchups
+(storyline strip already covered it), /promotion-relegation -> /history
+(per-season promoted/relegated groups already in each season card).
