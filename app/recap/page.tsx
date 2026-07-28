@@ -3,6 +3,7 @@
 import React, { useEffect, useMemo, useState } from "react"
 import { getMatchups, getStandings, getLeagueUsers, getNflState } from "@/lib/sleeper"
 import { LEAGUES, movementSpots, sortStandings, latestActiveSeason, type SeasonYear, type RosterLite } from "@/lib/leagues"
+import OffseasonBanner from "@/components/OffseasonBanner";
 
 const YEAR: SeasonYear = latestActiveSeason()
 const MAX_WEEK = 18
@@ -161,6 +162,7 @@ export default function RecapPage() {
         <h1 className="display mb-1 text-center text-2xl text-ink sm:text-3xl">
           Week {selectedWeek ?? "–"} Recap
         </h1>
+        <OffseasonBanner />
         <p className="mb-4 text-center text-xs text-ink-faint">Self Will Run Riot — auto-generated weekly wrap</p>
 
         <div className="mb-6 flex items-center justify-center gap-2">

@@ -11,6 +11,7 @@ import {
   type SeasonYear,
   type RosterLite,
 } from "@/lib/leagues"
+import OffseasonBanner from "@/components/OffseasonBanner";
 import { runOdds, type OddsRow } from "@/lib/odds"
 
 const YEAR: SeasonYear = latestActiveSeason()
@@ -189,6 +190,7 @@ export default function OddsPage() {
     <main className="min-h-screen bg-surface p-3 font-sans text-ink sm:p-6">
       <div className="mx-auto max-w-6xl">
         <h1 className="display mb-1 text-center text-2xl text-ink sm:text-3xl">Playoff &amp; Relegation Odds</h1>
+        <OffseasonBanner />
         <p className="mb-6 text-center text-xs text-ink-faint">
           Monte Carlo simulation of the rest of the regular season, from each team&apos;s scoring form and the remaining schedule.
         </p>

@@ -13,6 +13,7 @@ import {
   type ScoringSettings,
 } from "@/lib/sleeper";
 import { LEAGUES, latestActiveSeason, type SeasonYear } from "@/lib/leagues";
+import OffseasonBanner from "@/components/OffseasonBanner";
 
 /* ----------------------------- types ----------------------------- */
 
@@ -457,6 +458,7 @@ const MatchupsPage = () => {
     <main className="min-h-screen bg-surface p-3 sm:p-6 font-sans text-ink">
       <div className="mx-auto max-w-6xl">
         <h1 className="display mb-2 text-center text-2xl text-ink sm:text-3xl">Weekly Matchups</h1>
+        <OffseasonBanner />
 
         <div className="mb-4 flex items-center justify-center gap-2 text-xs text-ink-dim">
           <span className="relative flex h-2 w-2">
