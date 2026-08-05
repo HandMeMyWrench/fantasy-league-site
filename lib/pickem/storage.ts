@@ -53,6 +53,10 @@ export async function getUserAuth(ownerId: string) {
 export async function setUserAuth(auth: UserAuth) {
   await redis()!.set(k.user(auth.ownerId), auth)
 }
+/** Commissioner PIN reset: next submission from this owner re-claims fresh. */
+export async function deleteUserAuth(ownerId: string) {
+  await redis()!.del(k.user(ownerId))
+}
 
 export async function getWeekResult(season: string, week: number) {
   return (await redis()!.get<WeekResult>(k.result(season, week))) ?? null

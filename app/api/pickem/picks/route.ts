@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { createHash, timingSafeEqual } from "crypto"
+import { hashPin, pinOk } from "@/lib/pickem/auth"
 import { SEASON } from "@/lib/pickem/config"
 import { countChanges, effectivePicks } from "@/lib/pickem/scoring"
 import type { Side, UserPicks } from "@/lib/pickem/types"
@@ -14,15 +14,6 @@ import {
 } from "@/lib/pickem/storage"
 
 export const dynamic = "force-dynamic"
-
-const hashPin = (ownerId: string, pin: string) =>
-  createHash("sha256").update(`swrr-pickem:${ownerId}:${pin}`).digest("hex")
-
-const pinOk = (stored: string, ownerId: string, pin: string) => {
-  const a = Buffer.from(stored, "hex")
-  const b = Buffer.from(hashPin(ownerId, pin), "hex")
-  return a.length === b.length && timingSafeEqual(a, b)
-}
 
 // GET ?week=N&all=1            -> everyone's picks (only after lock)
 // GET ?week=N&ownerId=&pin=    -> your own picks any time

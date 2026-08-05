@@ -37,3 +37,7 @@ export const BUYBACK_COST = 0.5 // per pick changed after Thursday lock
 export const BUY_IN = 25
 export const WEEKLY_PRIZE = 25
 export const SEASON_PRIZES = [150, 65, 35] // 1st / 2nd / 3rd
+
+// Commissioner (PUCKETL's Sleeper user id). PIN resets authenticate against
+// THIS account's Pick'em PIN — claim yours early each season.
+export const COMMISSIONER_OWNER_ID = "723991581237022720"

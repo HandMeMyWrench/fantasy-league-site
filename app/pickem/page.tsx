@@ -579,8 +579,10 @@ export default function PickemPage() {
             </p>
             <p>
               <span className="font-semibold text-ink">Glory.</span> Weekly winner
-              wears the 🔮 Oracle. Weekly loser wears the 🦏 Blindfold. Season champ
-              goes on the History page forever.
+              wears the 🔮 Oracle. Weekly loser wears the 🦏 Blindfold — lowest
+              score among managers who actually submitted picks (no-shows eat
+              zeros but can&apos;t &quot;win&quot; the Blindfold; ties at the bottom
+              spare everyone). Season champ goes on the History page forever.
             </p>
           </section>
         )}

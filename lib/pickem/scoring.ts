@@ -146,6 +146,8 @@ export function rankScores(scores: UserWeekScore[]): {
     sorted,
     winners,
     // A unique loser wears the Blindfold; ties at the bottom spare everyone.
+    // RATIFIED (commissioner, Aug 2026): no-shows are NOT eligible — only
+    // managers who submitted picks compete for the Blindfold.
     loser: losers.length === 1 && submitters.length > 1 ? losers[0].ownerId : null,
   }
 }
