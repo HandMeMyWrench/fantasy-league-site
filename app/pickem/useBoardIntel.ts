@@ -17,7 +17,8 @@ import {
 import { LEAGUES, type SeasonYear } from "@/lib/leagues"
 import type { Board } from "@/lib/pickem/types"
 
-export type StarterIntel = { pid: string; label: string; proj: number }
+// inj: short injury tag ("Q" caution; "D"/"O"/"IR"/"SUS"/"NA" serious)
+export type StarterIntel = { pid: string; label: string; proj: number; inj?: string }
 export type TeamIntel = { proj: number; record: string; starters: StarterIntel[] }
 
 type CatalogRow = {
@@ -25,7 +26,24 @@ type CatalogRow = {
   first_name?: string
   last_name?: string
   position?: string
+  injury_status?: string | null
 }
+
+const injTag = (s?: string | null): string | undefined => {
+  if (!s) return undefined
+  const t = s.toLowerCase()
+  if (t.startsWith("questionable")) return "Q"
+  if (t.startsWith("doubtful")) return "D"
+  if (t.startsWith("out")) return "O"
+  if (t === "ir" || t.startsWith("injured")) return "IR"
+  if (t.startsWith("pup")) return "PUP"
+  if (t.startsWith("sus")) return "SUS"
+  if (t === "na") return "NA"
+  return s.slice(0, 3).toUpperCase()
+}
+
+/** Serious = probably not playing; Q is a game-time caution. */
+export const isSeriousInj = (tag?: string) => !!tag && tag !== "Q"
 type SleeperMatchup = { roster_id: number; starters?: string[] }
 type SleeperRoster = {
   roster_id: number
@@ -52,7 +70,13 @@ export function useBoardIntel(board: Board | null, enabled: boolean) {
           getStandings(cfg.lower) as Promise<SleeperRoster[]>,
           getLeagueScoring(cfg.upper),
           getLeagueScoring(cfg.lower),
-          fetch("https://api.sleeper.app/v1/players/nfl", { cache: "force-cache" }),
+          // 6-hour cache bucket: the catalog is ~5MB so we don't want it on
+          // every view, but injury statuses must stay fresh enough for
+          // Thursday picks and Sunday-morning buyback decisions.
+          fetch(
+            `https://api.sleeper.app/v1/players/nfl?b=${Math.floor(Date.now() / 21_600_000)}`,
+            { cache: "force-cache" }
+          ),
         ])
         const catalog = (await catRes.json()) as Record<string, CatalogRow>
 
@@ -100,6 +124,7 @@ export function useBoardIntel(board: Board | null, enabled: boolean) {
                 pid,
                 label: label(pid),
                 proj: scoreStats(stats.get(pid), scoring),
+                inj: injTag(catalog[pid]?.injury_status),
               }))
             out.set(`${league}-${m.roster_id}`, {
               proj: starters.reduce((t, s) => t + s.proj, 0),

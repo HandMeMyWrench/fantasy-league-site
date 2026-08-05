@@ -3,7 +3,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react"
 import type { Board, Side } from "@/lib/pickem/types"
 import { getSeasonLineups, type SeasonTeam } from "@/lib/season"
-import { useBoardIntel } from "./useBoardIntel"
+import { useBoardIntel, isSeriousInj } from "./useBoardIntel"
 
 /* SWRR Pick'em — weekly board + submission, leaderboard, rules.
    Picks are stored server-side (see /api/pickem/*); each manager claims
@@ -364,11 +364,21 @@ export default function PickemPage() {
                                     {fav ? "favorite" : "underdog +1 🤖"}
                                     {ti?.record ? ` · ${ti.record}` : ""}
                                   </span>
-                                  {ti && ti.starters.length > 0 && (
-                                    <span className="tnum block truncate text-xs text-brand/90">
-                                      proj {ti.proj.toFixed(1)}
-                                    </span>
-                                  )}
+                                  {ti && ti.starters.length > 0 && (() => {
+                                    const serious = ti.starters.filter((s) => isSeriousInj(s.inj)).length
+                                    const quest = ti.starters.filter((s) => s.inj === "Q").length
+                                    return (
+                                      <span className="tnum block truncate text-xs text-brand/90">
+                                        proj {ti.proj.toFixed(1)}
+                                        {serious > 0 && (
+                                          <span className="text-drop"> · ⚠ {serious} out</span>
+                                        )}
+                                        {quest > 0 && (
+                                          <span className="text-gold"> · {quest} Q</span>
+                                        )}
+                                      </span>
+                                    )
+                                  })()}
                                 </span>
                                 {selected && <span className="shrink-0 text-brand">✓</span>}
                               </button>
@@ -401,6 +411,11 @@ export default function PickemPage() {
                                     >
                                       <span className="min-w-0 flex-1 truncate text-ink-dim">
                                         {A?.[i]?.label ?? "—"}
+                                        {A?.[i]?.inj && (
+                                          <span className={isSeriousInj(A[i].inj) ? "text-drop" : "text-gold"}>
+                                            {" "}{A[i].inj}
+                                          </span>
+                                        )}
                                       </span>
                                       <span className="tnum shrink-0 text-ink">
                                         {A?.[i] ? A[i].proj.toFixed(1) : ""}
@@ -410,6 +425,11 @@ export default function PickemPage() {
                                         {B?.[i] ? B[i].proj.toFixed(1) : ""}
                                       </span>
                                       <span className="min-w-0 flex-1 truncate text-right text-ink-dim">
+                                        {B?.[i]?.inj && (
+                                          <span className={isSeriousInj(B[i].inj) ? "text-drop" : "text-gold"}>
+                                            {B[i].inj}{" "}
+                                          </span>
+                                        )}
                                         {B?.[i]?.label ?? "—"}
                                       </span>
                                     </div>
