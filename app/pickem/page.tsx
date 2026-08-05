@@ -3,6 +3,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react"
 import type { Board, Side } from "@/lib/pickem/types"
 import { getSeasonLineups, type SeasonTeam } from "@/lib/season"
+import { useBoardIntel } from "./useBoardIntel"
 
 /* SWRR Pick'em — weekly board + submission, leaderboard, rules.
    Picks are stored server-side (see /api/pickem/*); each manager claims
@@ -130,6 +131,10 @@ export default function PickemPage() {
   }, [tab, leader])
 
   const board = resp?.status === "ok" ? resp.board : null
+  // Projections + records + starter comparisons (renders nothing until
+  // Sleeper has real lineups for the week; disabled in rehearsal mode).
+  const intel = useBoardIntel(board, !preview)
+  const [openIntel, setOpenIntel] = useState<Record<string, boolean>>({})
   const locked = board
     ? preview
       ? previewPhase !== "open"
@@ -329,6 +334,7 @@ export default function PickemPage() {
                             const t = g[side]
                             const fav = g.favorite === side
                             const selected = mine === side
+                            const ti = intel?.get(`${g.league}-${t.rosterId}`)
                             return (
                               <button
                                 key={side}
@@ -356,13 +362,63 @@ export default function PickemPage() {
                                   </span>
                                   <span className="block truncate text-xs text-ink-dim">
                                     {fav ? "favorite" : "underdog +1 🤖"}
+                                    {ti?.record ? ` · ${ti.record}` : ""}
                                   </span>
+                                  {ti && ti.starters.length > 0 && (
+                                    <span className="tnum block truncate text-xs text-brand/90">
+                                      proj {ti.proj.toFixed(1)}
+                                    </span>
+                                  )}
                                 </span>
                                 {selected && <span className="shrink-0 text-brand">✓</span>}
                               </button>
                             )
                           })}
                         </div>
+
+                        {(() => {
+                          const A = intel?.get(`${g.league}-${g.a.rosterId}`)?.starters
+                          const B = intel?.get(`${g.league}-${g.b.rosterId}`)?.starters
+                          if (!A?.length && !B?.length) return null
+                          const open = !!openIntel[g.id]
+                          const n = Math.max(A?.length ?? 0, B?.length ?? 0)
+                          return (
+                            <>
+                              <button
+                                onClick={() =>
+                                  setOpenIntel((p) => ({ ...p, [g.id]: !p[g.id] }))
+                                }
+                                className="block w-full border-t border-line py-1.5 text-center text-[11px] text-ink-faint transition-colors hover:text-ink"
+                              >
+                                {open ? "hide player matchups ▲" : "player matchups ▼"}
+                              </button>
+                              {open && (
+                                <div className="border-t border-line bg-surface-2/50 px-3 py-2">
+                                  {Array.from({ length: n }, (_, i) => (
+                                    <div
+                                      key={i}
+                                      className="flex items-baseline justify-between gap-2 py-0.5 text-[11px]"
+                                    >
+                                      <span className="min-w-0 flex-1 truncate text-ink-dim">
+                                        {A?.[i]?.label ?? "—"}
+                                      </span>
+                                      <span className="tnum shrink-0 text-ink">
+                                        {A?.[i] ? A[i].proj.toFixed(1) : ""}
+                                      </span>
+                                      <span className="shrink-0 px-1 text-ink-faint">·</span>
+                                      <span className="tnum shrink-0 text-ink">
+                                        {B?.[i] ? B[i].proj.toFixed(1) : ""}
+                                      </span>
+                                      <span className="min-w-0 flex-1 truncate text-right text-ink-dim">
+                                        {B?.[i]?.label ?? "—"}
+                                      </span>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </>
+                          )
+                        })()}
                       </div>
                     )
                   })}
