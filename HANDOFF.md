@@ -82,11 +82,18 @@ app/api/pickem/{board,picks,leaderboard,health}/route.ts, app/pickem/page.tsx.
 - vercel.json cron hits /api/pickem/board daily so the weekly board exists
   even if nobody visits before the lock.
 
-**Open commissioner rulings (not code bugs):** should a no-show (0 pts,
-never submitted) be eligible for the weekly Blindfold instead of being
-spared? Current rule: only submitters can wear it. Also: PIN claiming is
-first-come per ownerId (league-trust model; commissioner can clear a
-hijacked claim by deleting pickem:user:<ownerId> in Redis).
+**Commissioner rulings — RATIFIED (Aug 2026):**
+- No-shows are NOT eligible for the weekly Blindfold (only submitters
+  compete for it; bottom ties spare everyone). In Rules tab + tests.
+- Weekly winner ties split the $25. Season-prize ties split the combined
+  money for the spots they span (allocateSeasonPrizes in scoring.ts —
+  2-way tie for 1st = $107.50 each). Prize column on the season table.
+- PIN reset: /pickem/admin (not in nav) + POST /api/pickem/reset-pin.
+  Auth = the COMMISSIONER's own Pick'em PIN (COMMISSIONER_OWNER_ID in
+  config = PUCKETL's Sleeper id). Commissioner must claim his PIN (submit
+  picks once) before resets work. Reset clears the claim only; picks kept.
+- Tie likelihoods (simulated): 3+way weekly tie ~1/season; season prize
+  ties ~19%/season, almost always 2-way; Blindfold spared ~37% of weeks.
 
 **KNOWN OUTAGE (Aug 2026):** /api/pickem/health returns `configured: true,
 redis: "error: fetch failed"` — env vars exist in Vercel but the Upstash DB
