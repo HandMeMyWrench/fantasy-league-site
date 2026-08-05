@@ -1,87 +1,47 @@
 @import "tailwindcss";
 
-/* ============================ Design tokens ============================
-   League-table aesthetic: dark field with a violet cast (brand), emerald
-   for promotion, red for the drop. Archivo (condensed, heavy) for display;
-   Inter for body and data. */
 :root {
-  --field: #0a0a10;          /* page background */
-  --surface: #12121c;        /* cards */
-  --surface-2: #191927;      /* raised rows, table headers */
-  --line: rgba(255, 255, 255, 0.07);
-  --ink: #f4f4f8;
-  --ink-dim: #9c9cb0;
-  --ink-faint: #63637a;
-  --brand: #a78bfa;          /* violet 400 — SWRR purple */
-  --brand-deep: #6d28d9;
-  --promo: #34d399;          /* promotion zone */
-  --drop: #f87171;           /* relegation zone */
-  --gold: #fbbf24;           /* champions / first place */
+  --background: #ffffff;
+  --foreground: #171717;
 }
 
 @theme inline {
-  --color-field: var(--field);
-  --color-surface: var(--surface);
-  --color-surface-2: var(--surface-2);
-  --color-line: var(--line);
-  --color-ink: var(--ink);
-  --color-ink-dim: var(--ink-dim);
-  --color-ink-faint: var(--ink-faint);
-  --color-brand: var(--brand);
-  --color-brand-deep: var(--brand-deep);
-  --color-promo: var(--promo);
-  --color-drop: var(--drop);
-  --color-gold: var(--gold);
-  --font-sans: var(--font-body), ui-sans-serif, system-ui, sans-serif;
-  --font-display: var(--font-display), var(--font-body), ui-sans-serif, sans-serif;
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #0a0a0a;
+    --foreground: #ededed;
+  }
 }
 
 body {
-  background:
-    radial-gradient(1200px 500px at 50% -220px, rgba(109, 40, 217, 0.22), transparent 70%),
-    var(--field);
-  color: var(--ink);
-  font-family: var(--font-body), ui-sans-serif, system-ui, sans-serif;
-  -webkit-font-smoothing: antialiased;
+  background: var(--background);
+  color: var(--foreground);
+  font-family: Arial, Helvetica, sans-serif;
 }
-
-/* Condensed, heavy, uppercase — the broadcast-chyron voice. Use sparingly:
-   page titles, card headers, zone lines, badges. */
-.display {
-  font-family: var(--font-display), ui-sans-serif, sans-serif;
-  font-variation-settings: "wdth" 78;
-  font-weight: 800;
-  text-transform: uppercase;
-  letter-spacing: 0.02em;
-}
-
-.tnum {
-  font-variant-numeric: tabular-nums;
-}
-
-/* Card shell used across pages. */
-.panel {
-  background: var(--surface);
-  border: 1px solid var(--line);
-  border-radius: 1rem;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
-}
-
 @keyframes fade-in-out-rhino {
-  0% { opacity: 0; }
-  50% { opacity: 0.3; }
-  100% { opacity: 0; }
+  0% {
+    opacity: 0;
+  }
+  50% {
+    opacity: 0.3;
+  }
+  100% {
+    opacity: 0;
+  }
 }
 
 .animate-fade-in-out-rhino {
   animation: fade-in-out-rhino 6s ease-in-out infinite;
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .animate-fade-in-out-rhino { animation: none; opacity: 0.15; }
-}
-
 /* Hide the horizontal scrollbar on the mobile nav (still scrollable by swipe). */
 nav::-webkit-scrollbar {
   display: none;
 }
+

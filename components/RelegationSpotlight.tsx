@@ -66,30 +66,30 @@ export default function RelegationSpotlight() {
   const wins = (r?: Roster) => r?.settings?.wins ?? 0
 
   return (
-    <section className="panel mb-5 overflow-hidden">
-      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line bg-surface-2 px-4 py-2.5">
-        <h2 className="display text-base text-drop">
-          {complete ? "Relegation — Final" : "Relegation Watch"}
+    <section className="mb-6 rounded-xl border border-red-800 bg-gray-900 p-4 sm:p-5">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <h2 className="text-lg font-bold text-red-300">
+          🔻 Relegation {complete ? "— Final" : "Watch"}
         </h2>
-        <span className="text-xs text-ink-dim">
+        <span className="text-xs text-gray-400">
           {complete
             ? `${year} season complete`
             : `Week ${week} · ${weeksLeft} ${weeksLeft === 1 ? "week" : "weeks"} to the drop`}
         </span>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 p-4 sm:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div>
-          <h3 className="display mb-2 text-[11px] tracking-widest text-drop">
+          <h3 className="mb-2 text-xs font-bold uppercase tracking-wider text-red-400">
             {complete ? "Relegated ▼" : "In the drop zone ▼"}
           </h3>
-          <ul className="space-y-1.5">
+          <ul className="space-y-1">
             {dropZone.map((r) => {
               const back = lastSafe ? wins(lastSafe) - wins(r) : 0
               return (
                 <li key={r.roster_id} className="flex items-center justify-between gap-2 text-sm">
-                  <span className="truncate text-ink">{name(r)}</span>
-                  <span className="tnum shrink-0 text-xs text-ink-dim">
+                  <span className="truncate text-white">{name(r)}</span>
+                  <span className="shrink-0 text-gray-400">
                     {complete
                       ? `${wins(r)}W`
                       : back <= 0
@@ -103,14 +103,14 @@ export default function RelegationSpotlight() {
         </div>
 
         <div>
-          <h3 className="display mb-2 text-[11px] tracking-widest text-promo">
+          <h3 className="mb-2 text-xs font-bold uppercase tracking-wider text-emerald-400">
             {complete ? "Promoted ▲" : "Promotion places ▲"}
           </h3>
-          <ul className="space-y-1.5">
+          <ul className="space-y-1">
             {promo.map((r) => (
               <li key={r.roster_id} className="flex items-center justify-between gap-2 text-sm">
-                <span className="truncate text-ink">{name(r)}</span>
-                <span className="tnum shrink-0 text-xs text-ink-dim">{wins(r)}W</span>
+                <span className="truncate text-white">{name(r)}</span>
+                <span className="shrink-0 text-gray-400">{wins(r)}W</span>
               </li>
             ))}
           </ul>
@@ -118,7 +118,7 @@ export default function RelegationSpotlight() {
       </div>
 
       {!complete && lastSafe && firstOut && (
-        <p className="border-t border-line px-4 py-2.5 text-xs text-ink-dim">
+        <p className="mt-3 border-t border-gray-800 pt-3 text-xs text-gray-400">
           {name(lastSafe)} holds the last safe spot · {name(firstOut)} is first in line to go up.
         </p>
       )}

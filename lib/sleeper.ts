@@ -1,69 +1,49 @@
 // lib/sleeper.ts
 
-// ================== Tiny fetch cache ==================
-// Several components on the same page (e.g. Standings + RelegationSpotlight)
-// request the same rosters/users at the same moment, and the 30–60s polls
-// re-fetch data that never changes mid-game (users, league settings). This
-// module-level cache dedupes identical in-flight requests and serves stable
-// data from memory for a short TTL. It lives per-tab, so a hard refresh
-// always gets fresh data.
-
-const TTL = {
-  live: 25_000, // rosters/matchups — refreshed by the pages' own polling cadence
-  stable: 10 * 60_000, // users, league metadata/settings — change rarely
-} as const;
-
-type CacheEntry = { at: number; promise: Promise<unknown> };
-const cache = new Map<string, CacheEntry>();
-
-// Returns `any` (like res.json() did) so existing call sites keep their
-// original typing behavior.
-/* eslint-disable @typescript-eslint/no-explicit-any */
-async function cachedJson(url: string, ttl: number): Promise<any> {
-  const hit = cache.get(url);
-  if (hit && Date.now() - hit.at < ttl) return hit.promise;
-
-  const promise = fetch(url, { cache: "no-store" }).then((res) => {
-    if (!res.ok) throw new Error(`Sleeper request failed (${res.status})`);
-    return res.json();
-  });
-  // Store immediately so parallel callers share one request; drop on failure
-  // so a transient error doesn't get cached for the whole TTL.
-  cache.set(url, { at: Date.now(), promise });
-  promise.catch(() => cache.delete(url));
-  return promise;
-}
-
 // ================== Public REST helpers ==================
 
 export async function getLeagueData(leagueId: string) {
-  return cachedJson(`https://api.sleeper.app/v1/league/${leagueId}`, TTL.stable);
+  const res = await fetch(`https://api.sleeper.app/v1/league/${leagueId}`, {
+    cache: "no-store",
+  });
+  if (!res.ok) throw new Error("Failed to fetch league");
+  return res.json();
 }
 
 export async function getStandings(leagueId: string) {
-  return cachedJson(
+  const res = await fetch(
     `https://api.sleeper.app/v1/league/${leagueId}/rosters`,
-    TTL.live
+    { cache: "no-store" }
   );
+  if (!res.ok) throw new Error("Failed to fetch rosters");
+  return res.json();
 }
 
 export async function getLeagueUsers(leagueId: string) {
-  return cachedJson(
+  const res = await fetch(
     `https://api.sleeper.app/v1/league/${leagueId}/users`,
-    TTL.stable
+    { cache: "no-store" }
   );
+  if (!res.ok) throw new Error("Failed to fetch users");
+  return res.json();
 }
 
 export async function getMatchups(leagueId: string, week: number) {
-  return cachedJson(
+  const res = await fetch(
     `https://api.sleeper.app/v1/league/${leagueId}/matchups/${week}`,
-    TTL.live
+    { cache: "no-store" }
   );
+  if (!res.ok) throw new Error("Failed to fetch matchups");
+  return res.json();
 }
 
-// Alias — this always hit the exact same endpoint as getLeagueData but as a
-// separate function it doubled the requests. Kept for API compatibility.
-export const getLeagueMetadata = getLeagueData;
+export async function getLeagueMetadata(leagueId: string) {
+  const res = await fetch(`https://api.sleeper.app/v1/league/${leagueId}`, {
+    cache: "no-store",
+  });
+  if (!res.ok) throw new Error("Failed to fetch league metadata");
+  return res.json();
+}
 
 // NFL season state — the reliable source for the current/active week.
 // Returns { season, season_type, week, display_week, leg, ... }.
@@ -76,10 +56,11 @@ export type NflState = {
 };
 
 export async function getNflState(): Promise<NflState> {
-  return cachedJson(
-    "https://api.sleeper.app/v1/state/nfl",
-    TTL.stable
-  ) as Promise<NflState>;
+  const res = await fetch("https://api.sleeper.app/v1/state/nfl", {
+    cache: "no-store",
+  });
+  if (!res.ok) throw new Error("Failed to fetch NFL state");
+  return res.json();
 }
 
 // ================== Types ==================
@@ -143,13 +124,11 @@ export async function getProjections(
 
 // ================== Private GraphQL helpers ==================
 
-import { buildProjectionsPayload } from "./sleeper_gql_query";
+import { SLEEPER_GQL_URL, buildProjectionsPayload } from "./sleeper_gql_query";
 
 export async function postSleeperGql(payload: unknown): Promise<SleeperGqlResponse> {
   const res = await fetch(
-    // The proxy is hard-wired to Sleeper's GraphQL endpoint (see the route
-    // file) — it no longer accepts a target URL from the client.
-    `/api/sleeper-gql`,
+    `/api/sleeper-gql?url=${encodeURIComponent(SLEEPER_GQL_URL)}`,
     {
       method: "POST",
       headers: { "content-type": "application/json" },
