@@ -322,16 +322,23 @@ export default function StandingsPage() {
                       {isUpper ? "Relegation line" : "Promotion line"}
                     </span>
                     <span className={`h-px flex-1 ${isUpper ? "bg-drop/60" : "bg-promo/60"}`} />
-                    {isUpper && (
+                    {isUpper ? (
                       /* eslint-disable-next-line @next/next/no-img-element */
                       <img
                         src="/Rhino.gif"
                         alt=""
                         aria-hidden
                         className="animate-fade-in-out-rhino pointer-events-none absolute left-0 z-10 w-full object-contain"
-                        // Drape the rhino down over the drop-zone rows below the
-                        // line. Row height ≈ 59px (py-2.5 + 36px avatar + border).
                         style={{ top: "100%", height: `${movement * 59}px` }}
+                      />
+                    ) : (
+                      /* eslint-disable-next-line @next/next/no-img-element */
+                      <img
+                        src="/promo.jpg"
+                        alt=""
+                        aria-hidden
+                        className="animate-fade-in-out-rhino pointer-events-none absolute left-0 z-10 w-full object-contain"
+                        style={{ bottom: "100%", height: `${movement * 59}px` }}
                       />
                     )}
                   </li>
