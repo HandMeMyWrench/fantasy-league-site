@@ -34,10 +34,10 @@ type SeasonRecord = {
 }
 
 const MOVE_BADGE: Record<Move, { label: string; className: string }> = {
-  promoted: { label: "▲", className: "text-green-400" },
-  relegated: { label: "▼", className: "text-red-400" },
-  "stay-up": { label: "—", className: "text-gray-500" },
-  "stay-down": { label: "—", className: "text-gray-500" },
+  promoted: { label: "▲", className: "text-promo" },
+  relegated: { label: "▼", className: "text-drop" },
+  "stay-up": { label: "—", className: "text-ink-faint" },
+  "stay-down": { label: "—", className: "text-ink-faint" },
 }
 
 // Seasons that have two leagues (i.e. promotion/relegation applies), oldest first.
@@ -170,9 +170,9 @@ export default function HistoryPage() {
       <div className="flex items-center gap-2 min-w-0">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src={avatarOf(rec, r.owner_id)} alt="" className="w-6 h-6 rounded-full" />
-        <span className="truncate text-sm text-white">{teamOf(r, rec)}</span>
+        <span className="truncate text-sm text-ink">{teamOf(r, rec)}</span>
       </div>
-      <span className="text-xs text-gray-400 shrink-0 ml-2">
+      <span className="text-xs text-ink-dim shrink-0 ml-2">
         {nameOf(rec, r.owner_id)} · {r.settings?.wins ?? 0}W
       </span>
       <span className={`ml-2 ${MOVE_BADGE[move].className}`}>{MOVE_BADGE[move].label}</span>
@@ -180,20 +180,20 @@ export default function HistoryPage() {
   )
 
   return (
-    <main className="min-h-screen bg-black text-white p-3 sm:p-6 font-sans">
+    <main className="min-h-screen text-ink p-3 sm:p-6 font-sans">
       <div className="max-w-7xl mx-auto">
-        <h1 className="text-2xl sm:text-4xl font-extrabold text-center mb-2 text-purple-400">
+        <h1 className="display text-2xl sm:text-3xl text-center mb-2 text-ink">
           📜 League History
         </h1>
-        <p className="text-center text-gray-400 mb-10">
+        <p className="text-center text-ink-dim mb-10">
           Promotion &amp; relegation, season by season. Grows automatically as each new
           season is added.
         </p>
 
-        {loading && <p className="text-center text-gray-400">Loading league history…</p>}
+        {loading && <p className="text-center text-ink-dim">Loading league history…</p>}
 
         {!loading && timeline.length === 0 && (
-          <p className="text-center text-gray-400">
+          <p className="text-center text-ink-dim">
             No completed two-league seasons yet. History begins once a season with both an
             Upper and Lower league wraps up.
           </p>
@@ -202,18 +202,18 @@ export default function HistoryPage() {
         {/* -------- Season timeline -------- */}
         <div className="space-y-10">
           {timeline.map((rec) => (
-            <section key={rec.year} className="bg-gray-900 rounded-xl shadow-xl p-4 sm:p-6 border border-purple-800">
+            <section key={rec.year} className="bg-surface rounded-xl shadow-xl p-4 sm:p-6 border border-line">
               <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
-                <h2 className="text-2xl font-bold text-purple-300">
+                <h2 className="text-2xl font-bold text-brand">
                   {rec.year} Season{" "}
                   {!rec.complete && (
-                    <span className="text-xs align-middle bg-yellow-900/60 text-yellow-300 px-2 py-0.5 rounded">
+                    <span className="text-xs align-middle bg-gold/15 text-gold px-2 py-0.5 rounded">
                       in progress — provisional
                     </span>
                   )}
                 </h2>
                 {rec.champion && (
-                  <div className="text-sm text-yellow-300">
+                  <div className="text-sm text-gold">
                     🏆 Upper champ: {teamOf(rec.champion, rec)} ({nameOf(rec, rec.champion.owner_id)})
                   </div>
                 )}
@@ -221,20 +221,20 @@ export default function HistoryPage() {
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
-                  <h3 className="text-sm font-bold text-green-300 mb-2">
+                  <h3 className="text-sm font-bold text-promo mb-2">
                     ▲ Promoted to {Number(rec.year) + 1} Upper
                   </h3>
-                  <ul className="divide-y divide-gray-800">
+                  <ul className="divide-y divide-line">
                     {rec.promoted.map((r) => (
                       <TeamLine key={r.roster_id} r={r} rec={rec} move="promoted" />
                     ))}
                   </ul>
                 </div>
                 <div>
-                  <h3 className="text-sm font-bold text-red-300 mb-2">
+                  <h3 className="text-sm font-bold text-drop mb-2">
                     ▼ Relegated to {Number(rec.year) + 1} Lower
                   </h3>
-                  <ul className="divide-y divide-gray-800">
+                  <ul className="divide-y divide-line">
                     {rec.relegated.map((r) => (
                       <TeamLine key={r.roster_id} r={r} rec={rec} move="relegated" />
                     ))}
@@ -248,13 +248,13 @@ export default function HistoryPage() {
         {/* -------- Manager journey -------- */}
         {!loading && seasons.length > 0 && (
           <section className="mt-14">
-            <h2 className="text-2xl font-bold text-purple-300 mb-4 text-center">
+            <h2 className="text-2xl font-bold text-brand mb-4 text-center">
               Manager Journey
             </h2>
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse">
                 <thead>
-                  <tr className="border-b border-gray-700">
+                  <tr className="border-b border-line">
                     <th className="py-2 pr-4">Manager</th>
                     {seasons.map((rec) => (
                       <th key={rec.year} className="py-2 px-3 text-center">
@@ -265,14 +265,14 @@ export default function HistoryPage() {
                 </thead>
                 <tbody>
                   {journey.map((row) => (
-                    <tr key={row.id} className="border-t border-gray-800">
+                    <tr key={row.id} className="border-t border-line">
                       <td className="py-2 pr-4 font-medium">{row.name}</td>
                       {row.cells.map((cell, i) => (
                         <td key={i} className="py-2 px-3 text-center">
                           {cell.tier ? (
                             <span
                               className={
-                                cell.tier === "Upper" ? "text-purple-300" : "text-green-300"
+                                cell.tier === "Upper" ? "text-brand" : "text-promo"
                               }
                             >
                               {cell.tier}
@@ -283,7 +283,7 @@ export default function HistoryPage() {
                               )}
                             </span>
                           ) : (
-                            <span className="text-gray-700">·</span>
+                            <span className="text-ink-faint">·</span>
                           )}
                         </td>
                       ))}
@@ -292,7 +292,7 @@ export default function HistoryPage() {
                 </tbody>
               </table>
             </div>
-            <p className="text-xs text-gray-500 mt-3 text-center">
+            <p className="text-xs text-ink-faint mt-3 text-center">
               Tier shown is where the manager played that season; ▲/▼ marks the movement
               decided by that season&apos;s finish.
             </p>

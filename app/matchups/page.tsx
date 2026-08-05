@@ -13,6 +13,7 @@ import {
   type ScoringSettings,
 } from "@/lib/sleeper";
 import { LEAGUES, latestActiveSeason, type SeasonYear } from "@/lib/leagues";
+import OffseasonBanner from "@/components/OffseasonBanner";
 
 /* ----------------------------- types ----------------------------- */
 
@@ -310,16 +311,16 @@ const MatchupsPage = () => {
 
   const Lineup = ({ proj, starters }: { proj: Map<string, number>; starters?: string[] }) => {
     const clean = (starters ?? []).filter((s) => s && s !== "0");
-    if (!clean.length) return <div className="text-xs text-gray-500">No starters set.</div>;
+    if (!clean.length) return <div className="text-xs text-ink-faint">No starters set.</div>;
     return (
       <ul className="space-y-1">
         {clean.map((pid) => (
           <li key={pid} className="flex items-baseline justify-between gap-2 text-xs">
-            <span className="truncate text-gray-200">
+            <span className="truncate text-ink">
               {playerLabel(pid)}
-              <span className="text-gray-500"> {playerMeta(pid)}</span>
+              <span className="text-ink-faint"> {playerMeta(pid)}</span>
             </span>
-            <span className="shrink-0 tabular-nums text-gray-400">
+            <span className="shrink-0 tabular-nums text-ink-dim">
               {(proj.get(pid) ?? 0).toFixed(1)}
             </span>
           </li>
@@ -361,34 +362,34 @@ const MatchupsPage = () => {
       const isOpen = !!openLineups[id];
 
       return (
-        <div key={id} className="rounded-lg border border-gray-800 bg-gray-900/70 p-3">
+        <div key={id} className="rounded-lg border border-line bg-surface/70 p-3">
           {/* teams + score */}
           <div className="flex items-center gap-2">
             <div className="flex min-w-0 flex-1 items-center gap-2">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={avatar(u1)} alt="" className="h-7 w-7 rounded-full" />
               <div className="min-w-0">
-                <div className={`truncate text-sm font-semibold ${lead1 ? "text-white" : "text-gray-400"}`}>
+                <div className={`truncate text-sm font-semibold ${lead1 ? "text-ink" : "text-ink-dim"}`}>
                   {teamName(r1, u1)}
                 </div>
-                <div className="text-[11px] text-gray-500">proj {p1.toFixed(1)}</div>
+                <div className="text-[11px] text-ink-faint">proj {p1.toFixed(1)}</div>
               </div>
             </div>
 
             <div className="px-1 text-center">
               <div className="text-base font-bold tabular-nums">
-                <span className={lead1 ? "text-purple-300" : "text-gray-400"}>{a1.toFixed(1)}</span>
-                <span className="text-gray-600"> – </span>
-                <span className={!lead1 ? "text-purple-300" : "text-gray-400"}>{a2.toFixed(1)}</span>
+                <span className={lead1 ? "text-brand" : "text-ink-dim"}>{a1.toFixed(1)}</span>
+                <span className="text-ink-faint"> – </span>
+                <span className={!lead1 ? "text-brand" : "text-ink-dim"}>{a2.toFixed(1)}</span>
               </div>
             </div>
 
             <div className="flex min-w-0 flex-1 items-center justify-end gap-2 text-right">
               <div className="min-w-0">
-                <div className={`truncate text-sm font-semibold ${!lead1 ? "text-white" : "text-gray-400"}`}>
+                <div className={`truncate text-sm font-semibold ${!lead1 ? "text-ink" : "text-ink-dim"}`}>
                   {teamName(r2, u2)}
                 </div>
-                <div className="text-[11px] text-gray-500">proj {p2.toFixed(1)}</div>
+                <div className="text-[11px] text-ink-faint">proj {p2.toFixed(1)}</div>
               </div>
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={avatar(u2)} alt="" className="h-7 w-7 rounded-full" />
@@ -397,7 +398,7 @@ const MatchupsPage = () => {
 
           {/* slim split win bar */}
           <div className="mt-2.5 flex items-center gap-2">
-            <span className="w-8 text-[11px] tabular-nums text-emerald-400">{Math.round(w1)}%</span>
+            <span className="w-8 text-[11px] tabular-nums text-promo">{Math.round(w1)}%</span>
             <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-rose-500/40">
               <div className="h-full rounded-full bg-emerald-500 transition-all duration-700" style={{ width: `${w1}%` }} />
             </div>
@@ -407,13 +408,13 @@ const MatchupsPage = () => {
           {/* lineups toggle */}
           <button
             onClick={() => setOpenLineups((prev) => ({ ...prev, [id]: !prev[id] }))}
-            className="mx-auto mt-2 flex items-center gap-1 text-[11px] text-gray-500 hover:text-purple-300"
+            className="mx-auto mt-2 flex items-center gap-1 text-[11px] text-ink-faint hover:text-brand"
           >
             {projLoading ? "loading projections…" : projError ? "projections unavailable" : isOpen ? "Hide lineups ▲" : "Lineups ▼"}
           </button>
 
           {isOpen && (
-            <div className="mt-2 grid grid-cols-2 gap-3 border-t border-gray-800 pt-2">
+            <div className="mt-2 grid grid-cols-2 gap-3 border-t border-line pt-2">
               <Lineup proj={proj} starters={t1.starters} />
               <Lineup proj={proj} starters={t2.starters} />
             </div>
@@ -428,24 +429,24 @@ const MatchupsPage = () => {
       <button
         onClick={() => setSelectedWeek((w) => Math.max(1, (w ?? 1) - 1))}
         disabled={!selectedWeek || selectedWeek <= 1}
-        className="rounded bg-gray-800 px-3 py-1 text-sm font-medium text-white hover:bg-gray-700 disabled:opacity-40"
+        className="rounded bg-surface-2 px-3 py-1 text-sm font-medium text-ink hover:bg-white/10 disabled:opacity-40"
       >
         ←
       </button>
-      <span className="min-w-[80px] text-center text-sm font-semibold text-purple-300">
+      <span className="min-w-[80px] text-center text-sm font-semibold text-brand">
         Week {selectedWeek ?? "–"}
       </span>
       <button
         onClick={() => setSelectedWeek((w) => Math.min(MAX_WEEK, (w ?? 1) + 1))}
         disabled={!selectedWeek || selectedWeek >= MAX_WEEK}
-        className="rounded bg-gray-800 px-3 py-1 text-sm font-medium text-white hover:bg-gray-700 disabled:opacity-40"
+        className="rounded bg-surface-2 px-3 py-1 text-sm font-medium text-ink hover:bg-white/10 disabled:opacity-40"
       >
         →
       </button>
       {selectedWeek !== currentWeek && currentWeek && (
         <button
           onClick={() => setSelectedWeek(currentWeek)}
-          className="ml-1 rounded bg-purple-800 px-2 py-1 text-xs text-white hover:bg-purple-700"
+          className="ml-1 rounded bg-brand-deep px-2 py-1 text-xs text-ink hover:bg-brand-deep/80"
         >
           Current
         </button>
@@ -454,20 +455,21 @@ const MatchupsPage = () => {
   );
 
   return (
-    <main className="min-h-screen bg-black p-3 sm:p-6 font-sans text-white">
+    <main className="min-h-screen bg-surface p-3 sm:p-6 font-sans text-ink">
       <div className="mx-auto max-w-6xl">
-        <h1 className="mb-2 text-center text-2xl font-bold text-purple-300">Weekly Matchups</h1>
+        <h1 className="display mb-2 text-center text-2xl text-ink sm:text-3xl">Weekly Matchups</h1>
+        <OffseasonBanner />
 
-        <div className="mb-4 flex items-center justify-center gap-2 text-xs text-gray-400">
+        <div className="mb-4 flex items-center justify-center gap-2 text-xs text-ink-dim">
           <span className="relative flex h-2 w-2">
             <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-500 opacity-75" />
             <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
           </span>
-          <span className="font-semibold text-emerald-400">LIVE</span>
+          <span className="font-semibold text-promo">LIVE</span>
           <span>· updated {updatedLabel}</span>
           <button
             onClick={() => setRefreshNonce((n) => n + 1)}
-            className="ml-1 rounded border border-gray-700 px-2 py-0.5 text-gray-300 hover:bg-gray-800"
+            className="ml-1 rounded border border-line px-2 py-0.5 text-ink-dim hover:bg-surface-2"
           >
             Refresh
           </button>
@@ -477,52 +479,52 @@ const MatchupsPage = () => {
 
         {storylines && (
           <div className="mb-6 grid grid-cols-1 gap-3 sm:grid-cols-3">
-            <div className="rounded-lg bg-gray-900 p-3 text-center">
-              <div className="text-xs text-gray-400">🔥 Top Score</div>
-              <div className="truncate text-sm font-semibold text-white">{storylines.top.name}</div>
-              <div className="text-xs text-emerald-300">{storylines.top.points.toFixed(1)} pts</div>
+            <div className="rounded-lg bg-surface p-3 text-center">
+              <div className="text-xs text-ink-dim">🔥 Top Score</div>
+              <div className="truncate text-sm font-semibold text-ink">{storylines.top.name}</div>
+              <div className="text-xs text-promo">{storylines.top.points.toFixed(1)} pts</div>
             </div>
             {storylines.blowout && (
-              <div className="rounded-lg bg-gray-900 p-3 text-center">
-                <div className="text-xs text-gray-400">💥 Biggest Blowout</div>
-                <div className="truncate text-sm font-semibold text-white">
+              <div className="rounded-lg bg-surface p-3 text-center">
+                <div className="text-xs text-ink-dim">💥 Biggest Blowout</div>
+                <div className="truncate text-sm font-semibold text-ink">
                   {storylines.blowout.win.name} ▸ {storylines.blowout.lose.name}
                 </div>
-                <div className="text-xs text-emerald-300">by {storylines.blowout.margin.toFixed(1)}</div>
+                <div className="text-xs text-promo">by {storylines.blowout.margin.toFixed(1)}</div>
               </div>
             )}
             {storylines.closest && (
-              <div className="rounded-lg bg-gray-900 p-3 text-center">
-                <div className="text-xs text-gray-400">😬 Closest Game</div>
-                <div className="truncate text-sm font-semibold text-white">
+              <div className="rounded-lg bg-surface p-3 text-center">
+                <div className="text-xs text-ink-dim">😬 Closest Game</div>
+                <div className="truncate text-sm font-semibold text-ink">
                   {storylines.closest.win.name} vs {storylines.closest.lose.name}
                 </div>
-                <div className="text-xs text-emerald-300">by {storylines.closest.margin.toFixed(1)}</div>
+                <div className="text-xs text-promo">by {storylines.closest.margin.toFixed(1)}</div>
               </div>
             )}
           </div>
         )}
 
         <section className="mb-8">
-          <h2 className="mb-3 text-sm font-bold uppercase tracking-wider text-purple-400">Upper League</h2>
+          <h2 className="mb-3 text-sm font-bold uppercase tracking-wider text-brand">Upper League</h2>
           {upperMatchups.length && upperLeague.length ? (
             <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
               {renderMatchups(upperMatchups, upperLeague, projUpper)}
             </div>
           ) : (
-            <p className="text-center text-sm text-gray-500">Waiting for matchups…</p>
+            <p className="text-center text-sm text-ink-faint">Waiting for matchups…</p>
           )}
         </section>
 
         {lowerLeague.length > 0 && (
           <section>
-            <h2 className="mb-3 text-sm font-bold uppercase tracking-wider text-emerald-400">Lower League</h2>
+            <h2 className="mb-3 text-sm font-bold uppercase tracking-wider text-promo">Lower League</h2>
             {lowerMatchups.length && lowerLeague.length ? (
               <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
                 {renderMatchups(lowerMatchups, lowerLeague, projLower)}
               </div>
             ) : (
-              <p className="text-center text-sm text-gray-500">Waiting for matchups…</p>
+              <p className="text-center text-sm text-ink-faint">Waiting for matchups…</p>
             )}
           </section>
         )}

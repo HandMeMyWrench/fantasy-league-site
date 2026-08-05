@@ -1,12 +1,17 @@
 "use client"
 
 import React, { useEffect, useRef, useState } from "react"
+import { computeLeagueOdds } from "@/lib/leagueOdds"
+import type { OddsRow } from "@/lib/odds"
 import { getStandings, getLeagueUsers } from "@/lib/sleeper"
 import RelegationSpotlight from "@/components/RelegationSpotlight"
+import LotteryBanner from "@/components/LotteryBanner"
 import {
   LEAGUES,
   movementSpots,
+  latestActiveSeason,
   sortStandings,
+  pointsFor,
   type SeasonYear,
   type RosterLite,
 } from "@/lib/leagues"
@@ -22,7 +27,10 @@ type User = {
 const SEASONS = Object.keys(LEAGUES) as SeasonYear[]
 
 export default function StandingsPage() {
-  const [year, setYear] = useState<SeasonYear>("2025")
+  // Follow the newest started season automatically (same rule as every other
+  // page) — previously hardcoded to "2025", which would have needed a manual
+  // edit here when 2026 went live.
+  const [year, setYear] = useState<SeasonYear>(latestActiveSeason())
   const [upperLeague, setUpperLeague] = useState<Roster[]>([])
   const [lowerLeague, setLowerLeague] = useState<Roster[] | null>(null)
   const [usersMap, setUsersMap] = useState<Record<string, User>>({})
@@ -30,6 +38,10 @@ export default function StandingsPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [refreshNonce, setRefreshNonce] = useState(0)
+  // Live-season probabilities (merged in from the retired /odds page).
+  // Computed in the background after standings render; null = no columns.
+  const [oddsUpper, setOddsUpper] = useState<Map<number, OddsRow> | null>(null)
+  const [oddsLower, setOddsLower] = useState<Map<number, OddsRow> | null>(null)
 
   // Show the loading state only on the first load / season change — background
   // auto-refreshes update silently so the table doesn't flash.
@@ -150,95 +162,219 @@ export default function StandingsPage() {
   }
 
   /**
-   * Render one league's standings, inserting a divider line at the right spot.
-   * - tier "upper": a RELEGATION line; the bottom `movement` teams drop.
-   * - tier "lower": a PROMOTION line; the top `movement` teams rise.
+   * One league rendered as a proper league table: position badge, team,
+   * record, points-for. Zone striping tells the story at a glance — the
+   * bottom `movement` rows of the upper league wash red under a labeled
+   * relegation line (rhino included), the top `movement` rows of the lower
+   * league wash green above a promotion line.
    */
+  // Kick off the Monte Carlo odds once standings are up, only for a live
+  // season with games played and games remaining — otherwise the columns
+  // simply don't render (provisional lineups, completed seasons, week 0).
+  useEffect(() => {
+    setOddsUpper(null)
+    setOddsLower(null)
+    if (loading || provisional || year !== latestActiveSeason()) return
+    const anyPlayed = upperLeague.some(
+      (r) => (r.settings?.wins ?? 0) + (r.settings?.losses ?? 0) + (r.settings?.ties ?? 0) > 0
+    )
+    if (!anyPlayed) return
+    const cfg = LEAGUES[year]
+    if (!cfg.upper || !cfg.lower) return
+    let cancelled = false
+    ;(async () => {
+      try {
+        const u = await computeLeagueOdds(cfg.upper!, movement, "bottom")
+        if (!cancelled && u.status === "in_season" && u.remainingWeeks.length)
+          setOddsUpper(u.odds)
+        const l = await computeLeagueOdds(cfg.lower!, movement, "top")
+        if (!cancelled && l.status === "in_season" && l.remainingWeeks.length)
+          setOddsLower(l.odds)
+      } catch {
+        /* odds are decorative — fail silently */
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading, provisional, year, upperLeague])
+
   const renderLeague = (teams: Roster[], tier: "upper" | "lower") => {
     const isUpper = tier === "upper"
-    // Index of the team AFTER which the divider is drawn.
+    const oddsMap = isUpper ? oddsUpper : oddsLower
+    const pct = (x: number) => `${Math.round(x * 100)}%`
     const lineAfter = isUpper ? teams.length - movement - 1 : movement - 1
     const showLine = movement > 0 && lineAfter >= 0 && lineAfter < teams.length - 1
 
-    return (
-      <ul className="divide-y divide-gray-700">
-        {teams.map((team, index) => (
-          <React.Fragment key={team.owner_id}>
-            <li className="flex items-center justify-between py-2 sm:py-3">
-              <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-                <span className="w-4 sm:w-5 text-right text-xs sm:text-sm text-gray-500">{index + 1}</span>
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={avatarUrl(team)}
-                  alt={ownerName(team)}
-                  className="w-8 h-8 sm:w-10 sm:h-10 rounded-full shadow"
-                />
-                <div className="flex flex-col min-w-0">
-                  <span className="font-bold text-white truncate text-sm sm:text-base">{teamName(team)}</span>
-                  <span className="text-xs sm:text-sm text-gray-400 truncate">owned by {ownerName(team)}</span>
-                </div>
-              </div>
-              <span className="shrink-0 text-base sm:text-lg font-semibold text-white">
-                {provisional ? (
-                  <span className="text-sm text-gray-500">new season</span>
-                ) : (
-                  <>{team.settings?.wins ?? 0} Wins</>
-                )}
-              </span>
-            </li>
+    const record = (r: Roster) => {
+      const w = r.settings?.wins ?? 0
+      const l = r.settings?.losses ?? 0
+      const t = r.settings?.ties ?? 0
+      return t ? `${w}-${l}-${t}` : `${w}-${l}`
+    }
 
-            {showLine && index === lineAfter && (
-              <li
-                className={`relative py-2 text-center font-bold border-t ${
-                  isUpper ? "border-red-600 text-red-400" : "border-green-600 text-green-400"
-                }`}
-              >
-                {isUpper ? "🔻 Relegation Line 🔻" : "🔼 Promotion Line 🔼"}
-                {isUpper ? (
-                  /* eslint-disable-next-line @next/next/no-img-element */
+    const inZone = (index: number) =>
+      movement > 0 &&
+      (isUpper ? index > lineAfter : index <= lineAfter)
+
+    return (
+      <div>
+        {/* column headings */}
+        <div className="flex items-center gap-3 border-b border-line px-3 pb-2 text-[11px] font-semibold uppercase tracking-wider text-ink-faint">
+          <span className="w-6 text-center">#</span>
+          <span className="flex-1">Team</span>
+          {!provisional && (
+            <>
+              <span className="w-12 text-right">W-L</span>
+              <span className="hidden w-16 text-right sm:block">PF</span>
+              {oddsMap && (
+                <>
+                  <span className="hidden w-11 text-right sm:block">Ploff</span>
+                  <span className="w-11 text-right">{isUpper ? "Drop" : "Promo"}</span>
+                </>
+              )}
+            </>
+          )}
+        </div>
+
+        <ul>
+          {teams.map((team, index) => {
+            const zoned = inZone(index)
+            return (
+              <React.Fragment key={team.owner_id}>
+                <li
+                  className={`flex items-center gap-3 border-b border-line px-3 py-2.5 ${
+                    zoned
+                      ? isUpper
+                        ? "border-l-2 border-l-drop bg-drop/5"
+                        : "border-l-2 border-l-promo bg-promo/5"
+                      : "border-l-2 border-l-transparent"
+                  }`}
+                >
+                  <span
+                    className={`display w-6 shrink-0 text-center text-sm ${
+                      index === 0 && !provisional
+                        ? "text-gold"
+                        : zoned
+                        ? isUpper
+                          ? "text-drop"
+                          : "text-promo"
+                        : "text-ink-faint"
+                    }`}
+                  >
+                    {index + 1}
+                  </span>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
-                    src="/Rhino.gif"
-                    alt="Rhino"
-                    className="absolute left-0 w-full object-contain animate-fade-in-out-rhino pointer-events-none z-10"
-                    // Drape the rhino down over the relegated teams below the line.
-                    // `movement` teams sit in the drop zone (6 in 2025, 3 in 2026).
-                    style={{ top: "100%", height: `${movement * 66}px` }}
+                    src={avatarUrl(team)}
+                    alt={ownerName(team)}
+                    className="h-9 w-9 shrink-0 rounded-full ring-1 ring-line"
                   />
-                ) : (
-                  /* eslint-disable-next-line @next/next/no-img-element */
-                  <img
-                    src="/promo.jpg"
-                    alt="Promotion"
-                    className="absolute left-0 w-full object-contain animate-fade-in-out-rhino pointer-events-none z-10"
-                    // Rise up over the promoted teams above the line (top `movement`).
-                    style={{ bottom: "100%", height: `${movement * 66}px` }}
-                  />
+                  <div className="flex min-w-0 flex-1 flex-col">
+                    <span className="truncate text-sm font-semibold text-ink sm:text-[15px]">
+                      {teamName(team)}
+                    </span>
+                    <span className="truncate text-xs text-ink-dim">
+                      {ownerName(team)}
+                    </span>
+                  </div>
+                  {provisional ? (
+                    <span className="shrink-0 text-xs text-ink-faint">new season</span>
+                  ) : (
+                    <>
+                      <span className="tnum w-12 shrink-0 text-right text-sm font-semibold text-ink">
+                        {record(team)}
+                      </span>
+                      <span className="tnum hidden w-16 shrink-0 text-right text-sm text-ink-dim sm:block">
+                        {pointsFor(team).toFixed(1)}
+                      </span>
+                      {oddsMap && (
+                        <>
+                          <span className="tnum hidden w-11 shrink-0 text-right text-xs text-ink-dim sm:block">
+                            {pct(oddsMap.get(team.roster_id)?.playoff ?? 0)}
+                          </span>
+                          <span
+                            className={`tnum w-11 shrink-0 text-right text-xs ${
+                              (oddsMap.get(team.roster_id)?.edge ?? 0) >= 0.005
+                                ? isUpper
+                                  ? "font-semibold text-drop"
+                                  : "font-semibold text-promo"
+                                : "text-ink-faint"
+                            }`}
+                          >
+                            {pct(oddsMap.get(team.roster_id)?.edge ?? 0)}
+                          </span>
+                        </>
+                      )}
+                    </>
+                  )}
+                </li>
+
+                {showLine && index === lineAfter && (
+                  <li
+                    className={`relative flex items-center gap-3 px-3 py-1.5 ${
+                      isUpper ? "text-drop" : "text-promo"
+                    }`}
+                  >
+                    <span className={`h-px flex-1 ${isUpper ? "bg-drop/60" : "bg-promo/60"}`} />
+                    <span className="display text-[11px] tracking-widest">
+                      {isUpper ? "Relegation line" : "Promotion line"}
+                    </span>
+                    <span className={`h-px flex-1 ${isUpper ? "bg-drop/60" : "bg-promo/60"}`} />
+                    {isUpper && (
+                      /* eslint-disable-next-line @next/next/no-img-element */
+                      <img
+                        src="/Rhino.gif"
+                        alt=""
+                        aria-hidden
+                        className="animate-fade-in-out-rhino pointer-events-none absolute left-0 z-10 w-full object-contain"
+                        // Drape the rhino down over the drop-zone rows below the
+                        // line. Row height ≈ 59px (py-2.5 + 36px avatar + border).
+                        style={{ top: "100%", height: `${movement * 59}px` }}
+                      />
+                    )}
+                  </li>
                 )}
-              </li>
-            )}
-          </React.Fragment>
-        ))}
-      </ul>
+              </React.Fragment>
+            )
+          })}
+        </ul>
+      </div>
     )
   }
 
   return (
-    <main className="min-h-screen bg-black text-white p-3 sm:p-6 font-sans">
-      <div className="max-w-7xl mx-auto">
-        <div className="mb-3 sm:mb-4 flex items-center justify-center gap-3">
+    <main className="min-h-screen p-3 text-ink sm:p-6">
+      <div className="mx-auto max-w-7xl">
+        <LotteryBanner />
+
+        <div className="mb-5 mt-2 flex items-center justify-center gap-3 sm:mb-6 sm:gap-4">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/icon-192.png" alt="SWRR Relegation League logo" className="h-11 w-11 sm:h-14 sm:w-14 rounded-xl" />
-          <h1 className="text-xl sm:text-4xl font-extrabold text-center text-purple-400">
-            Self Will Run Riot Fantasy Relegation League
-          </h1>
+          <img
+            src="/icon-192.png"
+            alt="SWRR Relegation League crest"
+            className="h-12 w-12 rounded-xl sm:h-16 sm:w-16"
+          />
+          <div>
+            <h1 className="display text-2xl leading-none text-ink sm:text-4xl">
+              Self Will Run Riot
+            </h1>
+            <p className="mt-1 text-xs font-medium tracking-wide text-brand sm:text-sm">
+              Fantasy Relegation League
+            </p>
+          </div>
         </div>
 
-        <div className="mb-2 text-center">
-          <label className="mr-2 font-semibold text-purple-300">Season:</label>
+        <div className="mb-4 flex items-center justify-center gap-2">
+          <label htmlFor="season" className="text-sm font-medium text-ink-dim">
+            Season
+          </label>
           <select
+            id="season"
             value={year}
             onChange={(e) => setYear(e.target.value as SeasonYear)}
-            className="bg-black border border-purple-500 text-white rounded px-3 py-1 focus:outline-none focus:ring-2 focus:ring-purple-600"
+            className="rounded-lg border border-line bg-surface px-3 py-1.5 text-sm text-ink focus:outline-none focus:ring-2 focus:ring-brand-deep"
           >
             {SEASONS.map((y) => (
               <option key={y} value={y}>
@@ -251,37 +387,41 @@ export default function StandingsPage() {
         <RelegationSpotlight />
 
         {provisional && (
-          <p className="text-center text-yellow-300 text-sm mb-2">
-            Provisional {year} lineup — derived from the {Number(year) - 1} final standings.
-            Records reset once the season starts. Lines show this year&apos;s{" "}
-            {movement}-up / {movement}-down rule.
+          <p className="mb-3 text-center text-sm text-gold">
+            Provisional {year} lineup — derived from the {Number(year) - 1} final
+            standings. Records reset once the season starts. Lines show this
+            year&apos;s {movement}-up / {movement}-down rule.
           </p>
         )}
         {!provisional && movement > 0 && (
-          <p className="text-center text-gray-500 text-sm mb-2">
-            Bottom {movement} of the upper league are relegated; top {movement} of the lower
-            league are promoted.
+          <p className="mb-3 text-center text-sm text-ink-faint">
+            Bottom {movement} of the upper league are relegated · top {movement} of
+            the lower league are promoted
           </p>
         )}
 
-        <div className="mt-6">
-          {loading && <p className="text-center text-gray-400">Loading standings…</p>}
+        <div className="mt-4">
+          {loading && <p className="text-center text-ink-dim">Loading standings…</p>}
           {error && !loading && (
-            <p className="text-center text-red-400">Couldn’t load standings: {error}</p>
+            <p className="text-center text-drop">Couldn&apos;t load standings: {error}</p>
           )}
 
           {!loading && !error && (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-8">
-              <div className="bg-gray-900 rounded-xl shadow-xl p-4 sm:p-6 border border-purple-700">
-                <h2 className="text-xl sm:text-2xl font-semibold mb-4 sm:mb-6 text-purple-300">Upper League</h2>
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 sm:gap-6">
+              <section className="panel overflow-hidden">
+                <h2 className="display border-b border-line bg-surface-2 px-4 py-3 text-lg text-brand">
+                  Upper League
+                </h2>
                 {renderLeague(upperLeague, "upper")}
-              </div>
+              </section>
 
               {lowerLeague && (
-                <div className="bg-gray-900 rounded-xl shadow-xl p-4 sm:p-6 border border-green-700">
-                  <h2 className="text-xl sm:text-2xl font-semibold mb-4 sm:mb-6 text-green-300">Lower League</h2>
+                <section className="panel overflow-hidden">
+                  <h2 className="display border-b border-line bg-surface-2 px-4 py-3 text-lg text-promo">
+                    Lower League
+                  </h2>
                   {renderLeague(lowerLeague, "lower")}
-                </div>
+                </section>
               )}
             </div>
           )}
