@@ -117,17 +117,19 @@ export async function POST(req: NextRequest) {
         { error: "no pre-lock submission — you eat zeros this week" },
         { status: 403 }
       )
+    // Penalty = fresh diff of this (full) submission vs the Thursday picks.
+    // Recomputed every save: resubmitting identical picks never
+    // double-charges, and reverting a pick to Thursday's choice drops its
+    // charge. Additions and Lock set/moves count (see countChanges).
     const changes = countChanges(existing.prelock, { picks, lockGameId })
-    const prevChanges = existing.postlock?.changes ?? 0
     existing.postlock = {
       picks,
       lockGameId,
       submittedAt: now,
-      // Penalty is cumulative across buyback edits in the same week
-      changes: prevChanges + changes,
+      changes,
     }
     await setUserPicks(SEASON, week, existing)
-    return NextResponse.json({ status: "ok", phase: "buyback", changes: existing.postlock.changes })
+    return NextResponse.json({ status: "ok", phase: "buyback", changes })
   }
 
   return NextResponse.json({ error: "picks are closed for this week" }, { status: 403 })

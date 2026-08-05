@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server"
 import { getMatchups, getNflState } from "@/lib/sleeper"
 import { LEAGUES, type SeasonYear } from "@/lib/leagues"
-import { SEASON, REGULAR_SEASON_WEEKS, WEEKLY_PRIZE } from "@/lib/pickem/config"
+import { SEASON, REGULAR_SEASON_WEEKS, WEEKLY_PRIZE, weekLockUtc } from "@/lib/pickem/config"
 import { gameOutcomes, rankScores, scoreUser } from "@/lib/pickem/scoring"
 import type { UserPicks, WeekResult } from "@/lib/pickem/types"
 import {
@@ -43,10 +43,16 @@ async function computeWeek(week: number): Promise<WeekResult | null> {
     nameByOwner.set(g.b.ownerId, g.b.name)
   }
 
-  const owners = await listPickOwners(SEASON, week)
-  const allPicks = (
-    await Promise.all(owners.map((o) => getUserPicks(SEASON, week, o)))
-  ).filter((p): p is UserPicks => p !== null)
+  // Score every manager on the board — all 24 paid the buy-in, so no-shows
+  // appear with zeros (submitted: false) instead of vanishing from the table.
+  const submitted = new Set(await listPickOwners(SEASON, week))
+  const allOwners = [...nameByOwner.keys()]
+  const allPicks = await Promise.all(
+    allOwners.map(async (o): Promise<UserPicks> =>
+      (submitted.has(o) ? await getUserPicks(SEASON, week, o) : null) ??
+      ({ ownerId: o, prelock: null, postlock: null } as UserPicks)
+    )
+  )
 
   const scores = allPicks.map((p) =>
     scoreUser(board, outcomes, p, nameByOwner.get(p.ownerId) ?? "Unknown")
@@ -73,11 +79,15 @@ export async function GET() {
 
   const weeks: WeekResult[] = []
   for (let w = 1; w <= Math.min(REGULAR_SEASON_WEEKS, Math.max(0, currentWeek - 1)); w++) {
-    // Completed weeks are cached permanently after first computation
-    let r = await getWeekResult(SEASON, w)
+    // NFL stat corrections land midweek and can flip a fantasy result, so a
+    // week is only cached permanently once the NEXT week's Thursday lock has
+    // passed (the correction window is over). Before that, recompute fresh
+    // on every view — money results must track Sleeper's final numbers.
+    const settled = Date.now() >= weekLockUtc(w + 1)
+    let r = settled ? await getWeekResult(SEASON, w) : null
     if (!r) {
       r = await computeWeek(w)
-      if (r) await setWeekResult(r)
+      if (r && settled) await setWeekResult(r)
     }
     if (r) weeks.push(r)
   }

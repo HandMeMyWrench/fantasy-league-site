@@ -1,8 +1,10 @@
 // lib/pickem/config.ts
 // SWRR Pick'em — season config, deadlines, money, scoring constants.
 
-// First Thursday of the 2026 NFL regular season (verify when the NFL
-// releases the schedule; adjust if kickoff moves).
+// Week-1 anchor for the 2026 NFL regular season. VERIFIED vs the released
+// schedule (Aug 2026): the opener moved to WEDNESDAY Sep 9, 8:20 PM ET
+// (SEA–NE), because of the Melbourne game Thursday. This constant is
+// Thursday Sep 10, 00:00 UTC == Wednesday Sep 9, 8:00 PM EDT.
 export const SEASON = "2026"
 export const KICKOFF_THURSDAY_UTC = Date.UTC(2026, 8, 10) // Sep 10, 2026 00:00 UTC
 export const REGULAR_SEASON_WEEKS = 14 // fantasy regular season
@@ -11,7 +13,12 @@ export const REGULAR_SEASON_WEEKS = 14 // fantasy regular season
 // after the November DST switch, which is the safe direction):
 //   Picks lock:  Thursday 8:00 PM ET  -> Friday 00:00 UTC
 //   Buyback ends: Sunday 1:00 PM ET   -> Sunday 17:00 UTC
+//
+// WEEK 1 EXCEPTION (2026): the season opens WEDNESDAY night, so week 1
+// locks Wednesday 8:00 PM ET (before any game kicks off) instead of
+// Thursday. Otherwise picks could be made a day after real scoring began.
 export function weekLockUtc(week: number): number {
+  if (week === 1) return KICKOFF_THURSDAY_UTC // Wed Sep 9, 8:00 PM EDT
   return KICKOFF_THURSDAY_UTC + (week - 1) * 7 * 86_400_000 + 24 * 3_600_000
 }
 export function weekBuybackEndUtc(week: number): number {

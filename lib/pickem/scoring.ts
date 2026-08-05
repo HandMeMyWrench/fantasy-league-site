@@ -28,22 +28,33 @@ export function effectivePicks(up: UserPicks): PickSubmission | null {
   }
 }
 
-/** Count changed picks between a pre-lock submission and a buyback edit. */
+/**
+ * Buyback penalty counter: how many picks in the FINAL buyback submission
+ * differ from the Thursday (pre-lock) submission.
+ *
+ * Counted as a change (−0.5 each):
+ *  - flipping a pick to the other side
+ *  - ADDING a pick on a game left blank pre-lock (post-lock information
+ *    isn't free — leaving games blank Thursday then filling them Sunday
+ *    would otherwise dodge the penalty entirely)
+ *  - setting or moving the Lock of the Week (removal isn't possible after
+ *    lock — a null lock in the edit keeps the pre-lock Lock)
+ *
+ * This is a pure diff of final-vs-Thursday state, recomputed on every
+ * buyback save — resubmitting the same picks never double-charges, and
+ * reverting a pick back to Thursday's choice removes its charge.
+ */
 export function countChanges(
   prelock: PickSubmission,
   edit: { picks: Record<string, Side>; lockGameId: string | null }
 ): number {
   let n = 0
   for (const [gameId, side] of Object.entries(edit.picks)) {
-    if (prelock.picks[gameId] !== undefined && prelock.picks[gameId] !== side) n++
+    if (prelock.picks[gameId] === undefined) n++ // added after lock
+    else if (prelock.picks[gameId] !== side) n++ // flipped
   }
-  // Moving the Lock counts as one change (it's a material edit).
-  if (
-    edit.lockGameId !== null &&
-    prelock.lockGameId !== null &&
-    edit.lockGameId !== prelock.lockGameId
-  )
-    n++
+  // Setting a Lock where none existed, or moving it, is a material edit.
+  if (edit.lockGameId !== null && edit.lockGameId !== prelock.lockGameId) n++
   return n
 }
 

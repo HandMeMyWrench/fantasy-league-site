@@ -564,8 +564,12 @@ export default function PickemPage() {
             </p>
             <p>
               <span className="font-semibold text-ink">Deadlines.</span> Picks lock
-              Thursday 8:00 PM ET. THE BUYBACK: edit picks until Sunday 1:00 PM ET
-              at −0.5 pts per change. No pre-lock submission = zeros for the week.
+              Thursday 8:00 PM ET (<span className="text-ink">Week 1 locks
+              Wednesday 8:00 PM ET</span> — the 2026 opener is Wednesday night).
+              THE BUYBACK: edit picks until Sunday 1:00 PM ET at −0.5 pts per
+              change — flips, picks added on games you left blank, and
+              setting/moving your Lock all count. No pre-lock submission = zeros
+              for the week.
             </p>
             <p>
               <span className="font-semibold text-ink">Money.</span> $25 buy-in.
