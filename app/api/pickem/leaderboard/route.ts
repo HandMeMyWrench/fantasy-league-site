@@ -2,7 +2,7 @@ import { NextResponse } from "next/server"
 import { getMatchups, getNflState } from "@/lib/sleeper"
 import { LEAGUES, type SeasonYear } from "@/lib/leagues"
 import { SEASON, REGULAR_SEASON_WEEKS, WEEKLY_PRIZE, weekLockUtc } from "@/lib/pickem/config"
-import { gameOutcomes, rankScores, scoreUser } from "@/lib/pickem/scoring"
+import { allocateSeasonPrizes, gameOutcomes, rankScores, scoreUser } from "@/lib/pickem/scoring"
 import type { UserPicks, WeekResult } from "@/lib/pickem/types"
 import {
   getBoard,
@@ -113,8 +113,18 @@ export async function GET() {
       season.set(s.ownerId, row)
     }
   }
+  // Season prizes (RATIFIED: equal points split the combined money for the
+  // spots they span). Shown as "if the season ended today" until week 14.
+  const prizeByOwner = allocateSeasonPrizes(
+    [...season.entries()].map(([ownerId, r]) => ({ ownerId, points: r.points }))
+  )
+
   const table = [...season.entries()]
-    .map(([ownerId, r]) => ({ ownerId, ...r }))
+    .map(([ownerId, r]) => ({
+      ownerId,
+      ...r,
+      seasonPrize: prizeByOwner.get(ownerId) ?? 0,
+    }))
     .sort((a, b) => b.points - a.points || b.weeklyWins - a.weeklyWins)
 
   return NextResponse.json({ status: "ok", weeks, table, currentWeek })

@@ -4,6 +4,7 @@
 // Exits non-zero on any failure.
 
 import {
+  allocateSeasonPrizes,
   countChanges,
   effectivePicks,
   gameOutcomes,
@@ -162,6 +163,33 @@ check("tied bottom -> nobody wears it", r2.loser === null)
 const r3 = rankScores([mkScore("only", 5)])
 check("single submitter -> no loser", r3.loser === null)
 check("sorted desc by points", r1.sorted[0].points >= r1.sorted[1].points && r1.sorted[1].points >= r1.sorted[2].points)
+
+// ---------- season prize allocation (RATIFIED: ties split spanned money) ----------
+console.log("season prizes:")
+const P = (rows: [string, number][]) =>
+  allocateSeasonPrizes(rows.map(([ownerId, points]) => ({ ownerId, points })))
+const sum = (m: Map<string, number>) => [...m.values()].reduce((a, b) => a + b, 0)
+
+const clean = P([["a", 100], ["b", 90], ["c", 80], ["d", 70]])
+check("clean top 3: 150/65/35", clean.get("a") === 150 && clean.get("b") === 65 && clean.get("c") === 35)
+check("clean: 4th gets nothing", !clean.has("d"))
+
+const tie1 = P([["a", 100], ["b", 100], ["c", 80], ["d", 70]])
+check("2-way tie for 1st: $107.50 each", tie1.get("a") === 107.5 && tie1.get("b") === 107.5)
+check("2-way tie for 1st: 3rd gets $35", tie1.get("c") === 35)
+
+const tie3way = P([["a", 100], ["b", 100], ["c", 100], ["d", 70]])
+check("3-way tie for 1st: $250/3 each", Math.abs(tie3way.get("a")! - 250 / 3) < 1e-9)
+
+const tie3rd = P([["a", 100], ["b", 90], ["c", 80], ["d", 80], ["e", 10]])
+check("2-way tie at 3rd: $17.50 each", tie3rd.get("c") === 17.5 && tie3rd.get("d") === 17.5)
+check("tie at 3rd: 1st/2nd unaffected", tie3rd.get("a") === 150 && tie3rd.get("b") === 65)
+
+const tie2nd = P([["a", 100], ["b", 90], ["c", 90], ["d", 70]])
+check("2-way tie for 2nd: ($65+$35)/2 = $50 each", tie2nd.get("b") === 50 && tie2nd.get("c") === 50)
+
+for (const [name, m] of [["clean", clean], ["tie1st", tie1], ["tie3way", tie3way], ["tie3rd", tie3rd], ["tie2nd", tie2nd]] as const)
+  check(`total allocated stays $250 (${name})`, Math.abs(sum(m) - 250) < 1e-9)
 
 // ---------- pot math ----------
 console.log("pot math:")

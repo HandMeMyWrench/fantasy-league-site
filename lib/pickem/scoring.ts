@@ -7,6 +7,7 @@ import {
   PTS_LOCK_HIT,
   PTS_LOCK_MISS,
   PTS_UPSET_BONUS,
+  SEASON_PRIZES,
 } from "./config"
 import type {
   Board,
@@ -126,6 +127,37 @@ export function scoreUser(
   points -= base.buybackPenalty
   base.points = points
   return base
+}
+
+/**
+ * Season prize allocation. RATIFIED (commissioner, Aug 2026): managers tied
+ * on season points SPLIT the combined prize money for the spots they span.
+ * Examples with $150/$65/$35:
+ *   2-way tie for 1st  -> ($150+$65)/2 = $107.50 each; 3rd gets $35
+ *   3-way tie for 1st  -> ($150+$65+$35)/3 = $83.33 each
+ *   2-way tie for 3rd  -> ($35+$0)/2 = $17.50 each
+ * Returns ownerId -> dollars (only entries that win money).
+ */
+export function allocateSeasonPrizes(
+  totals: { ownerId: string; points: number }[],
+  prizes: number[] = SEASON_PRIZES
+): Map<string, number> {
+  const out = new Map<string, number>()
+  const sorted = [...totals].sort((a, b) => b.points - a.points)
+  let start = 0
+  while (start < sorted.length) {
+    let end = start + 1
+    while (end < sorted.length && sorted[end].points === sorted[start].points) end++
+    const size = end - start
+    let pool = 0
+    for (let i = start; i < end; i++) pool += prizes[i] ?? 0
+    if (pool > 0) {
+      const share = pool / size
+      for (let i = start; i < end; i++) out.set(sorted[i].ownerId, share)
+    }
+    start = end
+  }
+  return out
 }
 
 export function rankScores(scores: UserWeekScore[]): {

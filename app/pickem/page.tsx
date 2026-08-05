@@ -37,6 +37,7 @@ type LeaderResp = {
     weeklyWins: number
     blindfolds: number
     cash: number
+    seasonPrize: number
   }[]
 }
 
@@ -488,6 +489,7 @@ export default function PickemPage() {
                         <th className="py-2 pr-3 text-right">🔮</th>
                         <th className="py-2 pr-3 text-right">🦏</th>
                         <th className="py-2 pr-3 text-right">Cash</th>
+                        <th className="py-2 pr-3 text-right">Prize</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -505,7 +507,12 @@ export default function PickemPage() {
                             {r.blindfolds || ""}
                           </td>
                           <td className="tnum py-2 pr-3 text-right text-promo">
-                            {r.cash ? `$${r.cash.toFixed(0)}` : ""}
+                            {r.cash ? `$${r.cash % 1 === 0 ? r.cash.toFixed(0) : r.cash.toFixed(2)}` : ""}
+                          </td>
+                          <td className="tnum py-2 pr-3 text-right text-gold">
+                            {r.seasonPrize
+                              ? `$${r.seasonPrize % 1 === 0 ? r.seasonPrize.toFixed(0) : r.seasonPrize.toFixed(2)}`
+                              : ""}
                           </td>
                         </tr>
                       ))}
@@ -574,8 +581,9 @@ export default function PickemPage() {
             <p>
               <span className="font-semibold text-ink">Money.</span> $25 buy-in.
               $25 to the weekly winner (ties split). Season top 3: $150 / $65 /
-              $35. The site is the scoreboard; cash moves through the usual dues
-              channel.
+              $35 — season ties split the combined money for the spots they span
+              (2-way tie for 1st = $107.50 each; tie at 3rd = $17.50 each). The
+              site is the scoreboard; cash moves through the usual dues channel.
             </p>
             <p>
               <span className="font-semibold text-ink">Glory.</span> Weekly winner
