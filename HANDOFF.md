@@ -63,10 +63,36 @@ are absent, /pickem shows a "not switched on yet" state and nothing breaks.
 3. Redeploy. Done.
 
 **Key files:** lib/pickem/config.ts (season kickoff date, deadlines, money,
-scoring constants — VERIFY KICKOFF_THURSDAY_UTC against the real NFL
-schedule), scoring.ts (pure, unit-tested), board.ts (weekly board builder;
-favorite = standings, week 1 = provisional ranks), storage.ts (Redis),
-app/api/pickem/{board,picks,leaderboard}/route.ts, app/pickem/page.tsx.
+scoring constants), scoring.ts (pure; tests in tests/pickem-scoring.test.ts —
+run `node --experimental-strip-types` against a shadow copy with .ts import
+extensions), board.ts (weekly board builder; favorite = standings, week 1 =
+provisional ranks), storage.ts (Redis),
+app/api/pickem/{board,picks,leaderboard,health}/route.ts, app/pickem/page.tsx.
+
+**Audit (Aug 2026) — fixes shipped:**
+- 2026 opener is WEDNESDAY Sep 9 (Melbourne game moved TNF) → week 1 locks
+  Wednesday 8PM ET via a week-1 exception in weekLockUtc(). Weeks 2+ Thursday.
+- Buyback penalty = fresh diff of final submission vs Thursday picks (was
+  cumulative per-edit, which double-charged resubmissions). Additions on
+  blank games and setting/moving the Lock now count as changes (were free —
+  exploitable). Rules tab updated to match.
+- Week results only cache permanently after the NEXT week's lock passes
+  (NFL stat-correction window); before that they recompute per view.
+- Leaderboard scores all 24 managers (no-shows show zeros, submitted:false).
+- vercel.json cron hits /api/pickem/board daily so the weekly board exists
+  even if nobody visits before the lock.
+
+**Open commissioner rulings (not code bugs):** should a no-show (0 pts,
+never submitted) be eligible for the weekly Blindfold instead of being
+spared? Current rule: only submitters can wear it. Also: PIN claiming is
+first-come per ownerId (league-trust model; commissioner can clear a
+hijacked claim by deleting pickem:user:<ownerId> in Redis).
+
+**KNOWN OUTAGE (Aug 2026):** /api/pickem/health returns `configured: true,
+redis: "error: fetch failed"` — env vars exist in Vercel but the Upstash DB
+is unreachable (likely deleted or detached). Commissioner must open Vercel →
+Storage, check/recreate the Upstash Redis DB, reconnect it to the project,
+and redeploy. Verify via /api/pickem/health returning `redis: "ok"`.
 
 **How it works:** first visitor after games post triggers board creation
 (favorites snapshotted then). Managers claim their team with a self-set PIN
