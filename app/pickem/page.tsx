@@ -49,6 +49,44 @@ type AllPicksRow = {
   buybackChanges: number
 }
 
+/** Shared key for the board's shorthand — shown inline (toggle) and in Rules. */
+function BoardLegend() {
+  const Row = ({ token, children }: { token: string; children: React.ReactNode }) => (
+    <div className="flex gap-2 py-0.5">
+      <span className="tnum w-28 shrink-0 text-right text-ink">{token}</span>
+      <span className="min-w-0 text-ink-dim">{children}</span>
+    </div>
+  )
+  return (
+    <div className="text-xs leading-relaxed">
+      <Row token="favorite / underdog">
+        the site&apos;s posted favorite (by standings) — a correct underdog pick earns +1
+      </Row>
+      <Row token="4-2">season record (wins include the weekly median game)</Row>
+      <Row token="proj 128.4">
+        projected points from the team&apos;s current starters, scored with our league&apos;s
+        exact settings — updates as lineups change
+      </Row>
+      <Row token="71% (−9.2)">
+        win probability and projected spread — minus means favored by that many
+      </Row>
+      <Row token="L3 131 🔥 / 🧊">
+        last-3-weeks scoring average; flame/ice = running hot or cold vs their norm
+      </Row>
+      <Row token="⚠ 2×0.0">
+        starters projected at zero — bye week or empty slot; don&apos;t trust that proj yet
+      </Row>
+      <Row token="1 out · 2 Q">
+        starters Out/IR/Doubtful (red) or Questionable (gold) per Sleeper&apos;s injury data
+      </Row>
+      <Row token="🔒 make lock">
+        your Lock of the Week — 3 pts if it hits, −2 if it misses
+      </Row>
+      <Row token="player matchups ▾">starter-by-starter projection comparison</Row>
+    </div>
+  )
+}
+
 const fmtDeadline = (utc: number) =>
   new Date(utc).toLocaleString(undefined, {
     weekday: "short",
@@ -72,6 +110,7 @@ export default function PickemPage() {
   const [pin, setPin] = useState("")
   const [msg, setMsg] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  const [showLegend, setShowLegend] = useState(false)
   // ?preview — rehearsal mode: a mock Week 1 board built from the real 24
   // teams, never touching the server. previewPhase flips deadline states.
   const [preview, setPreview] = useState(false)
@@ -304,7 +343,24 @@ export default function PickemPage() {
                     </span>
                   )}
                   {closed && <span className="text-ink-dim">Picks are closed for this week</span>}
+                  {intel && (
+                    <>
+                      <span className="mx-2 text-ink-faint">·</span>
+                      <button
+                        onClick={() => setShowLegend((v) => !v)}
+                        className="text-xs text-ink-faint underline decoration-dotted underline-offset-2 transition-colors hover:text-ink"
+                      >
+                        {showLegend ? "hide key" : "what do these numbers mean?"}
+                      </button>
+                    </>
+                  )}
                 </div>
+
+                {showLegend && intel && (
+                  <div className="panel mb-4 px-4 py-3">
+                    <BoardLegend />
+                  </div>
+                )}
 
                 {intel && !closed && (() => {
                   const cands: { g: Board["games"][number]; favSide: Side; margin: number }[] = []
@@ -719,6 +775,14 @@ export default function PickemPage() {
               zeros but can&apos;t &quot;win&quot; the Blindfold; ties at the bottom
               spare everyone). Season champ goes on the History page forever.
             </p>
+            <div className="border-t border-line pt-3">
+              <p className="mb-2">
+                <span className="font-semibold text-ink">Reading the board.</span>{" "}
+                Every number on the game cards, decoded (same info for everyone —
+                the edge is in how you use it):
+              </p>
+              <BoardLegend />
+            </div>
           </section>
         )}
       </div>
