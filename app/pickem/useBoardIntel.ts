@@ -18,8 +18,48 @@ import { LEAGUES, type SeasonYear } from "@/lib/leagues"
 import type { Board } from "@/lib/pickem/types"
 
 // inj: short injury tag ("Q" caution; "D"/"O"/"IR"/"SUS"/"NA" serious)
-export type StarterIntel = { pid: string; label: string; proj: number; inj?: string }
-export type TeamIntel = { proj: number; record: string; starters: StarterIntel[] }
+export type StarterIntel = {
+  pid: string
+  label: string
+  proj: number
+  inj?: string
+  pos?: string
+}
+export type TeamIntel = {
+  proj: number
+  variance: number // for the win-probability model
+  record: string
+  zeroCount: number // starters projecting ~0 (bye week / empty slot)
+  form?: { l3: number; ref: number } // last-3-week avg vs recent baseline
+  starters: StarterIntel[]
+}
+
+/* ---------------- win-probability model ----------------
+   Same normal-difference model as the Matchups page: each starter's weekly
+   score ~ N(proj, sigma^2) with a position-based coefficient of variation. */
+const POS_CV: Record<string, number> = { QB: 0.32, RB: 0.5, WR: 0.5, TE: 0.55, K: 0.6, DEF: 0.6 }
+const POS_FLOOR: Record<string, number> = { QB: 1.6, RB: 1.3, WR: 1.3, TE: 1.4, K: 1.2, DEF: 1.8 }
+
+function erf(x: number) {
+  const a1 = 0.254829592, a2 = -0.284496736, a3 = 1.421413741, a4 = -1.453152027, a5 = 1.061405429
+  const p = 0.3275911
+  const sign = x < 0 ? -1 : 1
+  const t = 1 / (1 + p * Math.abs(x))
+  const y = 1 - ((((a5 * t + a4) * t + a3) * t + a2) * t + a1) * t * Math.exp(-x * x)
+  return sign * y
+}
+const normCdf = (z: number) => 0.5 * (1 + erf(z / Math.SQRT2))
+
+/** Win probability (%) for team A over team B from their proj distributions. */
+export function gameWinProb(a: TeamIntel, b: TeamIntel): [number, number] {
+  const denom = Math.sqrt(a.variance + b.variance)
+  if (!isFinite(denom) || denom === 0) {
+    const t = a.proj + b.proj || 1
+    return [(a.proj / t) * 100, (b.proj / t) * 100]
+  }
+  const p = normCdf((a.proj - b.proj) / denom) * 100
+  return [p, 100 - p]
+}
 
 type CatalogRow = {
   full_name?: string
@@ -44,7 +84,7 @@ const injTag = (s?: string | null): string | undefined => {
 
 /** Serious = probably not playing; Q is a game-time caution. */
 export const isSeriousInj = (tag?: string) => !!tag && tag !== "Q"
-type SleeperMatchup = { roster_id: number; starters?: string[] }
+type SleeperMatchup = { roster_id: number; starters?: string[]; points?: number }
 type SleeperRoster = {
   roster_id: number
   settings?: { wins?: number; losses?: number; ties?: number }
@@ -91,6 +131,33 @@ export function useBoardIntel(board: Board | null, enabled: boolean) {
 
         const stats = await getProjectedStats(Number(board.season), week, [...starterIds])
 
+        // Recent form: last up-to-5 completed weeks per team (l3 = last 3).
+        const prevWeeks: number[] = []
+        for (let w = Math.max(1, week - 5); w < week; w++) prevWeeks.push(w)
+        const formByKey = new Map<string, { l3: number; ref: number }>()
+        if (prevWeeks.length) {
+          const [uPast, lPast] = await Promise.all([
+            Promise.all(prevWeeks.map((w) => getMatchups(cfg.upper!, w) as Promise<SleeperMatchup[]>)),
+            Promise.all(prevWeeks.map((w) => getMatchups(cfg.lower!, w) as Promise<SleeperMatchup[]>)),
+          ])
+          const buildForm = (league: "upper" | "lower", past: SleeperMatchup[][]) => {
+            const scores = new Map<number, number[]>()
+            for (const wk of past)
+              for (const m of wk) {
+                const arr = scores.get(m.roster_id) ?? []
+                arr.push(Number(m.points ?? 0))
+                scores.set(m.roster_id, arr)
+              }
+            const avg = (a: number[]) => (a.length ? a.reduce((x, y) => x + y, 0) / a.length : 0)
+            for (const [rid, arr] of scores) {
+              if (!arr.length) continue
+              formByKey.set(`${league}-${rid}`, { l3: avg(arr.slice(-3)), ref: avg(arr) })
+            }
+          }
+          buildForm("upper", uPast)
+          buildForm("lower", lPast)
+        }
+
         const label = (pid: string) => {
           const r = catalog[pid]
           if (!r) return `#${pid}`
@@ -125,10 +192,20 @@ export function useBoardIntel(board: Board | null, enabled: boolean) {
                 label: label(pid),
                 proj: scoreStats(stats.get(pid), scoring),
                 inj: injTag(catalog[pid]?.injury_status),
+                pos: catalog[pid]?.position ?? undefined,
               }))
+            let variance = 0
+            for (const s of starters) {
+              const pos = (s.pos ?? "").toUpperCase()
+              const sigma = Math.max((POS_CV[pos] ?? 0.5) * s.proj, POS_FLOOR[pos] ?? 1.3)
+              variance += sigma * sigma
+            }
             out.set(`${league}-${m.roster_id}`, {
               proj: starters.reduce((t, s) => t + s.proj, 0),
+              variance,
               record: recs.get(m.roster_id) ?? "",
+              zeroCount: starters.filter((s) => s.proj < 0.1).length,
+              form: formByKey.get(`${league}-${m.roster_id}`),
               starters,
             })
           }

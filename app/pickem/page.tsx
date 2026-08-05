@@ -3,7 +3,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react"
 import type { Board, Side } from "@/lib/pickem/types"
 import { getSeasonLineups, type SeasonTeam } from "@/lib/season"
-import { useBoardIntel, isSeriousInj } from "./useBoardIntel"
+import { useBoardIntel, isSeriousInj, gameWinProb } from "./useBoardIntel"
 
 /* SWRR Pick'em — weekly board + submission, leaderboard, rules.
    Picks are stored server-side (see /api/pickem/*); each manager claims
@@ -306,6 +306,32 @@ export default function PickemPage() {
                   {closed && <span className="text-ink-dim">Picks are closed for this week</span>}
                 </div>
 
+                {intel && !closed && (() => {
+                  const cands: { g: Board["games"][number]; favSide: Side; margin: number }[] = []
+                  for (const g of board.games) {
+                    const A = intel.get(`${g.league}-${g.a.rosterId}`)
+                    const B = intel.get(`${g.league}-${g.b.rosterId}`)
+                    if (!A?.starters.length || !B?.starters.length) continue
+                    const m = A.proj - B.proj
+                    cands.push({ g, favSide: m >= 0 ? "a" : "b", margin: Math.abs(m) })
+                  }
+                  if (!cands.length) return null
+                  const safest = cands.reduce((x, y) => (y.margin > x.margin ? y : x))
+                  const closest = cands.reduce((x, y) => (y.margin < x.margin ? y : x))
+                  const dogSide: Side = closest.favSide === "a" ? "b" : "a"
+                  return (
+                    <div className="panel mb-4 px-4 py-2.5 text-center text-xs text-ink-dim">
+                      🔒 Safest lock:{" "}
+                      <span className="font-semibold text-ink">{safest.g[safest.favSide].name}</span>{" "}
+                      <span className="tnum">(proj +{safest.margin.toFixed(1)})</span>
+                      <span className="mx-2 text-ink-faint">·</span>
+                      🎯 Sneaky dog:{" "}
+                      <span className="font-semibold text-ink">{closest.g[dogSide].name}</span>{" "}
+                      <span className="tnum">(only −{closest.margin.toFixed(1)}, upset pays +1)</span>
+                    </div>
+                  )
+                })()}
+
                 <div className="space-y-2">
                   {board.games.map((g) => {
                     const mine = picks[g.id]
@@ -367,16 +393,41 @@ export default function PickemPage() {
                                   {ti && ti.starters.length > 0 && (() => {
                                     const serious = ti.starters.filter((s) => isSeriousInj(s.inj)).length
                                     const quest = ti.starters.filter((s) => s.inj === "Q").length
+                                    const opp = intel?.get(
+                                      `${g.league}-${g[side === "a" ? "b" : "a"].rosterId}`
+                                    )
+                                    const hasOpp = !!opp && opp.starters.length > 0
+                                    const pct = hasOpp ? gameWinProb(ti, opp!)[0] : null
+                                    // Betting convention: favored side shows a minus spread.
+                                    const spread = hasOpp ? -(ti.proj - opp!.proj) : null
+                                    const hot = ti.form && ti.form.l3 >= ti.form.ref + 7
+                                    const cold = ti.form && ti.form.l3 <= ti.form.ref - 7
                                     return (
-                                      <span className="tnum block truncate text-xs text-brand/90">
-                                        proj {ti.proj.toFixed(1)}
-                                        {serious > 0 && (
-                                          <span className="text-drop"> · ⚠ {serious} out</span>
+                                      <>
+                                        <span className="tnum block truncate text-xs text-brand/90">
+                                          proj {ti.proj.toFixed(1)}
+                                          {pct !== null && ` · ${Math.round(pct)}%`}
+                                          {spread !== null &&
+                                            ` (${spread <= 0 ? "−" : "+"}${Math.abs(spread).toFixed(1)})`}
+                                        </span>
+                                        {(ti.form || ti.zeroCount > 0 || serious > 0 || quest > 0) && (
+                                          <span className="tnum block truncate text-xs text-ink-faint">
+                                            {ti.form &&
+                                              `L3 ${ti.form.l3.toFixed(0)}${hot ? " 🔥" : cold ? " 🧊" : ""}`}
+                                            {ti.zeroCount > 0 && (
+                                              <span className="text-drop">
+                                                {ti.form ? " · " : ""}⚠ {ti.zeroCount}×0.0
+                                              </span>
+                                            )}
+                                            {serious > 0 && (
+                                              <span className="text-drop"> · {serious} out</span>
+                                            )}
+                                            {quest > 0 && (
+                                              <span className="text-gold"> · {quest} Q</span>
+                                            )}
+                                          </span>
                                         )}
-                                        {quest > 0 && (
-                                          <span className="text-gold"> · {quest} Q</span>
-                                        )}
-                                      </span>
+                                      </>
                                     )
                                   })()}
                                 </span>
