@@ -3,7 +3,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react"
 import type { Board, Side } from "@/lib/pickem/types"
 import { getSeasonLineups, type SeasonTeam } from "@/lib/season"
-import { useBoardIntel, isSeriousInj, gameWinProb } from "./useBoardIntel"
+import { useBoardIntel, isSeriousInj, gameWinProb, makeDemoIntel } from "./useBoardIntel"
 
 /* SWRR Pick'em — weekly board + submission, leaderboard, rules.
    Picks are stored server-side (see /api/pickem/*); each manager claims
@@ -170,9 +170,15 @@ export default function PickemPage() {
   }, [tab, leader])
 
   const board = resp?.status === "ok" ? resp.board : null
-  // Projections + records + starter comparisons (renders nothing until
-  // Sleeper has real lineups for the week; disabled in rehearsal mode).
-  const intel = useBoardIntel(board, !preview)
+  // Projections + records + starter comparisons. Real data in season;
+  // rehearsal mode substitutes deterministic demo numbers so the full card
+  // experience is visible before Week 1.
+  const realIntel = useBoardIntel(board, !preview)
+  const demoIntel = useMemo(
+    () => (preview && board ? makeDemoIntel(board) : null),
+    [preview, board]
+  )
+  const intel = realIntel ?? demoIntel
   const [openIntel, setOpenIntel] = useState<Record<string, boolean>>({})
   const locked = board
     ? preview
@@ -255,7 +261,7 @@ export default function PickemPage() {
         {preview && (
           <div className="mb-3 mt-2 rounded-lg border border-gold/40 bg-gold/10 px-3 py-2 text-center">
             <p className="display text-xs tracking-widest text-gold">
-              Rehearsal mode — mock matchups, nothing is saved
+              Rehearsal mode — mock matchups &amp; demo numbers, nothing is saved
             </p>
             <div className="mt-2 flex justify-center gap-1">
               {(

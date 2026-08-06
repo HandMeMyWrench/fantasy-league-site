@@ -84,6 +84,60 @@ const injTag = (s?: string | null): string | undefined => {
 
 /** Serious = probably not playing; Q is a game-time caution. */
 export const isSeriousInj = (tag?: string) => !!tag && tag !== "Q"
+
+/* ---------------- rehearsal-mode demo intel ----------------
+   Deterministic fake numbers (seeded per team) so ?preview shows the FULL
+   card experience — projections, win%, form, injury tags, starter dropdown —
+   before any real lineups exist. Clearly demo: starter labels say so. */
+export function makeDemoIntel(board: Board): Map<string, TeamIntel> {
+  const out = new Map<string, TeamIntel>()
+  const SLOTS: [string, string, number, number][] = [
+    ["QB", "QB", 16, 25],
+    ["RB1", "RB", 9, 17],
+    ["RB2", "RB", 8, 15],
+    ["WR1", "WR", 8, 16],
+    ["WR2", "WR", 7, 14],
+    ["WR3", "WR", 6, 13],
+    ["TE", "TE", 5, 12],
+    ["FLEX1", "RB", 7, 14],
+    ["FLEX2", "WR", 6, 12],
+  ]
+  for (const g of board.games) {
+    for (const side of ["a", "b"] as const) {
+      const t = g[side]
+      let s = (t.rosterId * 2654435761 + (g.league === "upper" ? 17 : 71)) >>> 0
+      const rnd = () => {
+        s = (s * 1664525 + 1013904223) >>> 0
+        return s / 4294967296
+      }
+      const starters: StarterIntel[] = SLOTS.map(([slot, pos, lo, hi], i) => {
+        const onBye = rnd() < 0.05 // occasional 0.0 to demo the ⚠ flag
+        const proj = onBye ? 0 : lo + rnd() * (hi - lo)
+        const r = rnd()
+        const inj = onBye ? undefined : r < 0.1 ? "Q" : r < 0.14 ? "O" : undefined
+        return { pid: `demo-${t.rosterId}-${i}`, label: `${slot} · demo`, proj, inj, pos }
+      })
+      let variance = 0
+      for (const st of starters) {
+        const pos = (st.pos ?? "").toUpperCase()
+        const sigma = Math.max((POS_CV[pos] ?? 0.5) * st.proj, POS_FLOOR[pos] ?? 1.3)
+        variance += sigma * sigma
+      }
+      const proj = starters.reduce((x, y) => x + y.proj, 0)
+      const ref = proj + (rnd() * 10 - 5)
+      const wins = 2 + Math.floor(rnd() * 5)
+      out.set(`${g.league}-${t.rosterId}`, {
+        proj,
+        variance,
+        record: `${wins}-${8 - wins}`,
+        zeroCount: starters.filter((st) => st.proj < 0.1).length,
+        form: { l3: ref + (rnd() * 24 - 12), ref },
+        starters,
+      })
+    }
+  }
+  return out
+}
 type SleeperMatchup = { roster_id: number; starters?: string[]; points?: number }
 type SleeperRoster = {
   roster_id: number
