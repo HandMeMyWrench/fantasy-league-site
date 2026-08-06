@@ -118,41 +118,49 @@ export default function PickemPage() {
   const [preview, setPreview] = useState(false)
   const [previewPhase, setPreviewPhase] = useState<"open" | "buyback" | "closed">("open")
 
+  // Start rehearsal mode: mock Week 1 board from the real 24 teams, nothing
+  // saved. Reachable via ?preview OR the in-app button on the preseason
+  // screen (home-screen installs launch at "/" and drop query params, so the
+  // button is the reliable path for installed apps).
+  const startRehearsal = useCallback(() => {
+    setPreview(true)
+    getSeasonLineups("2026")
+      .then((l) => {
+        const mk = (league: "upper" | "lower", ts: SeasonTeam[]) =>
+          Array.from({ length: Math.floor(ts.length / 2) }, (_, i) => {
+            const a = ts[i]
+            const b = ts[ts.length - 1 - i]
+            const team = (t: SeasonTeam) => ({
+              rosterId: t.rank,
+              ownerId: t.owner_id,
+              name: t.name,
+              owner: t.owner,
+              avatar: t.avatar,
+            })
+            return {
+              id: `${league}-${i + 1}`,
+              league,
+              a: team(a),
+              b: team(b),
+              favorite: (a.rank <= b.rank ? "a" : "b") as Side,
+            }
+          })
+        const board: Board = {
+          season: "2026",
+          week: 1,
+          createdAt: Date.now(),
+          lockUtc: Date.now() + 2 * 86_400_000,
+          buybackEndUtc: Date.now() + 5 * 86_400_000,
+          games: [...mk("upper", l.upper), ...mk("lower", l.lower)],
+        }
+        setResp({ status: "ok", board, currentWeek: 1 })
+      })
+      .catch(() => setResp({ status: "preseason" }))
+  }, [])
+
   useEffect(() => {
     if (new URLSearchParams(window.location.search).has("preview")) {
-      setPreview(true)
-      getSeasonLineups("2026")
-        .then((l) => {
-          const mk = (league: "upper" | "lower", ts: SeasonTeam[]) =>
-            Array.from({ length: Math.floor(ts.length / 2) }, (_, i) => {
-              const a = ts[i]
-              const b = ts[ts.length - 1 - i]
-              const team = (t: SeasonTeam) => ({
-                rosterId: t.rank,
-                ownerId: t.owner_id,
-                name: t.name,
-                owner: t.owner,
-                avatar: t.avatar,
-              })
-              return {
-                id: `${league}-${i + 1}`,
-                league,
-                a: team(a),
-                b: team(b),
-                favorite: (a.rank <= b.rank ? "a" : "b") as Side,
-              }
-            })
-          const board: Board = {
-            season: "2026",
-            week: 1,
-            createdAt: Date.now(),
-            lockUtc: Date.now() + 2 * 86_400_000,
-            buybackEndUtc: Date.now() + 5 * 86_400_000,
-            games: [...mk("upper", l.upper), ...mk("lower", l.lower)],
-          }
-          setResp({ status: "ok", board, currentWeek: 1 })
-        })
-        .catch(() => setResp({ status: "preseason" }))
+      startRehearsal()
     } else {
       fetch("/api/pickem/board")
         .then((r) => r.json())
@@ -161,7 +169,7 @@ export default function PickemPage() {
     }
     const id = setInterval(() => setNow(Date.now()), 1_000)
     return () => clearInterval(id)
-  }, [])
+  }, [startRehearsal])
 
   useEffect(() => {
     if (tab === "leaderboard" && !leader)
@@ -328,10 +336,22 @@ export default function PickemPage() {
               </p>
             )}
             {resp?.status === "preseason" && (
-              <p className="panel p-6 text-center text-sm text-ink-dim">
-                Pick&apos;em opens Week 1 of the {new Date().getFullYear()} season.
-                First board goes live when the matchups do. 🏈
-              </p>
+              <div className="panel space-y-4 p-6 text-center text-sm text-ink-dim">
+                <p>
+                  Pick&apos;em opens Week 1 of the {new Date().getFullYear()} season.
+                  First board goes live when the matchups do. 🏈
+                </p>
+                <button
+                  onClick={startRehearsal}
+                  className="rounded-full bg-brand-deep/40 px-5 py-2 text-sm font-semibold text-brand transition-colors hover:bg-brand-deep/60"
+                >
+                  👉 Try the rehearsal board
+                </button>
+                <p className="text-xs text-ink-faint">
+                  Mock matchups &amp; demo numbers — make picks, set a lock, see how
+                  scoring works. Nothing is saved.
+                </p>
+              </div>
             )}
 
             {board && (
