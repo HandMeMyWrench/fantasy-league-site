@@ -103,16 +103,34 @@ export function makeDemoIntel(board: Board): Map<string, TeamIntel> {
     ["FLEX2", "WR", 6, 12],
   ]
   for (const g of board.games) {
+    // One rng per GAME so the two sides can be made coherent with the
+    // board's favorite: the favorite always has the better record (matches
+    // the in-season invariant), and usually — but not always — the higher
+    // projection. ~25% are "live dog" games where projections favor the
+    // underdog, demoing the upset-value dynamic.
+    let s = (g.a.rosterId * 2654435761 + g.b.rosterId * 40503 + (g.league === "upper" ? 17 : 71)) >>> 0
+    const rnd = () => {
+      s = (s * 1664525 + 1013904223) >>> 0
+      return s / 4294967296
+    }
+    const liveDog = rnd() < 0.25
+    const favWins = 5 + Math.floor(rnd() * 3) // 5..7 of 8
+    const dogWins = Math.max(0, favWins - 1 - Math.floor(rnd() * 3))
+
     for (const side of ["a", "b"] as const) {
       const t = g[side]
-      let s = (t.rosterId * 2654435761 + (g.league === "upper" ? 17 : 71)) >>> 0
-      const rnd = () => {
-        s = (s * 1664525 + 1013904223) >>> 0
-        return s / 4294967296
-      }
+      const isFav = g.favorite === side
+      // Projection multiplier: favorites usually project higher…
+      const mult = isFav
+        ? liveDog
+          ? 0.88 + rnd() * 0.08 // …except in live-dog games
+          : 1.0 + rnd() * 0.12
+        : liveDog
+        ? 1.02 + rnd() * 0.1
+        : 0.84 + rnd() * 0.12
       const starters: StarterIntel[] = SLOTS.map(([slot, pos, lo, hi], i) => {
         const onBye = rnd() < 0.05 // occasional 0.0 to demo the ⚠ flag
-        const proj = onBye ? 0 : lo + rnd() * (hi - lo)
+        const proj = onBye ? 0 : (lo + rnd() * (hi - lo)) * mult
         const r = rnd()
         const inj = onBye ? undefined : r < 0.1 ? "Q" : r < 0.14 ? "O" : undefined
         return { pid: `demo-${t.rosterId}-${i}`, label: `${slot} · demo`, proj, inj, pos }
@@ -125,7 +143,7 @@ export function makeDemoIntel(board: Board): Map<string, TeamIntel> {
       }
       const proj = starters.reduce((x, y) => x + y.proj, 0)
       const ref = proj + (rnd() * 10 - 5)
-      const wins = 2 + Math.floor(rnd() * 5)
+      const wins = isFav ? favWins : dogWins
       out.set(`${g.league}-${t.rosterId}`, {
         proj,
         variance,

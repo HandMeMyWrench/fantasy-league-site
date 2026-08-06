@@ -60,7 +60,9 @@ function BoardLegend() {
   return (
     <div className="text-xs leading-relaxed">
       <Row token="favorite / underdog">
-        the site&apos;s posted favorite (by standings) — a correct underdog pick earns +1
+        the site&apos;s posted favorite, set by season standings when the week&apos;s
+        board is created — a correct underdog pick earns +1. Projections can still
+        favor the dog (injuries, byes): that&apos;s your upset value
       </Row>
       <Row token="4-2">season record (wins include the weekly median game)</Row>
       <Row token="proj 128.4">
