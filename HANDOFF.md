@@ -95,6 +95,17 @@ app/api/pickem/{board,picks,leaderboard,health}/route.ts, app/pickem/page.tsx.
 - Tie likelihoods (simulated): 3+way weekly tie ~1/season; season prize
   ties ~19%/season, almost always 2-way; Blindfold spared ~37% of weeks.
 
+**2026 roster/pot facts (Aug 2026):**
+- Manager changes: Saywhen -> Mikelee400 (upper), timmytitle -> TimmP
+  (lower). OWNER_SUCCESSION in lib/leagues.ts makes new owners inherit
+  provisional ranks/teams (week-1 favorites, previews, rehearsal).
+- Pick'em: 22 of 24 entrants ($550 pot). Excluded: LucasMyerson
+  (737092549075996672) and TimmP (1135321783214911488) — see
+  PICKEM_EXCLUDED_OWNER_IDS in lib/pickem/config.ts (server-enforced on
+  submit; hidden from dropdown and leaderboard). Prizes: $25 weekly
+  unchanged; season $125/$50/$25 (ties split; 2-way 1st = $87.50).
+  League dues $50 + optional $25 Pick'em, collected via Venmo.
+
 **KNOWN OUTAGE (Aug 2026):** /api/pickem/health returns `configured: true,
 redis: "error: fetch failed"` — env vars exist in Vercel but the Upstash DB
 is unreachable (likely deleted or detached). Commissioner must open Vercel →
