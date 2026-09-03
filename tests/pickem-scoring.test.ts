@@ -166,8 +166,10 @@ check("sorted desc by points", r1.sorted[0].points >= r1.sorted[1].points && r1.
 
 // ---------- season prize allocation (RATIFIED: ties split spanned money) ----------
 console.log("season prizes:")
+// Allocation MECHANICS tested against a fixed prize set…
+const FIXED = [150, 65, 35]
 const P = (rows: [string, number][]) =>
-  allocateSeasonPrizes(rows.map(([ownerId, points]) => ({ ownerId, points })))
+  allocateSeasonPrizes(rows.map(([ownerId, points]) => ({ ownerId, points })), FIXED)
 const sum = (m: Map<string, number>) => [...m.values()].reduce((a, b) => a + b, 0)
 
 const clean = P([["a", 100], ["b", 90], ["c", 80], ["d", 70]])
@@ -191,11 +193,22 @@ check("2-way tie for 2nd: ($65+$35)/2 = $50 each", tie2nd.get("b") === 50 && tie
 for (const [name, m] of [["clean", clean], ["tie1st", tie1], ["tie3way", tie3way], ["tie3rd", tie3rd], ["tie2nd", tie2nd]] as const)
   check(`total allocated stays $250 (${name})`, Math.abs(sum(m) - 250) < 1e-9)
 
-// ---------- pot math ----------
+// …and the LIVE 2026 config (22 entrants, $550 pot, $125/$50/$25 season).
+const live = allocateSeasonPrizes(
+  [["a", 100], ["b", 100], ["c", 80], ["d", 70]].map(([o, p]) => ({
+    ownerId: o as string,
+    points: p as number,
+  }))
+)
+check("2026 config: 2-way tie for 1st = $87.50 each", live.get("a") === 87.5 && live.get("b") === 87.5)
+check("2026 config: 3rd gets $25", live.get("c") === 25)
+check("2026 config: total allocated = $200", Math.abs(sum(live) - 200) < 1e-9)
+
+// ---------- pot math (2026: 22 of 24 entrants) ----------
 console.log("pot math:")
-const BUY_IN = 25, WEEKLY = 25, WEEKS = 14, SEASON_PRIZES = [150, 65, 35]
-const potIn = 24 * BUY_IN
-const potOut = WEEKS * WEEKLY + SEASON_PRIZES.reduce((a, b) => a + b, 0)
+const BUY_IN = 25, WEEKLY = 25, WEEKS = 14, PRIZES_2026 = [125, 50, 25], ENTRANTS = 22
+const potIn = ENTRANTS * BUY_IN
+const potOut = WEEKS * WEEKLY + PRIZES_2026.reduce((a, b) => a + b, 0)
 check(`pot balances: ${potIn} in = ${potOut} out`, potIn === potOut)
 
 // ---------- summary ----------

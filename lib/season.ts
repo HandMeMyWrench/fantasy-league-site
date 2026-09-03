@@ -8,6 +8,7 @@ import {
   LEAGUES,
   movementSpots,
   sortStandings,
+  OWNER_SUCCESSION,
   type SeasonYear,
   type RosterLite,
 } from "@/lib/leagues"
@@ -35,13 +36,19 @@ function toTeams(
   rosters: Roster[],
   users: Record<string, User>
 ): SeasonTeam[] {
-  return rosters.map((r, i) => ({
-    owner_id: r.owner_id,
-    name: r.metadata?.team_name || users[r.owner_id]?.display_name || "Unnamed Team",
-    owner: users[r.owner_id]?.display_name || "Unknown",
-    avatar: users[r.owner_id]?.avatar ?? null,
-    rank: i + 1,
-  }))
+  return rosters.map((r, i) => {
+    // Manager changes: the new owner inherits the old owner's team + rank.
+    const succ = OWNER_SUCCESSION[r.owner_id]
+    return {
+      owner_id: succ?.id ?? r.owner_id,
+      name:
+        succ?.name ??
+        (r.metadata?.team_name || users[r.owner_id]?.display_name || "Unnamed Team"),
+      owner: succ?.name ?? users[r.owner_id]?.display_name ?? "Unknown",
+      avatar: succ ? null : users[r.owner_id]?.avatar ?? null,
+      rank: i + 1,
+    }
+  })
 }
 
 export async function getSeasonLineups(year: SeasonYear): Promise<SeasonLineups> {

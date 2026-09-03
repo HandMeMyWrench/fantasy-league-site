@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { hashPin, pinOk } from "@/lib/pickem/auth"
-import { SEASON } from "@/lib/pickem/config"
+import { SEASON, PICKEM_EXCLUDED_OWNER_IDS } from "@/lib/pickem/config"
 import { countChanges, effectivePicks } from "@/lib/pickem/scoring"
 import type { Side, UserPicks } from "@/lib/pickem/types"
 import {
@@ -81,6 +81,13 @@ export async function POST(req: NextRequest) {
     (g) => g.a.ownerId === ownerId || g.b.ownerId === ownerId
   )
   if (!isManager) return NextResponse.json({ error: "unknown manager" }, { status: 403 })
+
+  // Only paid entrants play — enforced server-side, with money on the line.
+  if (PICKEM_EXCLUDED_OWNER_IDS.has(ownerId))
+    return NextResponse.json(
+      { error: "not in this season's Pick'em pot — see the commissioner 💰" },
+      { status: 403 }
+    )
 
   // PIN: first submission claims the account, later ones must match
   const auth = await getUserAuth(ownerId)

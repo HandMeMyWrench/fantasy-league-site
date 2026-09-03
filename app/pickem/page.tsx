@@ -4,6 +4,11 @@ import React, { useCallback, useEffect, useMemo, useState } from "react"
 import type { Board, Side } from "@/lib/pickem/types"
 import { getSeasonLineups, type SeasonTeam } from "@/lib/season"
 import { useBoardIntel, isSeriousInj, gameWinProb, makeDemoIntel } from "./useBoardIntel"
+import {
+  TOTAL_POT,
+  PICKEM_ENTRANTS,
+  PICKEM_EXCLUDED_OWNER_IDS,
+} from "@/lib/pickem/config"
 
 /* SWRR Pick'em — weekly board + submission, leaderboard, rules.
    Picks are stored server-side (see /api/pickem/*); each manager claims
@@ -222,6 +227,8 @@ export default function PickemPage() {
       seen.set(g.a.ownerId, `${g.a.name} (${g.a.owner})`)
       seen.set(g.b.ownerId, `${g.b.name} (${g.b.owner})`)
     }
+    // Only paid entrants appear in the "who are you?" dropdown.
+    for (const id of PICKEM_EXCLUDED_OWNER_IDS) seen.delete(id)
     return [...seen.entries()].sort((x, y) => x[1].localeCompare(y[1]))
   }, [board])
 
@@ -300,7 +307,7 @@ export default function PickemPage() {
           SWRR Pick&apos;em
         </h1>
         <p className="mb-4 text-center text-sm text-ink-dim">
-          $600 on the board · $25 every week · chalk won&apos;t save you
+          ${TOTAL_POT} on the board · $25 every week · chalk won&apos;t save you
         </p>
 
         <div className="mb-5 flex justify-center">
@@ -790,10 +797,11 @@ export default function PickemPage() {
               for the week.
             </p>
             <p>
-              <span className="font-semibold text-ink">Money.</span> $25 buy-in.
-              $25 to the weekly winner (ties split). Season top 3: $150 / $65 /
-              $35 — season ties split the combined money for the spots they span
-              (2-way tie for 1st = $107.50 each; tie at 3rd = $17.50 each). The
+              <span className="font-semibold text-ink">Money.</span> $25 buy-in —{" "}
+              {PICKEM_ENTRANTS} of 24 managers are in this season (${TOTAL_POT} pot).
+              $25 to the weekly winner (ties split). Season top 3: $125 / $50 /
+              $25 — season ties split the combined money for the spots they span
+              (2-way tie for 1st = $87.50 each; tie at 3rd = $12.50 each). The
               site is the scoreboard; cash moves through the usual dues channel.
             </p>
             <p>

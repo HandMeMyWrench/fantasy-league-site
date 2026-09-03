@@ -48,6 +48,16 @@ export function hasStarted(year: SeasonYear): boolean {
   return !!LEAGUES[year]?.started;
 }
 
+// Manager changes between 2025 and 2026: the new owner inherits the old
+// owner's team wherever provisional (last-season-derived) data is used —
+// week-1 favorites, standings previews, rehearsal boards. old id -> new.
+export const OWNER_SUCCESSION: Record<string, { id: string; name: string }> = {
+  // Saywhen -> Mikelee400 (2026 upper league)
+  "604349344803520512": { id: "604356315598356480", name: "Mikelee400" },
+  // timmytitle -> TimmP (2026 lower league)
+  "1255539679348916224": { id: "1135321783214911488", name: "TimmP" },
+};
+
 // The standing rule for any new season going forward.
 export const DEFAULT_MOVEMENT = 3;
 

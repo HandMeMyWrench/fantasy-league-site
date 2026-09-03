@@ -1,7 +1,13 @@
 import { NextResponse } from "next/server"
 import { getMatchups, getNflState } from "@/lib/sleeper"
 import { LEAGUES, type SeasonYear } from "@/lib/leagues"
-import { SEASON, REGULAR_SEASON_WEEKS, WEEKLY_PRIZE, weekLockUtc } from "@/lib/pickem/config"
+import {
+  SEASON,
+  REGULAR_SEASON_WEEKS,
+  WEEKLY_PRIZE,
+  weekLockUtc,
+  PICKEM_EXCLUDED_OWNER_IDS,
+} from "@/lib/pickem/config"
 import { allocateSeasonPrizes, gameOutcomes, rankScores, scoreUser } from "@/lib/pickem/scoring"
 import type { UserPicks, WeekResult } from "@/lib/pickem/types"
 import {
@@ -43,10 +49,12 @@ async function computeWeek(week: number): Promise<WeekResult | null> {
     nameByOwner.set(g.b.ownerId, g.b.name)
   }
 
-  // Score every manager on the board — all 24 paid the buy-in, so no-shows
-  // appear with zeros (submitted: false) instead of vanishing from the table.
+  // Score every ENTRANT on the board — entrants who don't submit appear with
+  // zeros (submitted: false). Managers not in the pot are excluded entirely.
   const submitted = new Set(await listPickOwners(SEASON, week))
-  const allOwners = [...nameByOwner.keys()]
+  const allOwners = [...nameByOwner.keys()].filter(
+    (o) => !PICKEM_EXCLUDED_OWNER_IDS.has(o)
+  )
   const allPicks = await Promise.all(
     allOwners.map(async (o): Promise<UserPicks> =>
       (submitted.has(o) ? await getUserPicks(SEASON, week, o) : null) ??
