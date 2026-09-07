@@ -406,16 +406,19 @@ const MatchupsPage = () => {
             >
               {Math.round(w1)}%
             </span>
-            <div
-              className={`h-1.5 flex-1 overflow-hidden rounded-full ${
-                w1 >= w2 ? "bg-rose-500/40" : "bg-emerald-500"
-              }`}
-            >
+            {/* two side-by-side segments (no translucent overlay — a see-
+                through fill over a solid track muddies the colors) */}
+            <div className="flex h-1.5 flex-1 overflow-hidden rounded-full">
               <div
-                className={`h-full rounded-full transition-all duration-700 ${
+                className={`h-full transition-all duration-700 ${
                   w1 >= w2 ? "bg-emerald-500" : "bg-rose-500/40"
                 }`}
                 style={{ width: `${w1}%` }}
+              />
+              <div
+                className={`h-full flex-1 ${
+                  w2 > w1 ? "bg-emerald-500" : "bg-rose-500/40"
+                }`}
               />
             </div>
             <span
