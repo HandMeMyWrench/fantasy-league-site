@@ -48,7 +48,11 @@ export default function NavBar() {
           </span>
         </Link>
 
-        <nav className="flex flex-1 items-center justify-end gap-1 overflow-x-auto whitespace-nowrap py-2 [-ms-overflow-style:none] [scrollbar-width:none]">
+        {/* ml-auto (not flex-1 justify-end): a right-justified flex container
+            overflows LEFT, past the scroll origin, hiding the first links
+            behind the logo on phones. Start-justified + ml-auto right-aligns
+            when it fits and scrolls correctly from the left when it doesn't. */}
+        <nav className="ml-auto flex min-w-0 items-center gap-1 overflow-x-auto whitespace-nowrap py-2 [-ms-overflow-style:none] [scrollbar-width:none]">
           {LINKS.map(({ href, label }) => {
             const active = pathname === href
             return (
