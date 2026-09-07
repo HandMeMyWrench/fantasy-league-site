@@ -362,7 +362,10 @@ const MatchupsPage = () => {
       const isOpen = !!openLineups[id];
 
       return (
-        <div key={id} className="rounded-lg border border-line bg-surface/70 p-3">
+        <div
+          key={id}
+          className="rounded-xl border border-white/15 bg-surface-2 p-3 shadow-[0_3px_12px_rgba(0,0,0,0.4)]"
+        >
           {/* teams + score */}
           <div className="flex items-center gap-2">
             <div className="flex min-w-0 flex-1 items-center gap-2">
