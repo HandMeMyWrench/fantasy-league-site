@@ -396,13 +396,35 @@ const MatchupsPage = () => {
             </div>
           </div>
 
-          {/* slim split win bar */}
+          {/* slim split win bar — green always marks the FAVORED side (higher
+              win%), rose the underdog, regardless of left/right position */}
           <div className="mt-2.5 flex items-center gap-2">
-            <span className="w-8 text-[11px] tabular-nums text-promo">{Math.round(w1)}%</span>
-            <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-rose-500/40">
-              <div className="h-full rounded-full bg-emerald-500 transition-all duration-700" style={{ width: `${w1}%` }} />
+            <span
+              className={`w-8 text-[11px] tabular-nums ${
+                w1 >= w2 ? "text-promo" : "text-rose-400"
+              }`}
+            >
+              {Math.round(w1)}%
+            </span>
+            <div
+              className={`h-1.5 flex-1 overflow-hidden rounded-full ${
+                w1 >= w2 ? "bg-rose-500/40" : "bg-emerald-500"
+              }`}
+            >
+              <div
+                className={`h-full rounded-full transition-all duration-700 ${
+                  w1 >= w2 ? "bg-emerald-500" : "bg-rose-500/40"
+                }`}
+                style={{ width: `${w1}%` }}
+              />
             </div>
-            <span className="w-8 text-right text-[11px] tabular-nums text-rose-400">{Math.round(w2)}%</span>
+            <span
+              className={`w-8 text-right text-[11px] tabular-nums ${
+                w2 > w1 ? "text-promo" : "text-rose-400"
+              }`}
+            >
+              {Math.round(w2)}%
+            </span>
           </div>
 
           {/* lineups toggle */}
