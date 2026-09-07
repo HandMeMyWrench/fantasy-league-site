@@ -78,7 +78,9 @@ export default function LotteryPage() {
     if (new URLSearchParams(window.location.search).has("preview")) {
       setPreviewStart(Date.now() + 5_000)
     }
-    getSeasonLineups(YEAR)
+    // forceProvisional: the pool order feeds the seeded draw — it must stay
+    // the pre-draft order forever or the deterministic result would change.
+    getSeasonLineups(YEAR, true)
       .then((l) => setLineups({ upper: l.upper, lower: l.lower }))
       .catch((e) => setError(e instanceof Error ? e.message : "Failed to load teams"))
     const id = setInterval(() => setNow(Date.now()), 250)

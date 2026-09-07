@@ -51,10 +51,18 @@ function toTeams(
   })
 }
 
-export async function getSeasonLineups(year: SeasonYear): Promise<SeasonLineups> {
+export async function getSeasonLineups(
+  year: SeasonYear,
+  // Force the last-season-finish derivation even after the season starts.
+  // Used where rank must mean PRIOR finish and stay stable forever: week-1
+  // Pick'em favorites (live standings are a meaningless 0-0 on draft day)
+  // and the draft lottery (pool order feeds the seeded draw — if it shifted,
+  // the "deterministic" result would rewrite itself after the fact).
+  forceProvisional = false
+): Promise<SeasonLineups> {
   const cfg = LEAGUES[year]
 
-  if (cfg?.upper && cfg.started && cfg.lower) {
+  if (cfg?.upper && cfg.started && cfg.lower && !forceProvisional) {
     const [uR, uU, lR, lU] = await Promise.all([
       getStandings(cfg.upper),
       getLeagueUsers(cfg.upper),

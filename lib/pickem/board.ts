@@ -90,7 +90,9 @@ export async function buildBoard(week: number): Promise<Board | null> {
   if (!cfg?.upper || !cfg.lower || !cfg.started) return null // preseason
 
   // Provisional ranks for week-1 favorites (combined last-season finish).
-  const lineups = await getSeasonLineups(SEASON as SeasonYear).catch(() => null)
+  // forceProvisional: live standings are 0-0 until games post — rank must
+  // mean last season's finish or week-1 favorites would be arbitrary.
+  const lineups = await getSeasonLineups(SEASON as SeasonYear, true).catch(() => null)
   const provRank = new Map<string, number>()
   lineups?.upper.forEach((t) => provRank.set(t.owner_id, t.rank))
   lineups?.lower.forEach((t) => provRank.set(t.owner_id, t.rank))

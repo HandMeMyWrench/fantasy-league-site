@@ -27,7 +27,7 @@ export const LEAGUES: Record<SeasonYear, LeagueSeason> = {
     upper: "1372742288362446848",
     lower: "1354548298421137408",
     movement: 3,
-    started: false, // pre-draft — flip to true when the 2026 season kicks off
+    started: true, // drafted Sep 6, 2026 — season live
   },
   "2025": {
     upper: "1243754325482684416",

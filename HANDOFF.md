@@ -28,8 +28,11 @@ top teams of the Lower get promoted. It solves Sleeper's inability to merge two 
 - **2025** (inaugural): one-time **6 up / 6 down** reshuffle.
 - **2026 onward:** permanent **3 up / 3 down**.
 
-### 2026 rollover — IMPORTANT
-2026 league IDs are wired in but `started: false`, so the site shows the **provisional preview** (derived from the 2025 finish) and keeps "current season" views on 2025. **When the 2026 season actually kicks off, flip `started` to `true` on the 2026 entry in `lib/leagues.ts`** — the whole site then goes live on 2026 automatically.
+### 2026 rollover — DONE (drafts completed Sep 6, 2026)
+`started: true` on the 2026 entry — the whole site is live on 2026.
+Note: `getSeasonLineups(year, forceProvisional)` — pass `true` where rank
+must mean LAST season's finish and stay stable (week-1 Pick'em favorites
+in board.ts, lottery pool order). Default (live standings) everywhere else.
 
 ### Scoring nuance
 The league is half-PPR with bonuses AND an **all-play "median" game** (`league_average_match`), which is why win totals run ~2×. Projections are computed by applying the league's `scoring_settings` to raw stats (NOT the generic `pts_half_ppr`). The odds sim models the median game too.
