@@ -55,6 +55,23 @@ export default function RelegationSpotlight() {
   if (!ready || upper.length === 0 || lower.length === 0) return null
 
   const spots = movementSpots(year)
+
+  // Early-season: with fewer than 4 completed weeks the standings are noise —
+  // naming teams "in the drop zone" at 0-0 (or 1-2) is meaningless. Show a
+  // slim armed-countdown state instead; the full watch takes over at Week 5.
+  const ARM_AFTER_WEEKS = 4
+  const completedWeeks = Math.max(0, week - 1)
+  if (!complete && completedWeeks < ARM_AFTER_WEEKS) {
+    return (
+      <section className="panel mb-5 flex flex-wrap items-center justify-between gap-2 px-4 py-3">
+        <h2 className="display text-base text-drop">Relegation Watch</h2>
+        <p className="text-xs text-ink-dim">
+          Arms after Week {ARM_AFTER_WEEKS} · bottom {spots} of the Upper go down,
+          top {spots} of the Lower come up · nobody is safe
+        </p>
+      </section>
+    )
+  }
   const safeIdx = Math.max(0, upper.length - spots)
   const dropZone = upper.slice(safeIdx)
   const lastSafe = upper[safeIdx - 1]
