@@ -40,6 +40,16 @@ export async function getLeagueData(leagueId: string) {
   return cachedJson(`https://api.sleeper.app/v1/league/${leagueId}`, TTL.stable);
 }
 
+// Playoff winners bracket. The championship game is the entry with p === 1
+// (the "1st place" game); its `w` is the CHAMPION's roster_id. Regular-season
+// standings decide seeding and relegation — never the title.
+export async function getWinnersBracket(leagueId: string) {
+  return cachedJson(
+    `https://api.sleeper.app/v1/league/${leagueId}/winners_bracket`,
+    TTL.slow
+  );
+}
+
 export async function getStandings(leagueId: string) {
   return cachedJson(
     `https://api.sleeper.app/v1/league/${leagueId}/rosters`,

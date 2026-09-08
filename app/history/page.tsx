@@ -1,7 +1,7 @@
 "use client"
 
 import React, { useEffect, useMemo, useState } from "react"
-import { getStandings, getLeagueUsers, getLeagueMetadata } from "@/lib/sleeper"
+import { getStandings, getLeagueUsers, getLeagueMetadata, getWinnersBracket } from "@/lib/sleeper"
 import {
   LEAGUES,
   movementSpots,
@@ -24,6 +24,7 @@ type SeasonRecord = {
   year: SeasonYear
   complete: boolean
   champion: Roster | null
+  lowerChamp: Roster | null
   stayUp: Roster[]
   promoted: Roster[]
   relegated: Roster[]
@@ -51,12 +52,14 @@ async function loadSeason(year: SeasonYear): Promise<SeasonRecord | null> {
   if (!upperId || !lowerId) return null
 
   try {
-    const [uRosters, uUsers, lRosters, lUsers, meta] = await Promise.all([
+    const [uRosters, uUsers, lRosters, lUsers, meta, uBracket, lBracket] = await Promise.all([
       getStandings(upperId),
       getLeagueUsers(upperId),
       getStandings(lowerId),
       getLeagueUsers(lowerId),
       getLeagueMetadata(upperId),
+      getWinnersBracket(upperId).catch(() => []),
+      getWinnersBracket(lowerId).catch(() => []),
     ])
 
     const users: Record<string, User> = {}
@@ -76,6 +79,18 @@ async function loadSeason(year: SeasonYear): Promise<SeasonRecord | null> {
     const complete =
       meta?.status === "complete" || Number(year) < new Date().getFullYear()
 
+    // CHAMPION = winner of the playoff bracket's championship game (p === 1),
+    // NOT the regular-season standings leader — seeding isn't a title. (This
+    // once wrongly crowned schaefer126 for 2025; JoshScall won the final.)
+    // Fallback: Sleeper's own recorded winner. Only complete seasons have one.
+    type BracketGame = { p?: number; w?: number }
+    const bracketChamp = (bracket: BracketGame[], rosters: Roster[]): Roster | null => {
+      if (!complete) return null
+      const winnerId = (bracket ?? []).find((m) => m.p === 1)?.w
+      if (winnerId == null) return null
+      return rosters.find((r) => r.roster_id === winnerId) ?? null
+    }
+
     const tier: Record<string, "Upper" | "Lower"> = {}
     for (const r of upperRanked) tier[r.owner_id] = "Upper"
     for (const r of lowerRanked) tier[r.owner_id] = "Lower"
@@ -89,7 +104,8 @@ async function loadSeason(year: SeasonYear): Promise<SeasonRecord | null> {
     return {
       year,
       complete,
-      champion: upperRanked[0] ?? null,
+      champion: bracketChamp(uBracket as BracketGame[], upperRanked),
+      lowerChamp: bracketChamp(lBracket as BracketGame[], lowerRanked),
       stayUp,
       promoted,
       relegated,
@@ -212,9 +228,18 @@ export default function HistoryPage() {
                     </span>
                   )}
                 </h2>
-                {rec.champion && (
-                  <div className="text-sm text-gold">
-                    🏆 Upper champ: {teamOf(rec.champion, rec)} ({nameOf(rec, rec.champion.owner_id)})
+                {(rec.champion || rec.lowerChamp) && (
+                  <div className="text-right text-sm">
+                    {rec.champion && (
+                      <div className="text-gold">
+                        🏆 Upper champ: {teamOf(rec.champion, rec)} ({nameOf(rec, rec.champion.owner_id)})
+                      </div>
+                    )}
+                    {rec.lowerChamp && (
+                      <div className="text-ink-dim">
+                        🥇 Lower playoff winner: {teamOf(rec.lowerChamp, rec)} ({nameOf(rec, rec.lowerChamp.owner_id)})
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
