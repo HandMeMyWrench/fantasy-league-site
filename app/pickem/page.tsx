@@ -3,7 +3,14 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react"
 import type { Board, Side } from "@/lib/pickem/types"
 import { getSeasonLineups, type SeasonTeam } from "@/lib/season"
-import { useBoardIntel, isSeriousInj, gameWinProb, makeDemoIntel } from "./useBoardIntel"
+import {
+  useBoardIntel,
+  isSeriousInj,
+  gameWinProb,
+  makeDemoIntel,
+  defRankTone,
+  type StarterIntel,
+} from "./useBoardIntel"
 import {
   TOTAL_POT,
   PICKEM_ENTRANTS,
@@ -54,6 +61,36 @@ type AllPicksRow = {
   buybackChanges: number
 }
 
+/** Per-starter NFL matchup line: opponent + opposing defense's rank vs the
+    player's position. Green = soft defense (23rd-32nd), red = tough (1st-10th).
+    "BYE" in red — that player scores zero this week. */
+const ordinal = (n: number) => {
+  const s = ["th", "st", "nd", "rd"], v = n % 100
+  return `${n}${s[(v - 20) % 10] ?? s[v] ?? s[0]}`
+}
+function NflMatchupTag({ s, right }: { s?: StarterIntel; right?: boolean }) {
+  if (!s) return null
+  if (s.opp === null)
+    return (
+      <span className={`block text-[10px] text-drop ${right ? "text-right" : ""}`}>BYE</span>
+    )
+  if (!s.opp) return null
+  const tone = defRankTone(s.defRank)
+  const cls =
+    tone === "soft" ? "text-promo" : tone === "tough" ? "text-drop" : "text-ink-faint"
+  return (
+    <span className={`block truncate text-[10px] text-ink-faint ${right ? "text-right" : ""}`}>
+      {s.home ? "vs" : "@"} {s.opp}
+      {s.defRank != null && s.pos && (
+        <span className={cls}>
+          {" · "}
+          {ordinal(s.defRank)} vs {s.pos.toUpperCase()}
+        </span>
+      )}
+    </span>
+  )
+}
+
 /** Shared key for the board's shorthand — shown inline (toggle) and in Rules. */
 function BoardLegend() {
   const Row = ({ token, children }: { token: string; children: React.ReactNode }) => (
@@ -89,7 +126,13 @@ function BoardLegend() {
       <Row token="🔒 make lock">
         your Lock of the Week — 3 pts if it hits, −2 if it misses
       </Row>
-      <Row token="player matchups ▾">starter-by-starter projection comparison</Row>
+      <Row token="player matchups ▾">
+        starter-by-starter projection comparison, each with their NFL opponent
+        and that defense&apos;s rank vs their position (of 32 —{" "}
+        <span className="text-drop">1st–10th tough</span>,{" "}
+        <span className="text-promo">23rd–32nd soft</span>; early weeks use last
+        season&apos;s numbers until this season has 3 games of data)
+      </Row>
     </div>
   )
 }
@@ -549,15 +592,18 @@ export default function PickemPage() {
                                   {Array.from({ length: n }, (_, i) => (
                                     <div
                                       key={i}
-                                      className="flex items-baseline justify-between gap-2 py-0.5 text-[11px]"
+                                      className="flex items-start justify-between gap-2 py-1 text-[11px]"
                                     >
-                                      <span className="min-w-0 flex-1 truncate text-ink-dim">
-                                        {A?.[i]?.label ?? "—"}
-                                        {A?.[i]?.inj && (
-                                          <span className={isSeriousInj(A[i].inj) ? "text-drop" : "text-gold"}>
-                                            {" "}{A[i].inj}
-                                          </span>
-                                        )}
+                                      <span className="min-w-0 flex-1">
+                                        <span className="block truncate text-ink-dim">
+                                          {A?.[i]?.label ?? "—"}
+                                          {A?.[i]?.inj && (
+                                            <span className={isSeriousInj(A[i].inj) ? "text-drop" : "text-gold"}>
+                                              {" "}{A[i].inj}
+                                            </span>
+                                          )}
+                                        </span>
+                                        <NflMatchupTag s={A?.[i]} />
                                       </span>
                                       <span className="tnum shrink-0 text-ink">
                                         {A?.[i] ? A[i].proj.toFixed(1) : ""}
@@ -566,13 +612,16 @@ export default function PickemPage() {
                                       <span className="tnum shrink-0 text-ink">
                                         {B?.[i] ? B[i].proj.toFixed(1) : ""}
                                       </span>
-                                      <span className="min-w-0 flex-1 truncate text-right text-ink-dim">
-                                        {B?.[i]?.inj && (
-                                          <span className={isSeriousInj(B[i].inj) ? "text-drop" : "text-gold"}>
-                                            {B[i].inj}{" "}
-                                          </span>
-                                        )}
-                                        {B?.[i]?.label ?? "—"}
+                                      <span className="min-w-0 flex-1 text-right">
+                                        <span className="block truncate text-ink-dim">
+                                          {B?.[i]?.inj && (
+                                            <span className={isSeriousInj(B[i].inj) ? "text-drop" : "text-gold"}>
+                                              {B[i].inj}{" "}
+                                            </span>
+                                          )}
+                                          {B?.[i]?.label ?? "—"}
+                                        </span>
+                                        <NflMatchupTag s={B?.[i]} right />
                                       </span>
                                     </div>
                                   ))}

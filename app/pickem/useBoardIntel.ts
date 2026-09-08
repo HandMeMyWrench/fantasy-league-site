@@ -24,6 +24,11 @@ export type StarterIntel = {
   proj: number
   inj?: string
   pos?: string
+  // NFL matchup: opponent team abbrev (null = bye week), home game, and the
+  // opposing defense's rank vs this position (1 = stingiest of 32 = tough).
+  opp?: string | null
+  home?: boolean
+  defRank?: number
 }
 export type TeamIntel = {
   proj: number
@@ -67,7 +72,76 @@ type CatalogRow = {
   last_name?: string
   position?: string
   injury_status?: string | null
+  team?: string | null
 }
+
+/* ---------------- NFL matchup + defense-vs-position ranks ----------------
+   Sleeper's season-aggregate team-defense stats carry fan_pts_allow_{pos}
+   (fantasy points allowed to each position) and gp. Rank all 32 defenses per
+   position: rank 1 = fewest allowed per game = toughest matchup. Basis:
+   current season once every defense has 3+ games; before that, last season. */
+const DEF_FIELD: Record<string, string> = {
+  QB: "fan_pts_allow_qb",
+  RB: "fan_pts_allow_rb",
+  WR: "fan_pts_allow_wr",
+  TE: "fan_pts_allow_te",
+  K: "fan_pts_allow_k",
+  DEF: "fan_pts_allow_def",
+}
+type AggStats = Record<string, Record<string, number>>
+type DefRanks = Map<string, Record<string, number>> // team -> pos -> rank
+
+async function fetchDefRanks(season: number): Promise<DefRanks> {
+  const agg = async (yr: number): Promise<AggStats> =>
+    (await fetch(`https://api.sleeper.app/v1/stats/nfl/regular/${yr}`, {
+      cache: "force-cache",
+    }).then((r) => r.json())) as AggStats
+  const teamsOf = (a: AggStats) =>
+    Object.keys(a).filter((k) => /^[A-Z]{2,3}$/.test(k) && a[k]?.gp != null)
+  let data = await agg(season)
+  let teams = teamsOf(data)
+  const enough = teams.length >= 30 && teams.every((t) => (data[t].gp ?? 0) >= 3)
+  if (!enough) {
+    data = await agg(season - 1)
+    teams = teamsOf(data)
+  }
+  const ranks: DefRanks = new Map()
+  for (const t of teams) ranks.set(t, {})
+  for (const [pos, field] of Object.entries(DEF_FIELD)) {
+    const sorted = teams
+      .slice()
+      .sort(
+        (a, b) =>
+          (data[a][field] ?? 0) / (data[a].gp || 1) -
+          (data[b][field] ?? 0) / (data[b].gp || 1)
+      )
+    sorted.forEach((t, i) => (ranks.get(t)![pos] = i + 1))
+  }
+  return ranks
+}
+
+type SchedGame = { week: number; home: string; away: string }
+/** team -> { opp, home } for one week; teams absent are on bye. */
+async function fetchWeekSchedule(
+  season: string,
+  week: number
+): Promise<Map<string, { opp: string; home: boolean }>> {
+  const games = (await fetch(
+    `https://api.sleeper.app/schedule/nfl/regular/${season}`,
+    { cache: "force-cache" }
+  ).then((r) => r.json())) as SchedGame[]
+  const map = new Map<string, { opp: string; home: boolean }>()
+  for (const g of games)
+    if (g.week === week) {
+      map.set(g.home, { opp: g.away, home: true })
+      map.set(g.away, { opp: g.home, home: false })
+    }
+  return map
+}
+
+/** Matchup difficulty color bucket: rank 1-10 tough, 23-32 soft. */
+export const defRankTone = (rank?: number): "tough" | "soft" | "mid" | undefined =>
+  rank == null ? undefined : rank <= 10 ? "tough" : rank >= 23 ? "soft" : "mid"
 
 const injTag = (s?: string | null): string | undefined => {
   if (!s) return undefined
@@ -192,6 +266,15 @@ export function useBoardIntel(board: Board | null, enabled: boolean) {
         ])
         const catalog = (await catRes.json()) as Record<string, CatalogRow>
 
+        // NFL opponents + defense-vs-position ranks (decision support only —
+        // if either fetch fails the board still renders without them).
+        const [sched, defRanks] = await Promise.all([
+          fetchWeekSchedule(board.season, week).catch(
+            () => new Map<string, { opp: string; home: boolean }>()
+          ),
+          fetchDefRanks(Number(board.season)).catch(() => new Map() as DefRanks),
+        ])
+
         const starterIds = new Set<string>()
         const collect = (ms: SleeperMatchup[]) => {
           for (const m of ms)
@@ -259,13 +342,24 @@ export function useBoardIntel(board: Board | null, enabled: boolean) {
           for (const m of ms) {
             const starters = (m.starters ?? [])
               .filter((s) => s && s !== "0")
-              .map((pid) => ({
-                pid,
-                label: label(pid),
-                proj: scoreStats(stats.get(pid), scoring),
-                inj: injTag(catalog[pid]?.injury_status),
-                pos: catalog[pid]?.position ?? undefined,
-              }))
+              .map((pid) => {
+                const pos = catalog[pid]?.position ?? undefined
+                const team = catalog[pid]?.team ?? undefined
+                const game = team ? sched.get(team) : undefined
+                // opp: undefined = unknown, null = confirmed bye week
+                const opp = !team ? undefined : game ? game.opp : sched.size ? null : undefined
+                return {
+                  pid,
+                  label: label(pid),
+                  proj: scoreStats(stats.get(pid), scoring),
+                  inj: injTag(catalog[pid]?.injury_status),
+                  pos,
+                  opp,
+                  home: game?.home,
+                  defRank:
+                    game && pos ? defRanks.get(game.opp)?.[pos.toUpperCase()] : undefined,
+                }
+              })
             let variance = 0
             for (const s of starters) {
               const pos = (s.pos ?? "").toUpperCase()
