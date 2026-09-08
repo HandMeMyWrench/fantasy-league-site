@@ -29,6 +29,7 @@ export type StarterIntel = {
   opp?: string | null
   home?: boolean
   defRank?: number
+  env?: GameEnv
 }
 export type TeamIntel = {
   proj: number
@@ -120,23 +121,106 @@ async function fetchDefRanks(season: number): Promise<DefRanks> {
   return ranks
 }
 
-type SchedGame = { week: number; home: string; away: string }
-/** team -> { opp, home } for one week; teams absent are on bye. */
+type SchedGame = { week: number; home: string; away: string; date?: string }
+type SchedEntry = { opp: string; home: boolean; venue: string; date?: string }
+/** team -> game entry for one week; teams absent are on bye. venue = the
+    HOME team (whose stadium the game is in). */
 async function fetchWeekSchedule(
   season: string,
   week: number
-): Promise<Map<string, { opp: string; home: boolean }>> {
+): Promise<Map<string, SchedEntry>> {
   const games = (await fetch(
     `https://api.sleeper.app/schedule/nfl/regular/${season}`,
     { cache: "force-cache" }
   ).then((r) => r.json())) as SchedGame[]
-  const map = new Map<string, { opp: string; home: boolean }>()
+  const map = new Map<string, SchedEntry>()
   for (const g of games)
     if (g.week === week) {
-      map.set(g.home, { opp: g.away, home: true })
-      map.set(g.away, { opp: g.home, home: false })
+      map.set(g.home, { opp: g.away, home: true, venue: g.home, date: g.date })
+      map.set(g.away, { opp: g.home, home: false, venue: g.home, date: g.date })
     }
   return map
+}
+
+/* ---------------- game environment: dome / wind / rain / snow ----------------
+   Venue = home team's stadium. Dome games (fixed or retractable roof) are
+   weather-proof; outdoor games get a day-of forecast from Open-Meteo (free,
+   no key). Icons flag only what matters for fantasy: 20+ mph wind, likely
+   rain, any snow. */
+const STADIUM: Record<string, { lat: number; lon: number; dome?: boolean }> = {
+  ARI: { lat: 33.5276, lon: -112.2626, dome: true },
+  ATL: { lat: 33.7554, lon: -84.401, dome: true },
+  BAL: { lat: 39.278, lon: -76.6227 },
+  BUF: { lat: 42.7738, lon: -78.787 },
+  CAR: { lat: 35.2258, lon: -80.8528 },
+  CHI: { lat: 41.8623, lon: -87.6167 },
+  CIN: { lat: 39.0954, lon: -84.516 },
+  CLE: { lat: 41.5061, lon: -81.6995 },
+  DAL: { lat: 32.7473, lon: -97.0945, dome: true },
+  DEN: { lat: 39.7439, lon: -105.0201 },
+  DET: { lat: 42.34, lon: -83.0456, dome: true },
+  GB: { lat: 44.5013, lon: -88.0622 },
+  HOU: { lat: 29.6847, lon: -95.4107, dome: true },
+  IND: { lat: 39.7601, lon: -86.1639, dome: true },
+  JAX: { lat: 30.3239, lon: -81.6373 },
+  KC: { lat: 39.0489, lon: -94.4839 },
+  LV: { lat: 36.0909, lon: -115.1833, dome: true },
+  LAC: { lat: 33.9535, lon: -118.3392, dome: true },
+  LAR: { lat: 33.9535, lon: -118.3392, dome: true },
+  MIA: { lat: 25.958, lon: -80.2389 },
+  MIN: { lat: 44.9737, lon: -93.2577, dome: true },
+  NE: { lat: 42.0909, lon: -71.2643 },
+  NO: { lat: 29.9511, lon: -90.0812, dome: true },
+  NYG: { lat: 40.8135, lon: -74.0745 },
+  NYJ: { lat: 40.8135, lon: -74.0745 },
+  PHI: { lat: 39.9008, lon: -75.1675 },
+  PIT: { lat: 40.4468, lon: -80.0158 },
+  SEA: { lat: 47.5952, lon: -122.3316 },
+  SF: { lat: 37.403, lon: -121.97 },
+  TB: { lat: 27.9759, lon: -82.5033 },
+  TEN: { lat: 36.1665, lon: -86.7713 },
+  WAS: { lat: 38.9078, lon: -76.8645 },
+}
+
+export type GameEnv = { dome?: boolean; wind?: boolean; rain?: boolean; snow?: boolean }
+
+/** One forecast per unique OUTDOOR venue for the week; dome venues are
+    marked without a fetch. Forecasts beyond Open-Meteo's ~16-day horizon
+    just fail quietly (no icons — fine, the board only shows current week). */
+async function fetchGameEnvs(sched: Map<string, SchedEntry>): Promise<Map<string, GameEnv>> {
+  const byVenue = new Map<string, GameEnv>()
+  const jobs: Promise<void>[] = []
+  for (const e of sched.values()) {
+    if (byVenue.has(e.venue)) continue
+    const st = STADIUM[e.venue]
+    if (!st) continue
+    if (st.dome) {
+      byVenue.set(e.venue, { dome: true })
+      continue
+    }
+    if (!e.date) continue
+    byVenue.set(e.venue, {}) // reserve so we fetch once
+    const url =
+      `https://api.open-meteo.com/v1/forecast?latitude=${st.lat}&longitude=${st.lon}` +
+      `&daily=precipitation_probability_max,wind_speed_10m_max,snowfall_sum` +
+      `&temperature_unit=fahrenheit&wind_speed_unit=mph` +
+      `&start_date=${e.date}&end_date=${e.date}&timezone=America%2FNew_York`
+    jobs.push(
+      fetch(url, { cache: "force-cache" })
+        .then((r) => r.json())
+        .then((d: { daily?: { precipitation_probability_max?: number[]; wind_speed_10m_max?: number[]; snowfall_sum?: number[] } }) => {
+          const day = d.daily
+          byVenue.set(e.venue, {
+            wind: (day?.wind_speed_10m_max?.[0] ?? 0) >= 20,
+            rain: (day?.precipitation_probability_max?.[0] ?? 0) >= 50,
+            snow: (day?.snowfall_sum?.[0] ?? 0) > 0,
+          })
+        })
+        .catch(() => {})
+    )
+  }
+  await Promise.all(jobs)
+  return byVenue
 }
 
 /** Matchup difficulty color bucket: rank 1-10 tough, 23-32 soft. */
@@ -268,11 +352,12 @@ export function useBoardIntel(board: Board | null, enabled: boolean) {
 
         // NFL opponents + defense-vs-position ranks (decision support only —
         // if either fetch fails the board still renders without them).
-        const [sched, defRanks] = await Promise.all([
-          fetchWeekSchedule(board.season, week).catch(
-            () => new Map<string, { opp: string; home: boolean }>()
-          ),
+        const sched = await fetchWeekSchedule(board.season, week).catch(
+          () => new Map<string, SchedEntry>()
+        )
+        const [defRanks, envs] = await Promise.all([
           fetchDefRanks(Number(board.season)).catch(() => new Map() as DefRanks),
+          fetchGameEnvs(sched).catch(() => new Map<string, GameEnv>()),
         ])
 
         const starterIds = new Set<string>()
@@ -358,6 +443,7 @@ export function useBoardIntel(board: Board | null, enabled: boolean) {
                   home: game?.home,
                   defRank:
                     game && pos ? defRanks.get(game.opp)?.[pos.toUpperCase()] : undefined,
+                  env: game ? envs.get(game.venue) : undefined,
                 }
               })
             let variance = 0

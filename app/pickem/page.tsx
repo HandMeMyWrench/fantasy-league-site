@@ -78,6 +78,15 @@ function NflMatchupTag({ s, right }: { s?: StarterIntel; right?: boolean }) {
   const tone = defRankTone(s.defRank)
   const cls =
     tone === "soft" ? "text-promo" : tone === "tough" ? "text-drop" : "text-ink-faint"
+  const env = s.env
+  const icons = env
+    ? [
+        env.dome && ["🏟️", "dome — weather-proof"],
+        env.wind && ["💨", "20+ mph wind forecast"],
+        env.rain && ["🌧️", "rain likely"],
+        env.snow && ["❄️", "snow forecast"],
+      ].filter(Boolean) as [string, string][]
+    : []
   return (
     <span className={`block truncate text-[10px] text-ink-faint ${right ? "text-right" : ""}`}>
       {s.home ? "vs" : "@"} {s.opp}
@@ -87,6 +96,11 @@ function NflMatchupTag({ s, right }: { s?: StarterIntel; right?: boolean }) {
           {ordinal(s.defRank)} vs {s.pos.toUpperCase()}
         </span>
       )}
+      {icons.map(([ic, tip]) => (
+        <span key={ic} title={tip} className="ml-0.5">
+          {ic}
+        </span>
+      ))}
     </span>
   )
 }
@@ -161,6 +175,11 @@ function BoardLegend() {
         <span className="text-drop">1st–10th tough</span>,{" "}
         <span className="text-promo">23rd–32nd soft</span>; early weeks use last
         season&apos;s numbers until this season has 3 games of data)
+      </Row>
+      <Row token="🏟️ 💨 🌧️ ❄️">
+        game conditions: dome (weather-proof) · 20+ mph wind · rain likely ·
+        snow — forecast for the stadium on game day; wind and rain hurt
+        passing games and kickers most
       </Row>
     </div>
   )
