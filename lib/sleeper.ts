@@ -46,7 +46,7 @@ export async function getLeagueData(leagueId: string) {
 export async function getWinnersBracket(leagueId: string) {
   return cachedJson(
     `https://api.sleeper.app/v1/league/${leagueId}/winners_bracket`,
-    TTL.slow
+    TTL.stable
   );
 }
 
