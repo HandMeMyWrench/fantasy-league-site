@@ -185,6 +185,21 @@ function BoardLegend() {
   )
 }
 
+/* WhatsApp share: wa.me pre-filled text — opens the app with the message
+   composed; the sender picks the group and taps send. No bot, no ToS risk. */
+const SITE_URL = "https://fantasy-league-site-green.vercel.app/pickem"
+const waShare = (text: string) =>
+  window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, "_blank", "noopener")
+
+const WaButton = ({ onClick, label }: { onClick: () => void; label: string }) => (
+  <button
+    onClick={onClick}
+    className="rounded-lg bg-[#25D366]/15 px-4 py-2 text-xs font-semibold text-[#25D366] transition-colors hover:bg-[#25D366]/25"
+  >
+    📣 {label}
+  </button>
+)
+
 const fmtCountdown = (ms: number) => {
   if (ms <= 0) return "0s"
   const s = Math.floor(ms / 1000)
@@ -575,6 +590,21 @@ export default function PickemPage() {
                               {waiting.length ? waiting.join(", ") : "—"}
                             </p>
                           </div>
+                          {waiting.length > 0 && !locked && (
+                            <div className="text-center sm:col-span-2">
+                              <WaButton
+                                label="WhatsApp the stragglers"
+                                onClick={() =>
+                                  waShare(
+                                    `🏈 SWRR PICK'EM — Week ${board.week}\n` +
+                                      `⏱ Picks lock in ${fmtCountdown(board.lockUtc - now)} (${fmtDeadline(board.lockUtc)})\n` +
+                                      `✗ Still missing (${waiting.length}): ${waiting.join(", ")}\n` +
+                                      `No picks = zeros this week.\n👉 ${SITE_URL}`
+                                  )
+                                }
+                              />
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>
@@ -943,6 +973,38 @@ export default function PickemPage() {
                     </tbody>
                   </table>
                 </section>
+
+                {(() => {
+                  const wk = leader.weeks[leader.weeks.length - 1]
+                  if (!wk) return null
+                  const nameOf = (id: string) =>
+                    wk.scores.find((s: { ownerId: string }) => s.ownerId === id)?.name ?? "?"
+                  const winners = wk.winners.map(nameOf)
+                  const winPts = wk.scores.find((s: { ownerId: string }) =>
+                    wk.winners.includes(s.ownerId)
+                  )?.points
+                  const top3 = leader.table
+                    .slice(0, 3)
+                    .map(
+                      (r: { name: string; points: number }, i: number) =>
+                        `${i + 1}. ${r.name} ${r.points.toFixed(1)}`
+                    )
+                  return (
+                    <div className="mt-3 text-center">
+                      <WaButton
+                        label={`Share Week ${wk.week} results to WhatsApp`}
+                        onClick={() =>
+                          waShare(
+                            `🏈 SWRR PICK'EM — Week ${wk.week} results\n` +
+                              `🔮 ${winners.join(" & ")} take${winners.length > 1 ? "" : "s"} the $${(25 / Math.max(1, winners.length)) % 1 === 0 ? 25 / Math.max(1, winners.length) : (25 / winners.length).toFixed(2)}${winners.length > 1 ? " each" : ""} (${winPts} pts)\n` +
+                              (wk.loser ? `🦏 Blindfold: ${nameOf(wk.loser)}\n` : "") +
+                              `📊 Season: ${top3.join(" · ")}\n👉 ${SITE_URL}`
+                          )
+                        }
+                      />
+                    </div>
+                  )
+                })()}
 
                 {leader.weeks
                   .slice()
