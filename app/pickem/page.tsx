@@ -799,11 +799,14 @@ export default function PickemPage() {
                         </span>
                       )}
                     </p>
-                    <div className="flex flex-wrap items-center gap-2">
+                    {/* Mobile: dropdown gets its own full-width row (was crushed
+                        beside PIN+button); PIN and submit share the second row.
+                        text-base (16px) also stops iOS auto-zoom on focus. */}
+                    <div className="space-y-2 sm:flex sm:items-center sm:gap-2 sm:space-y-0">
                       <select
                         value={ownerId}
                         onChange={(e) => setOwnerId(e.target.value)}
-                        className="min-w-0 flex-1 rounded-lg border border-line bg-surface px-3 py-2 text-sm text-ink"
+                        className="w-full rounded-lg border border-line bg-surface px-3 py-2.5 text-base text-ink sm:min-w-0 sm:flex-1 sm:py-2 sm:text-sm"
                       >
                         <option value="">Who are you?</option>
                         {managers.map(([id, label]) => (
@@ -812,21 +815,23 @@ export default function PickemPage() {
                           </option>
                         ))}
                       </select>
-                      <input
-                        type="password"
-                        inputMode="numeric"
-                        placeholder="PIN"
-                        value={pin}
-                        onChange={(e) => setPin(e.target.value)}
-                        className="w-24 rounded-lg border border-line bg-surface px-3 py-2 text-sm text-ink"
-                      />
-                      <button
-                        onClick={submit}
-                        disabled={busy || !ownerId || pin.length < 4}
-                        className="display rounded-lg bg-brand-deep px-5 py-2 text-sm tracking-wider text-white transition-colors hover:bg-brand-deep/80 disabled:opacity-40"
-                      >
-                        {busy ? "Saving…" : buybackOpen ? "Buy back" : "Submit picks"}
-                      </button>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="password"
+                          inputMode="numeric"
+                          placeholder="PIN"
+                          value={pin}
+                          onChange={(e) => setPin(e.target.value)}
+                          className="w-28 rounded-lg border border-line bg-surface px-3 py-2.5 text-base text-ink sm:w-24 sm:py-2 sm:text-sm"
+                        />
+                        <button
+                          onClick={submit}
+                          disabled={busy || !ownerId || pin.length < 4}
+                          className="display flex-1 whitespace-nowrap rounded-lg bg-brand-deep px-5 py-2.5 text-sm tracking-wider text-white transition-colors hover:bg-brand-deep/80 disabled:opacity-40 sm:flex-none sm:py-2"
+                        >
+                          {busy ? "Saving…" : buybackOpen ? "Buy back" : "Submit picks"}
+                        </button>
+                      </div>
                     </div>
                     <p className="text-xs text-ink-faint">
                       First submission sets your PIN (4+ digits) — remember it, it
