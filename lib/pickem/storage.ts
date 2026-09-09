@@ -40,10 +40,16 @@ export async function getUserPicks(season: string, week: number, ownerId: string
 }
 export async function setUserPicks(season: string, week: number, up: UserPicks) {
   await redis()!.set(k.picks(season, week, up.ownerId), up)
-  await redis()!.sadd(k.picksIndex(season, week), up.ownerId)
+  await redis()!.sadd(k.picksIndex(season, week), String(up.ownerId))
 }
 export async function listPickOwners(season: string, week: number): Promise<string[]> {
-  return (await redis()!.smembers(k.picksIndex(season, week))) ?? []
+  // String() every member: Sleeper owner ids are 18-19 digits — BEYOND
+  // Number.MAX_SAFE_INTEGER — and the Upstash SDK JSON-parses numeric-looking
+  // set members into (silently corrupted) numbers. A numeric member breaks
+  // the ===-string submitted-set check in scoring, turning a real submission
+  // into a scored no-show. Observed live with one manager pre-Week 1.
+  const members = (await redis()!.smembers(k.picksIndex(season, week))) ?? []
+  return members.map((m) => String(m))
 }
 
 export type UserAuth = { ownerId: string; pinHash: string }

@@ -70,7 +70,11 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ status: "unconfigured" }, { status: 503 })
   const body = await req.json().catch(() => null)
   if (!body) return NextResponse.json({ error: "bad body" }, { status: 400 })
-  const { week, ownerId, pin } = body as { week: number; ownerId: string; pin: string }
+  // String-coerce ownerId defensively: these ids exceed MAX_SAFE_INTEGER, so
+  // a client sending a number would silently corrupt the id AND desync the
+  // Redis picks index (number member vs string comparisons in scoring).
+  const { week, pin } = body as { week: number; pin: string }
+  const ownerId = body.ownerId == null ? "" : String(body.ownerId)
   const picks = (body.picks ?? {}) as Record<string, Side>
   const lockGameId = (body.lockGameId ?? null) as string | null
 
