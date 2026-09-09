@@ -185,6 +185,18 @@ function BoardLegend() {
   )
 }
 
+const fmtCountdown = (ms: number) => {
+  if (ms <= 0) return "0s"
+  const s = Math.floor(ms / 1000)
+  const d = Math.floor(s / 86400)
+  const h = Math.floor((s % 86400) / 3600)
+  const m = Math.floor((s % 3600) / 60)
+  const sec = s % 60
+  if (d > 0) return `${d}d ${h}h ${m}m`
+  if (h > 0) return `${h}h ${m}m ${sec}s`
+  return `${m}m ${sec}s`
+}
+
 const fmtDeadline = (utc: number) =>
   new Date(utc).toLocaleString(undefined, {
     weekday: "short",
@@ -209,6 +221,10 @@ export default function PickemPage() {
   const [msg, setMsg] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [showLegend, setShowLegend] = useState(false)
+  // Who's submitted (ids only — picks stay private until lock). Polled
+  // every 60s so the counter stays live without hammering the API.
+  const [subs, setSubs] = useState<string[] | null>(null)
+  const [showSubs, setShowSubs] = useState(false)
   // ?preview — rehearsal mode: a mock Week 1 board built from the real 24
   // teams, never touching the server. previewPhase flips deadline states.
   const [preview, setPreview] = useState(false)
@@ -286,6 +302,25 @@ export default function PickemPage() {
   )
   const intel = realIntel ?? demoIntel
   const [openIntel, setOpenIntel] = useState<Record<string, boolean>>({})
+
+  useEffect(() => {
+    if (!board || preview) return
+    let stop = false
+    const load = () =>
+      fetch(`/api/pickem/picks?week=${board.week}&count=1`)
+        .then((r) => r.json())
+        .then((d) => {
+          if (!stop && d.status === "ok")
+            setSubs((d.ownerIds as (string | number)[]).map(String))
+        })
+        .catch(() => {})
+    load()
+    const id = setInterval(load, 60_000)
+    return () => {
+      stop = true
+      clearInterval(id)
+    }
+  }, [board, preview])
   const locked = board
     ? preview
       ? previewPhase !== "open"
@@ -459,13 +494,23 @@ export default function PickemPage() {
                   <span className="mx-2 text-ink-faint">·</span>
                   {!locked && (
                     <span className="text-ink-dim">
-                      Picks lock {fmtDeadline(board.lockUtc)} — free edits until then
+                      Picks lock {fmtDeadline(board.lockUtc)} —{" "}
+                      <span
+                        className={`tnum font-semibold ${
+                          board.lockUtc - now < 3_600_000 ? "text-drop" : "text-brand"
+                        }`}
+                      >
+                        ⏱ {fmtCountdown(board.lockUtc - now)} left
+                      </span>
                     </span>
                   )}
                   {buybackOpen && (
                     <span className="text-gold">
-                      THE BUYBACK is open until {fmtDeadline(board.buybackEndUtc)} —
-                      every change costs 0.5 pts 💸
+                      THE BUYBACK is open —{" "}
+                      <span className="tnum font-semibold">
+                        ⏱ {fmtCountdown(board.buybackEndUtc - now)} left
+                      </span>{" "}
+                      · every change costs 0.5 pts 💸
                     </span>
                   )}
                   {closed && <span className="text-ink-dim">Picks are closed for this week</span>}
@@ -487,6 +532,54 @@ export default function PickemPage() {
                     <BoardLegend />
                   </div>
                 )}
+
+                {subs && !preview && (() => {
+                  const teams = new Map<string, string>()
+                  for (const g of board.games) {
+                    teams.set(g.a.ownerId, g.a.owner)
+                    teams.set(g.b.ownerId, g.b.owner)
+                  }
+                  for (const id of PICKEM_EXCLUDED_OWNER_IDS) teams.delete(id)
+                  const entrants = [...teams.entries()]
+                  const inSet = new Set(subs)
+                  const done = entrants.filter(([id]) => inSet.has(id)).map(([, n]) => n).sort()
+                  const waiting = entrants.filter(([id]) => !inSet.has(id)).map(([, n]) => n).sort()
+                  return (
+                    <div className="mb-4">
+                      <button
+                        onClick={() => setShowSubs((v) => !v)}
+                        className="panel block w-full px-4 py-2 text-center text-xs text-ink-dim transition-colors hover:text-ink"
+                      >
+                        📋 <span className="tnum font-semibold text-ink">{done.length}/{entrants.length}</span> picks in
+                        {waiting.length > 0 && !closed && (
+                          <span className="text-gold"> · waiting on {waiting.length}</span>
+                        )}
+                        {waiting.length === 0 && <span className="text-promo"> · everyone&apos;s in 🎉</span>}
+                        <span className="ml-1.5 text-ink-faint">{showSubs ? "▲" : "▼"}</span>
+                      </button>
+                      {showSubs && (
+                        <div className="panel mt-1 grid grid-cols-1 gap-3 p-4 text-xs sm:grid-cols-2">
+                          <div>
+                            <p className="display mb-1.5 text-[10px] tracking-widest text-promo">
+                              ✓ Submitted ({done.length})
+                            </p>
+                            <p className="leading-relaxed text-ink-dim">
+                              {done.length ? done.join(", ") : "nobody yet"}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="display mb-1.5 text-[10px] tracking-widest text-drop">
+                              {closed ? "✗ No-shows" : "✗ Still to pick"} ({waiting.length})
+                            </p>
+                            <p className="leading-relaxed text-ink-dim">
+                              {waiting.length ? waiting.join(", ") : "—"}
+                            </p>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )
+                })()}
 
                 {intel && !closed && (() => {
                   const cands: { g: Board["games"][number]; favSide: Side; margin: number }[] = []
