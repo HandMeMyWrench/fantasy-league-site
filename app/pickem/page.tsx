@@ -233,6 +233,19 @@ export default function PickemPage() {
   const [lockGameId, setLockGameId] = useState<string | null>(null)
   const [ownerId, setOwnerId] = useState("")
   const [pin, setPin] = useState("")
+  // Remember who you are between visits (never the PIN).
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem("swrr-pickem-owner")
+      if (saved) setOwnerId(saved)
+    } catch {}
+  }, [])
+  const pickOwner = (id: string) => {
+    setOwnerId(id)
+    try {
+      if (id) localStorage.setItem("swrr-pickem-owner", id)
+    } catch {}
+  }
   const [msg, setMsg] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [showLegend, setShowLegend] = useState(false)
@@ -377,6 +390,39 @@ export default function PickemPage() {
     // rough client-side estimate of buyback cost (server recounts)
     return buybackOpen ? Object.keys(picks).length : 0
   }, [buybackOpen, picks])
+
+  // Fetch and restore my saved picks (PIN-protected — only yours, any time).
+  const loadMine = useCallback(async () => {
+    if (!board || preview) return
+    setBusy(true)
+    setMsg(null)
+    try {
+      const r = await fetch(
+        `/api/pickem/picks?week=${board.week}&ownerId=${encodeURIComponent(ownerId)}&pin=${encodeURIComponent(pin)}`
+      )
+      const d = await r.json()
+      if (!r.ok) {
+        setMsg(`❌ ${d.error ?? "couldn't load"}`)
+        return
+      }
+      const eff = d.picks?.postlock ?? d.picks?.prelock
+      if (!eff) {
+        setMsg("No saved picks yet this week — the board below is a fresh slate.")
+        return
+      }
+      setPicks(eff.picks ?? {})
+      setLockGameId(eff.lockGameId ?? null)
+      setMsg(
+        `✓ Loaded your saved picks (last saved ${fmtDeadline(eff.submittedAt)}${
+          d.picks?.postlock ? ` · buyback, ${d.picks.postlock.changes} change${d.picks.postlock.changes === 1 ? "" : "s"}` : ""
+        })`
+      )
+    } catch {
+      setMsg("❌ couldn't load — try again")
+    } finally {
+      setBusy(false)
+    }
+  }, [board, preview, ownerId, pin])
 
   const submit = useCallback(async () => {
     if (!board) return
@@ -835,7 +881,7 @@ export default function PickemPage() {
                     <div className="space-y-2 sm:flex sm:items-center sm:gap-2 sm:space-y-0">
                       <select
                         value={ownerId}
-                        onChange={(e) => setOwnerId(e.target.value)}
+                        onChange={(e) => pickOwner(e.target.value)}
                         className="w-full rounded-lg border border-line bg-surface px-3 py-2.5 text-base text-ink sm:min-w-0 sm:flex-1 sm:py-2 sm:text-sm"
                       >
                         <option value="">Who are you?</option>
@@ -861,11 +907,23 @@ export default function PickemPage() {
                         >
                           {busy ? "Saving…" : buybackOpen ? "Buy back" : "Submit picks"}
                         </button>
+                        {!preview && (
+                          <button
+                            onClick={loadMine}
+                            disabled={busy || !ownerId || pin.length < 4}
+                            title="Restore your saved picks onto the board"
+                            className="whitespace-nowrap rounded-lg border border-line px-4 py-2.5 text-sm text-ink-dim transition-colors hover:text-ink disabled:opacity-40 sm:py-2"
+                          >
+                            Load mine
+                          </button>
+                        )}
                       </div>
                     </div>
                     <p className="text-xs text-ink-faint">
                       First submission sets your PIN (4+ digits) — remember it, it
-                      protects your picks all season.
+                      protects your picks all season. Coming back? Name + PIN +{" "}
+                      <span className="text-ink">Load mine</span> restores your
+                      saved picks onto the board.
                     </p>
                     {msg && <p className="text-sm">{msg}</p>}
                   </div>
