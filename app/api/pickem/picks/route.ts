@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { hashPin, pinOk } from "@/lib/pickem/auth"
-import { SEASON, PICKEM_EXCLUDED_OWNER_IDS } from "@/lib/pickem/config"
+import { SEASON, PICKEM_EXCLUDED_OWNER_IDS, PICKEM_ENTRANTS } from "@/lib/pickem/config"
 import { countChanges, effectivePicks } from "@/lib/pickem/scoring"
 import type { Side, UserPicks } from "@/lib/pickem/types"
 import {
@@ -25,6 +25,19 @@ export async function GET(req: NextRequest) {
   if (!week) return NextResponse.json({ error: "week required" }, { status: 400 })
   const board = await getBoard(SEASON, week)
   if (!board) return NextResponse.json({ error: "no board" }, { status: 404 })
+
+  // ?count=1 — who has submitted (ids only, no picks). Not private: it
+  // reveals THAT someone picked, never WHAT they picked. Lets the
+  // commissioner (or the board) chase stragglers before lock.
+  if (q.get("count") === "1") {
+    const owners = await listPickOwners(SEASON, week)
+    return NextResponse.json({
+      status: "ok",
+      submitted: owners.length,
+      entrants: PICKEM_ENTRANTS,
+      ownerIds: owners,
+    })
+  }
 
   if (q.get("all") === "1") {
     if (Date.now() < board.lockUtc)
