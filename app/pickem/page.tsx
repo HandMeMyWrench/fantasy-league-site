@@ -673,7 +673,10 @@ export default function PickemPage() {
                   )
                 })()}
 
-                {intel && !closed && (() => {
+                {/* Pick advice belongs to the picking phase: the strip retires
+                    at Thursday lock. Post-lock it would keep drifting with live
+                    results — advice you can no longer freely act on. */}
+                {intel && !locked && (() => {
                   const cands: { g: Board["games"][number]; favSide: Side; margin: number }[] = []
                   for (const g of board.games) {
                     const A = intel.get(`${g.league}-${g.a.rosterId}`)
