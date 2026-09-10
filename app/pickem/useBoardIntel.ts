@@ -30,14 +30,20 @@ export type StarterIntel = {
   home?: boolean
   defRank?: number
   env?: GameEnv
+  pts?: number // actual fantasy points scored (once their NFL game starts)
+  phase?: "pre" | "live" | "done" // NFL game state for this player
 }
 export type TeamIntel = {
+  // Expected FINAL: banked actual points + remaining projection. Before any
+  // games it equals the pregame projection; after all games it equals actual.
   proj: number
-  variance: number // for the win-probability model
+  variance: number // for the win-probability model (0 for finished players)
   record: string
   zeroCount: number // starters projecting ~0 (bye week / empty slot)
   form?: { l3: number; ref: number } // last-3-week avg vs recent baseline
   starters: StarterIntel[]
+  pts: number // actual points banked so far (Sleeper live total)
+  live: boolean // any starter's NFL game has started/finished
 }
 
 /* ---------------- win-probability model ----------------
@@ -223,6 +229,12 @@ async function fetchGameEnvs(sched: Map<string, SchedEntry>): Promise<Map<string
   return byVenue
 }
 
+/** Today's date in ET (YYYY-MM-DD) — NFL game dates are ET calendar days.
+    The schedule feed's `status` field never updates, so game state is
+    date-based: past date = final, today = live-or-pending, future = pre. */
+const etToday = () =>
+  new Intl.DateTimeFormat("en-CA", { timeZone: "America/New_York" }).format(new Date())
+
 /** Matchup difficulty color bucket: rank 1-10 tough, 23-32 soft. */
 export const defRankTone = (rank?: number): "tough" | "soft" | "mid" | undefined =>
   rank == null ? undefined : rank <= 10 ? "tough" : rank >= 23 ? "soft" : "mid"
@@ -309,12 +321,20 @@ export function makeDemoIntel(board: Board): Map<string, TeamIntel> {
         zeroCount: starters.filter((st) => st.proj < 0.1).length,
         form: { l3: ref + (rnd() * 24 - 12), ref },
         starters,
+        pts: 0,
+        live: false,
       })
     }
   }
   return out
 }
-type SleeperMatchup = { roster_id: number; starters?: string[]; points?: number }
+type SleeperMatchup = {
+  roster_id: number
+  starters?: string[]
+  points?: number
+  starters_points?: number[]
+  players_points?: Record<string, number>
+}
 type SleeperRoster = {
   roster_id: number
   settings?: { wins?: number; losses?: number; ties?: number }
@@ -322,6 +342,12 @@ type SleeperRoster = {
 
 export function useBoardIntel(board: Board | null, enabled: boolean) {
   const [intel, setIntel] = useState<Map<string, TeamIntel> | null>(null)
+  // Live scoring: re-pull every 60s so banked points and win% track games.
+  const [tick, setTick] = useState(0)
+  useEffect(() => {
+    const id = setInterval(() => setTick((t) => t + 1), 60_000)
+    return () => clearInterval(id)
+  }, [])
 
   useEffect(() => {
     if (!board || !enabled) return
@@ -424,41 +450,63 @@ export function useBoardIntel(board: Board | null, enabled: boolean) {
           scoring: ScoringSettings,
           recs: Map<number, string>
         ) => {
+          const today = etToday()
           for (const m of ms) {
-            const starters = (m.starters ?? [])
-              .filter((s) => s && s !== "0")
-              .map((pid) => {
-                const pos = catalog[pid]?.position ?? undefined
-                const team = catalog[pid]?.team ?? undefined
-                const game = team ? sched.get(team) : undefined
-                // opp: undefined = unknown, null = confirmed bye week
-                const opp = !team ? undefined : game ? game.opp : sched.size ? null : undefined
-                return {
-                  pid,
-                  label: label(pid),
-                  proj: scoreStats(stats.get(pid), scoring),
-                  inj: injTag(catalog[pid]?.injury_status),
-                  pos,
-                  opp,
-                  home: game?.home,
-                  defRank:
-                    game && pos ? defRanks.get(game.opp)?.[pos.toUpperCase()] : undefined,
-                  env: game ? envs.get(game.venue) : undefined,
-                }
-              })
+            const rawStarters = (m.starters ?? []).filter((s) => s && s !== "0")
+            const starters = rawStarters.map((pid) => {
+              const pos = catalog[pid]?.position ?? undefined
+              const team = catalog[pid]?.team ?? undefined
+              const game = team ? sched.get(team) : undefined
+              // opp: undefined = unknown, null = confirmed bye week
+              const opp = !team ? undefined : game ? game.opp : sched.size ? null : undefined
+              const pregame = scoreStats(stats.get(pid), scoring)
+              const actual = m.players_points?.[pid] ?? 0
+              // Game state by ET date: past = final, today = live once points
+              // post (else still pre-kickoff), future = pre.
+              const phase: "pre" | "live" | "done" = !game
+                ? "pre"
+                : (game.date ?? "9999") < today
+                ? "done"
+                : game.date === today && actual !== 0
+                ? "live"
+                : "pre"
+              // Expected-final contribution + remaining uncertainty:
+              //   done: actual, no variance (resolved)
+              //   live: banked + ~1/3 of projection still to come, half sigma
+              //   pre:  full projection, full sigma
+              const mu =
+                phase === "done" ? actual : phase === "live" ? actual + 0.35 * pregame : pregame
+              return {
+                pid,
+                label: label(pid),
+                proj: mu,
+                inj: injTag(catalog[pid]?.injury_status),
+                pos,
+                opp,
+                home: game?.home,
+                defRank:
+                  game && pos ? defRanks.get(game.opp)?.[pos.toUpperCase()] : undefined,
+                env: game ? envs.get(game.venue) : undefined,
+                pts: phase === "pre" ? undefined : actual,
+                phase,
+              }
+            })
             let variance = 0
             for (const s of starters) {
+              if (s.phase === "done") continue
               const pos = (s.pos ?? "").toUpperCase()
               const sigma = Math.max((POS_CV[pos] ?? 0.5) * s.proj, POS_FLOOR[pos] ?? 1.3)
-              variance += sigma * sigma
+              variance += (s.phase === "live" ? 0.25 : 1) * sigma * sigma
             }
             out.set(`${league}-${m.roster_id}`, {
               proj: starters.reduce((t, s) => t + s.proj, 0),
               variance,
               record: recs.get(m.roster_id) ?? "",
-              zeroCount: starters.filter((s) => s.proj < 0.1).length,
+              zeroCount: starters.filter((s) => s.phase === "pre" && s.proj < 0.1).length,
               form: formByKey.get(`${league}-${m.roster_id}`),
               starters,
+              pts: Number(m.points ?? 0),
+              live: starters.some((s) => s.phase !== "pre"),
             })
           }
         }
@@ -474,7 +522,7 @@ export function useBoardIntel(board: Board | null, enabled: boolean) {
     return () => {
       cancelled = true
     }
-  }, [board, enabled])
+  }, [board, enabled, tick])
 
   return intel
 }

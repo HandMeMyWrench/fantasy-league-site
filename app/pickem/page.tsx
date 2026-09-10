@@ -87,9 +87,19 @@ function NflMatchupTag({ s, right }: { s?: StarterIntel; right?: boolean }) {
         env.snow && ["❄️", "snow forecast"],
       ].filter(Boolean) as [string, string][]
     : []
+  // Finished/live games: state replaces the pre-game scouting info.
+  if (s.phase === "done")
+    return (
+      <span className={`block truncate text-[10px] text-ink-faint ${right ? "text-right" : ""}`}>
+        {s.home ? "vs" : "@"} {s.opp} · <span className="text-ink-dim">final</span>
+      </span>
+    )
   return (
     <span className={`block truncate text-[10px] text-ink-faint ${right ? "text-right" : ""}`}>
       {s.home ? "vs" : "@"} {s.opp}
+      {s.phase === "live" && (
+        <span className="font-semibold text-promo"> · LIVE</span>
+      )}
       {s.defRank != null && s.pos && (
         <span className={cls}>
           {" · "}
@@ -156,6 +166,12 @@ function BoardLegend() {
       </Row>
       <Row token="71% (−9.2)">
         win probability and projected spread — minus means favored by that many
+      </Row>
+      <Row token="15.4 pts · exp 108.9">
+        once games start: points banked so far, and &quot;exp&quot; = expected
+        final (banked + remaining projections). Win% updates live — finished
+        players carry no more uncertainty. Refreshes every minute; built for
+        buyback decisions
       </Row>
       <Row token="L3 131 🔥 / 🧊">
         last-3-weeks scoring average; flame/ice = running hot or cold vs their norm
@@ -756,7 +772,12 @@ export default function PickemPage() {
                                     return (
                                       <>
                                         <span className="tnum block truncate text-xs text-brand/90">
-                                          proj {ti.proj.toFixed(1)}
+                                          {ti.live && (
+                                            <span className="font-semibold text-ink">
+                                              {ti.pts.toFixed(1)} pts ·{" "}
+                                            </span>
+                                          )}
+                                          {ti.live ? "exp" : "proj"} {ti.proj.toFixed(1)}
                                           {pct !== null && ` · ${Math.round(pct)}%`}
                                           {spread !== null &&
                                             ` (${spread <= 0 ? "−" : "+"}${Math.abs(spread).toFixed(1)})`}
