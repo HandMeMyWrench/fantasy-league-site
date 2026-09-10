@@ -167,10 +167,10 @@ function BoardLegend() {
       <Row token="71% (−9.2)">
         win probability and projected spread — minus means favored by that many
       </Row>
-      <Row token="15.4 pts · exp 108.9">
-        once games start: points banked so far, and &quot;exp&quot; = expected
-        final (banked + remaining projections). Win% updates live — finished
-        players carry no more uncertainty. Refreshes every minute; built for
+      <Row token="15.4 pts · 61% win">
+        once games start: points banked so far and live win odds, with{" "}
+        <span className="tnum">exp final</span> beneath = expected finish
+        (banked + remaining projections). Updates every minute — built for
         buyback decisions
       </Row>
       <Row token="L3 131 🔥 / 🧊">
@@ -774,17 +774,35 @@ export default function PickemPage() {
                                     const cold = ti.form && ti.form.l3 <= ti.form.ref - 7
                                     return (
                                       <>
-                                        <span className="tnum block truncate text-xs text-brand/90">
-                                          {ti.live && (
-                                            <span className="font-semibold text-ink">
-                                              {ti.pts.toFixed(1)} pts ·{" "}
+                                        {ti.live ? (
+                                          /* Live: score gets top billing on its own
+                                             line; expected final sits beneath. */
+                                          <>
+                                            <span className="block truncate">
+                                              <span className="tnum text-sm font-bold text-ink">
+                                                {ti.pts.toFixed(1)}
+                                              </span>
+                                              <span className="text-[10px] text-ink-faint"> pts</span>
+                                              {pct !== null && (
+                                                <span className="tnum text-xs text-brand/90">
+                                                  {" "}· {Math.round(pct)}% win
+                                                </span>
+                                              )}
                                             </span>
-                                          )}
-                                          {ti.live ? "exp" : "proj"} {ti.proj.toFixed(1)}
-                                          {pct !== null && ` · ${Math.round(pct)}%`}
-                                          {spread !== null &&
-                                            ` (${spread <= 0 ? "−" : "+"}${Math.abs(spread).toFixed(1)})`}
-                                        </span>
+                                            <span className="tnum block truncate text-[11px] text-ink-dim">
+                                              exp final {ti.proj.toFixed(1)}
+                                              {spread !== null &&
+                                                ` (${spread <= 0 ? "−" : "+"}${Math.abs(spread).toFixed(1)})`}
+                                            </span>
+                                          </>
+                                        ) : (
+                                          <span className="tnum block truncate text-xs text-brand/90">
+                                            proj {ti.proj.toFixed(1)}
+                                            {pct !== null && ` · ${Math.round(pct)}%`}
+                                            {spread !== null &&
+                                              ` (${spread <= 0 ? "−" : "+"}${Math.abs(spread).toFixed(1)})`}
+                                          </span>
+                                        )}
                                         {(ti.form || ti.zeroCount > 0 || serious > 0 || quest > 0) && (
                                           <span className="tnum block truncate text-xs text-ink-faint">
                                             {ti.form &&
