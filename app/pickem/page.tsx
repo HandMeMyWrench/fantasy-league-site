@@ -915,11 +915,33 @@ export default function PickemPage() {
                                           </span>
                                           <NflMatchupTag s={a} />
                                         </span>
-                                        <span className={`tnum shrink-0 ${aWins ? "font-semibold text-promo" : "text-ink-faint"}`}>
+                                        {/* Banked (played/playing) numbers go gold
+                                            bold — real points outrank projections. */}
+                                        <span
+                                          className={`tnum shrink-0 ${
+                                            a?.phase === "done"
+                                              ? "font-bold text-gold drop-shadow-[0_0_5px_rgba(250,204,21,0.45)]"
+                                              : a?.phase === "live"
+                                              ? "animate-pulse font-bold text-gold"
+                                              : aWins
+                                              ? "font-semibold text-promo"
+                                              : "text-ink-faint"
+                                          }`}
+                                        >
                                           {a ? a.proj.toFixed(1) : ""}
                                         </span>
                                         <PosChip a={a} b={b} />
-                                        <span className={`tnum shrink-0 ${bWins ? "font-semibold text-promo" : "text-ink-faint"}`}>
+                                        <span
+                                          className={`tnum shrink-0 ${
+                                            b?.phase === "done"
+                                              ? "font-bold text-gold drop-shadow-[0_0_5px_rgba(250,204,21,0.45)]"
+                                              : b?.phase === "live"
+                                              ? "animate-pulse font-bold text-gold"
+                                              : bWins
+                                              ? "font-semibold text-promo"
+                                              : "text-ink-faint"
+                                          }`}
+                                        >
                                           {b ? b.proj.toFixed(1) : ""}
                                         </span>
                                         <span className="min-w-0 flex-1 text-right">
