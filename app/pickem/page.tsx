@@ -809,6 +809,47 @@ export default function PickemPage() {
                           })}
                         </div>
 
+                        {/* Split win bar — same convention as Matchups: green
+                            always marks the favored side, rose the underdog. */}
+                        {(() => {
+                          const A = intel?.get(`${g.league}-${g.a.rosterId}`)
+                          const B = intel?.get(`${g.league}-${g.b.rosterId}`)
+                          if (!A?.starters.length || !B?.starters.length) return null
+                          const [w1] = gameWinProb(A, B)
+                          const w2 = 100 - w1
+                          return (
+                            <div className="flex items-center gap-2 px-3 pb-2 pt-1">
+                              <span
+                                className={`tnum w-8 text-[11px] ${
+                                  w1 >= w2 ? "text-promo" : "text-rose-400"
+                                }`}
+                              >
+                                {Math.round(w1)}%
+                              </span>
+                              <div className="flex h-1.5 flex-1 overflow-hidden rounded-full">
+                                <div
+                                  className={`h-full transition-all duration-700 ${
+                                    w1 >= w2 ? "bg-emerald-500" : "bg-rose-500/40"
+                                  }`}
+                                  style={{ width: `${w1}%` }}
+                                />
+                                <div
+                                  className={`h-full flex-1 ${
+                                    w2 > w1 ? "bg-emerald-500" : "bg-rose-500/40"
+                                  }`}
+                                />
+                              </div>
+                              <span
+                                className={`tnum w-8 text-right text-[11px] ${
+                                  w2 > w1 ? "text-promo" : "text-rose-400"
+                                }`}
+                              >
+                                {Math.round(w2)}%
+                              </span>
+                            </div>
+                          )
+                        })()}
+
                         {(() => {
                           const A = intel?.get(`${g.league}-${g.a.rosterId}`)?.starters
                           const B = intel?.get(`${g.league}-${g.b.rosterId}`)?.starters
