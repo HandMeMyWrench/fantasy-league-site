@@ -249,19 +249,10 @@ export default function PickemPage() {
   const [lockGameId, setLockGameId] = useState<string | null>(null)
   const [ownerId, setOwnerId] = useState("")
   const [pin, setPin] = useState("")
-  // Remember who you are between visits (never the PIN).
-  useEffect(() => {
-    try {
-      const saved = localStorage.getItem("swrr-pickem-owner")
-      if (saved) setOwnerId(saved)
-    } catch {}
-  }, [])
-  const pickOwner = (id: string) => {
-    setOwnerId(id)
-    try {
-      if (id) localStorage.setItem("swrr-pickem-owner", id)
-    } catch {}
-  }
+  // Deliberately NO remembered selection: the dropdown always starts at
+  // "Who are you?" — pre-selecting a team invites submitting as the wrong
+  // person on shared/family devices (commissioner ruling, Sep 2026).
+  const pickOwner = (id: string) => setOwnerId(id)
   const [msg, setMsg] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [showLegend, setShowLegend] = useState(false)
