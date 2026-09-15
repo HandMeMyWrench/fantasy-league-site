@@ -85,6 +85,16 @@ app/api/pickem/{board,picks,leaderboard,health}/route.ts, app/pickem/page.tsx.
 - vercel.json cron hits /api/pickem/board daily so the weekly board exists
   even if nobody visits before the lock.
 
+**Week 1 2026 incidents (Sep 2026):**
+- CRITICAL scoring bug caught before cache froze: gameOutcomes keyed points
+  by bare rosterId — ids 1-12 exist in BOTH leagues, so one league's scores
+  overwrote the other's. Upper outcomes were wrong (showed a fake weekly
+  tie). Fixed with league-qualified keys ("upper-3"); regression tests added.
+  Corrected W1: Drock1080 wins alone (15); Blindfold Bittybop69 (−2).
+- RATIFIED: complete card required — all 12 picks to submit (server-enforced
+  400 pre-lock; buyback edits may stay partial, they merge onto the complete
+  Thursday card). Prompted by a one-pick-lock-miss −2 card.
+
 **Commissioner rulings — RATIFIED (Aug 2026):**
 - No-shows are NOT eligible for the weekly Blindfold (only submitters
   compete for it; bottom ties spare everyone). In Rules tab + tests.

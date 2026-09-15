@@ -985,6 +985,9 @@ export default function PickemPage() {
                   <div className="panel mt-4 space-y-3 p-4">
                     <p className="text-sm text-ink-dim">
                       {Object.keys(picks).length}/{board.games.length} games picked
+                      {!buybackOpen && Object.keys(picks).length < board.games.length && (
+                        <span className="text-gold"> — all {board.games.length} required to submit</span>
+                      )}
                       {lockGameId ? " · lock set 🔒" : " · no lock set"}
                       {buybackOpen && changesPending > 0 && (
                         <span className="text-gold">
@@ -1020,10 +1023,24 @@ export default function PickemPage() {
                         />
                         <button
                           onClick={submit}
-                          disabled={busy || !ownerId || pin.length < 4}
+                          disabled={
+                            busy ||
+                            !ownerId ||
+                            pin.length < 4 ||
+                            // Complete card required pre-lock (buyback edits
+                            // merge onto the complete Thursday card).
+                            (!buybackOpen &&
+                              Object.keys(picks).length < board.games.length)
+                          }
                           className="display flex-1 whitespace-nowrap rounded-lg bg-brand-deep px-5 py-2.5 text-sm tracking-wider text-white transition-colors hover:bg-brand-deep/80 disabled:opacity-40 sm:flex-none sm:py-2"
                         >
-                          {busy ? "Saving…" : buybackOpen ? "Buy back" : "Submit picks"}
+                          {busy
+                            ? "Saving…"
+                            : buybackOpen
+                            ? "Buy back"
+                            : Object.keys(picks).length < board.games.length
+                            ? `Pick ${board.games.length - Object.keys(picks).length} more`
+                            : "Submit picks"}
                         </button>
                         {!preview && (
                           <button
@@ -1235,10 +1252,12 @@ export default function PickemPage() {
               <span className="font-semibold text-ink">Deadlines.</span> Picks lock
               Thursday 8:00 PM ET (<span className="text-ink">Week 1 locks
               Wednesday 8:00 PM ET</span> — the 2026 opener is Wednesday night).
-              THE BUYBACK: edit picks until Sunday 1:00 PM ET at −0.5 pts per
-              change — flips, picks added on games you left blank, and
-              setting/moving your Lock all count. No pre-lock submission = zeros
-              for the week.
+              <span className="text-ink">All 12 games must be picked to
+              submit</span> — no partial cards (ratified Week 1, after a
+              one-pick card scored −2). THE BUYBACK: edit picks until Sunday
+              1:00 PM ET at −0.5 pts per change — flips and setting/moving
+              your Lock both count. No pre-lock submission = zeros for the
+              week.
             </p>
             <p>
               <span className="font-semibold text-ink">Money.</span> $25 buy-in —{" "}

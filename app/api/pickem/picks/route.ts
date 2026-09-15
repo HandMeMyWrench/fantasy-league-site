@@ -118,6 +118,16 @@ export async function POST(req: NextRequest) {
     ({ ownerId, prelock: null, postlock: null } as UserPicks)
 
   if (now < board.lockUtc) {
+    // COMPLETE CARD REQUIRED (ratified after Week 1 2026: a manager submitted
+    // one pick — his Lock — lost it, and scored −2 on an otherwise blank
+    // card). Pre-lock submissions must cover every game; buyback edits may
+    // stay partial because they merge onto the complete Thursday card.
+    const missing = board.games.filter((g) => !picks[g.id]).length
+    if (missing > 0)
+      return NextResponse.json(
+        { error: `pick all ${board.games.length} games first — ${missing} still blank` },
+        { status: 400 }
+      )
     // Free edits until Thursday lock
     existing.prelock = { picks, lockGameId, submittedAt: now }
     existing.postlock = null
