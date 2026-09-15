@@ -760,6 +760,11 @@ export default function PickemPage() {
                                     {fav ? "favorite" : "underdog +1 🤖"}
                                     {ti?.record ? ` · ${ti.record}` : ""}
                                   </span>
+                                  {ti && ti.starters.length === 0 && (
+                                    <span className="block truncate text-[11px] italic text-ink-faint">
+                                      lineup not set on Sleeper yet
+                                    </span>
+                                  )}
                                   {ti && ti.starters.length > 0 && (() => {
                                     const serious = ti.starters.filter((s) => isSeriousInj(s.inj)).length
                                     const quest = ti.starters.filter((s) => s.inj === "Q").length
@@ -835,6 +840,14 @@ export default function PickemPage() {
                         {(() => {
                           const A = intel?.get(`${g.league}-${g.a.rosterId}`)
                           const B = intel?.get(`${g.league}-${g.b.rosterId}`)
+                          // One side's lineup missing → no honest odds to draw.
+                          // Say so instead of silently omitting the bar.
+                          if (A && B && (!A.starters.length || !B.starters.length))
+                            return (
+                              <p className="px-3 pb-2 pt-1 text-center text-[10px] italic text-ink-faint">
+                                ⏳ win odds appear once both lineups are set
+                              </p>
+                            )
                           if (!A?.starters.length || !B?.starters.length) return null
                           const [w1] = gameWinProb(A, B)
                           const w2 = 100 - w1
