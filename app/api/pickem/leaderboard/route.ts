@@ -32,15 +32,12 @@ async function computeWeek(week: number): Promise<WeekResult | null> {
     getMatchups(cfg.lower!, week),
   ])) as [SleeperMatchup[], SleeperMatchup[]]
 
-  // rosterIds are only unique per league; qualify by game side lookup instead.
-  const upperPts = new Map(um.map((m) => [m.roster_id, m.points ?? 0]))
-  const lowerPts = new Map(lm.map((m) => [m.roster_id, m.points ?? 0]))
-  const points = new Map<number, number>()
-  for (const g of board.games) {
-    const src = g.league === "upper" ? upperPts : lowerPts
-    points.set(g.a.rosterId, src.get(g.a.rosterId) ?? 0)
-    points.set(g.b.rosterId, src.get(g.b.rosterId) ?? 0)
-  }
+  // League-qualified keys: roster ids 1-12 exist in BOTH leagues, so bare
+  // ids collide and one league's scores overwrite the other's (the Week 1
+  // 2026 bug — upper outcomes computed from lower scores).
+  const points = new Map<string, number>()
+  for (const m of um) points.set(`upper-${m.roster_id}`, m.points ?? 0)
+  for (const m of lm) points.set(`lower-${m.roster_id}`, m.points ?? 0)
 
   const outcomes = gameOutcomes(board, points)
   const nameByOwner = new Map<string, string>()

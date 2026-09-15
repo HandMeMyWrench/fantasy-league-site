@@ -61,11 +61,14 @@ export function countChanges(
 
 export function gameOutcomes(
   board: Board,
-  points: Map<number, number> // rosterId -> final points (both leagues merged is fine; ids are per-league unique within a game)
+  // "league-rosterId" -> final points. MUST be league-qualified: roster ids
+  // 1-12 exist in BOTH leagues, so a bare-rosterId map lets one league's
+  // scores overwrite the other's — which mis-scored Week 1 2026 until caught.
+  points: Map<string, number>
 ): GameOutcome[] {
   return board.games.map((g) => {
-    const aPoints = points.get(g.a.rosterId) ?? 0
-    const bPoints = points.get(g.b.rosterId) ?? 0
+    const aPoints = points.get(`${g.league}-${g.a.rosterId}`) ?? 0
+    const bPoints = points.get(`${g.league}-${g.b.rosterId}`) ?? 0
     const winner: Side | "push" =
       aPoints === bPoints ? "push" : aPoints > bPoints ? "a" : "b"
     return { gameId: g.id, winner, aPoints, bPoints }

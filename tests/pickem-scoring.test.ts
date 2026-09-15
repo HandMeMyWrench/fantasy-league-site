@@ -98,17 +98,27 @@ check("no prelock -> null (eat zeros)", effectivePicks({ ownerId: "x", prelock: 
 
 // ---------- outcomes & scoring ----------
 console.log("scoring:")
-// upper-1: a wins (favorite hits). upper-2: a wins (underdog hits, favorite was b). lower-1: push.
-const pts = new Map<number, number>([[1, 120], [2, 100], [3, 110], [4, 90]])
-// lower league rosters 1,2 share ids with upper 1,2 — computeWeek qualifies by
-// league; here emulate that by scoring lower-1 as a tie via the same map trick:
-// roster 1 = 120 vs roster 2 = 100 would NOT push, so use a dedicated board for the push case.
+// League-qualified points keys. lower-1 reuses roster ids 1,2 with DIFFERENT
+// scores and an OPPOSITE winner — the Week 1 2026 regression: bare-rosterId
+// keys let one league's scores overwrite the other's.
+const pts = new Map<string, number>([
+  ["upper-1", 120], ["upper-2", 100], ["upper-3", 110], ["upper-4", 90],
+  ["lower-1", 80], ["lower-2", 95],
+])
 const outcomes = gameOutcomes(board, pts)
 check("upper-1 winner is a", outcomes.find((o) => o.gameId === "upper-1")!.winner === "a")
 check("upper-2 winner is a", outcomes.find((o) => o.gameId === "upper-2")!.winner === "a")
+check(
+  "REGRESSION: colliding roster ids don't cross leagues (lower-1 winner is b)",
+  outcomes.find((o) => o.gameId === "lower-1")!.winner === "b"
+)
+check(
+  "REGRESSION: lower game carries lower scores, not upper's",
+  outcomes.find((o) => o.gameId === "lower-1")!.aPoints === 80
+)
 
 const pushBoard: Board = { ...board, games: [board.games[0]] }
-const pushOutcome = gameOutcomes(pushBoard, new Map([[1, 100], [2, 100]]))
+const pushOutcome = gameOutcomes(pushBoard, new Map([["upper-1", 100], ["upper-2", 100]]))
 check("equal points = push", pushOutcome[0].winner === "push")
 
 // scoring: correct favorite pick = 1; correct underdog = 2; lock hit = 3 (+1 if underdog); lock miss = -2
