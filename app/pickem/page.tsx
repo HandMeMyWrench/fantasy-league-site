@@ -587,7 +587,7 @@ export default function PickemPage() {
                       <span className="mx-2 text-ink-faint">·</span>
                       <button
                         onClick={() => setShowLegend((v) => !v)}
-                        className="text-xs text-ink-faint underline decoration-dotted underline-offset-2 transition-colors hover:text-ink"
+                        className="-my-2 px-1 py-2 text-xs text-ink-faint underline decoration-dotted underline-offset-2 transition-colors hover:text-ink"
                       >
                         {showLegend ? "hide key" : "what do these numbers mean?"}
                       </button>
@@ -706,7 +706,7 @@ export default function PickemPage() {
                           {!closed && (
                             <button
                               onClick={() => setLockGameId(isLock ? null : g.id)}
-                              className={`rounded-full px-2.5 py-0.5 text-[11px] font-semibold transition-colors ${
+                              className={`rounded-full px-3 py-1.5 text-xs font-semibold transition-colors ${
                                 isLock
                                   ? "bg-gold/20 text-gold"
                                   : "text-ink-faint hover:text-ink"
