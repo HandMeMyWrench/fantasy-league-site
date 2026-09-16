@@ -115,6 +115,26 @@ function NflMatchupTag({ s, right }: { s?: StarterIntel; right?: boolean }) {
   )
 }
 
+/** Padlock icon: open shackle = available, closed + filled = your Lock. */
+function LockIcon({ open }: { open: boolean }) {
+  return (
+    <svg
+      width="11"
+      height="11"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.4"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <rect x="4" y="11" width="16" height="10" rx="2" fill={open ? "none" : "currentColor"} />
+      {open ? <path d="M8 11V7a4 4 0 0 1 7.6-1.9" /> : <path d="M8 11V7a4 4 0 0 1 8 0v4" />}
+    </svg>
+  )
+}
+
 /** Label sans the " · POS" suffix — the center PosChip carries the position. */
 const playerName = (label?: string) => label?.replace(/\s*·\s*[A-Z]{1,3}$/, "")
 
@@ -706,13 +726,19 @@ export default function PickemPage() {
                           {!closed && (
                             <button
                               onClick={() => setLockGameId(isLock ? null : g.id)}
-                              className={`rounded-full px-3 py-1.5 text-xs font-semibold transition-colors ${
+                              title={
                                 isLock
-                                  ? "bg-gold/20 text-gold"
-                                  : "text-ink-faint hover:text-ink"
+                                  ? "Your Lock of the Week (3 pts if it hits, −2 if it misses) — tap to remove"
+                                  : "Make this your Lock of the Week (3 pts if it hits, −2 if it misses)"
+                              }
+                              className={`flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[11px] font-bold tracking-wide transition-all ${
+                                isLock
+                                  ? "border-gold/60 bg-gold/15 text-gold shadow-[0_0_10px_rgba(251,191,36,0.35)]"
+                                  : "border-line text-ink-faint hover:border-gold/50 hover:bg-gold/5 hover:text-gold"
                               }`}
                             >
-                              {isLock ? "🔒 LOCK" : "make lock"}
+                              <LockIcon open={!isLock} />
+                              {isLock ? "LOCKED" : "Lock"}
                             </button>
                           )}
                         </div>
