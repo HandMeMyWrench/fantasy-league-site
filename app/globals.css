@@ -11,7 +11,10 @@
   --line: rgba(255, 255, 255, 0.07);
   --ink: #f4f4f8;
   --ink-dim: #9c9cb0;
-  --ink-faint: #63637a;
+  /* HIG/WCAG audit Sep 2026: was #63637a (3.0-3.2:1 on dark surfaces —
+     fails the 4.5:1 minimum for small text). #8b8ba3 clears 4.5:1 while
+     keeping the muted tier clearly quieter than --ink-dim. */
+  --ink-faint: #8b8ba3;
   --brand: #a78bfa;          /* violet 400 — SWRR purple */
   --brand-deep: #6d28d9;
   --promo: #34d399;          /* promotion zone */
@@ -34,6 +37,18 @@
   --color-gold: var(--gold);
   --font-sans: var(--font-body), ui-sans-serif, system-ui, sans-serif;
   --font-display: var(--font-display), var(--font-body), ui-sans-serif, sans-serif;
+}
+
+/* Respect the OS "reduce motion" accessibility setting: collapse the win-bar
+   sweeps, live pulses, and hover transitions to effectively instant. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }
 
 body {
