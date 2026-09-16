@@ -3,7 +3,7 @@
 import React, { useEffect, useRef, useState } from "react"
 import { computeLeagueOdds } from "@/lib/leagueOdds"
 import type { OddsRow } from "@/lib/odds"
-import { getStandings, getLeagueUsers } from "@/lib/sleeper"
+import { getStandings, getLeagueUsers, getNflState } from "@/lib/sleeper"
 import RelegationSpotlight from "@/components/RelegationSpotlight"
 import LotteryBanner from "@/components/LotteryBanner"
 import {
@@ -184,6 +184,12 @@ export default function StandingsPage() {
     let cancelled = false
     ;(async () => {
       try {
+        // Arm after Week 4, same as the Relegation Watch: with fewer than 4
+        // completed weeks the simulation has almost no scoring evidence and
+        // the percentages are noise wearing decimal points.
+        const state = await getNflState()
+        const completed = Math.max(0, Number(state?.display_week ?? state?.week ?? 1) - 1)
+        if (completed < 4) return
         const u = await computeLeagueOdds(cfg.upper!, movement, "bottom")
         if (!cancelled && u.status === "in_season" && u.remainingWeeks.length)
           setOddsUpper(u.odds)
