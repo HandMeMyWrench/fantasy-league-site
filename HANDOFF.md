@@ -41,7 +41,13 @@ The league is half-PPR with bonuses AND an **all-play "median" game** (`league_a
 Standings (`/`), Matchups (`/matchups` — storylines + projections + win% + expandable lineups, live-refreshing), Odds (`/odds`), Recap (`/recap`), Promotion / Relegation (`/promotion-relegation`), History (`/history`).
 Retired → redirect stubs: `/power-rankings`, `/playoff-race`, `/power-playoff`, `/scoreboard`.
 
-Branding: custom **SWRR** logo (`public/icon-192.png`, `icon-512.png`, `apple-touch-icon.png`, `app/favicon.ico`); installable PWA (`app/manifest.ts`).
+Branding: **"Relegation Heritage"** identity (Sep 2026 rebrand away from
+Sleeper-adjacent violet) — royal navy (#0b1226 field, #132140 surface) +
+brass (#e2ba5e brand, #8a6a24 deep), tokens in app/globals.css. Promo green
+/ drop red / lock gold are SEMANTIC and never change with themes. Brass-on-
+navy SWRR crest generated via PIL (`public/icon-192.png`, `icon-512.png`,
+`apple-touch-icon.png`, `app/favicon.ico`); installable PWA
+(`app/manifest.ts`, theme_color #0b1226). All text tiers >=4.5:1 verified.
 
 ## Ideas not yet built (backlog)
 - **Trash-talk / video board** (Marco Polo style, video-with-captions). Plan: Cloudflare R2 for video (free, zero egress) + native-camera capture + a small backend. *Paused.*
