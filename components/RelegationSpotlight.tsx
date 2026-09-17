@@ -6,6 +6,7 @@ import {
   LEAGUES,
   movementSpots,
   sortStandings,
+  teamDisplayName,
   latestActiveSeason,
   type SeasonYear,
   type RosterLite,
@@ -78,8 +79,7 @@ export default function RelegationSpotlight() {
   const promo = lower.slice(0, spots)
   const firstOut = lower[spots]
 
-  const name = (r?: Roster) =>
-    r?.metadata?.team_name || (r ? users[r.owner_id]?.display_name : "") || "Team"
+  const name = (r?: Roster) => teamDisplayName(r, r ? users[r.owner_id] : undefined)
   const wins = (r?: Roster) => r?.settings?.wins ?? 0
 
   return (

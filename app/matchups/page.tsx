@@ -12,7 +12,7 @@ import {
   scoreStats,
   type ScoringSettings,
 } from "@/lib/sleeper";
-import { LEAGUES, latestActiveSeason, type SeasonYear } from "@/lib/leagues";
+import { LEAGUES, latestActiveSeason, teamDisplayName, type SeasonYear } from "@/lib/leagues";
 import OffseasonBanner from "@/components/OffseasonBanner";
 import { useBoardIntel } from "@/app/pickem/useBoardIntel";
 import { PlayerMatchupTable } from "@/components/PlayerMatchups";
@@ -67,7 +67,7 @@ function pairsToSides(
   const side = (m: Matchup): ScoreSide => {
     const r = byRoster.get(m.roster_id);
     const u = r ? users[r.owner_id] : undefined;
-    return { name: r?.metadata?.team_name || u?.display_name || "Team", points: Number(m.points ?? 0) };
+    return { name: teamDisplayName(r, u), points: Number(m.points ?? 0) };
   };
   return pairs.filter((p) => p.length === 2).map((p) => ({ t1: side(p[0]), t2: side(p[1]) }));
 }
@@ -266,7 +266,7 @@ const MatchupsPage = () => {
   }, [upperMatchups, lowerMatchups, upperLeague, lowerLeague, usersMap]);
 
   /* --------------------------------- helpers --------------------------------- */
-  const teamName = (r?: Roster, u?: User) => r?.metadata?.team_name || u?.display_name || "Team";
+  const teamName = (r?: Roster, u?: User) => teamDisplayName(r, u);
 
   // Pseudo-board so the Lineups expander can reuse the Pick'em intel engine
   // (per-starter opponent, defense rank, weather, live/final gold points).

@@ -48,6 +48,25 @@ export function hasStarted(year: SeasonYear): boolean {
   return !!LEAGUES[year]?.started;
 }
 
+// Sleeper stores custom team names on the USER object (user.metadata.
+// team_name — set in the app under Team Settings); roster.metadata.team_name
+// is legacy and usually absent. Every display site should use this helper:
+// user team name -> roster team name -> manager handle.
+export function teamDisplayName(
+  roster?: { metadata?: { team_name?: string | null } | null } | null,
+  user?: {
+    metadata?: { team_name?: string | null } | null
+    display_name?: string
+  } | null
+): string {
+  return (
+    user?.metadata?.team_name ||
+    roster?.metadata?.team_name ||
+    user?.display_name ||
+    "Team"
+  );
+}
+
 // Manager changes between 2025 and 2026: the new owner inherits the old
 // owner's team wherever provisional (last-season-derived) data is used —
 // week-1 favorites, standings previews, rehearsal boards. old id -> new.

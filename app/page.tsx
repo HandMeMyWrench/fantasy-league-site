@@ -12,6 +12,7 @@ import {
   latestActiveSeason,
   sortStandings,
   pointsFor,
+  teamDisplayName,
   type SeasonYear,
   type RosterLite,
 } from "@/lib/leagues"
@@ -153,8 +154,7 @@ export default function StandingsPage() {
     }
   }, [year, refreshNonce])
 
-  const teamName = (r: Roster) =>
-    r.metadata?.team_name || usersMap[r.owner_id]?.display_name || "Unnamed Team"
+  const teamName = (r: Roster) => teamDisplayName(r, usersMap[r.owner_id])
   const ownerName = (r: Roster) => usersMap[r.owner_id]?.display_name || "Unknown"
   const avatarUrl = (r: Roster) => {
     const a = usersMap[r.owner_id]?.avatar

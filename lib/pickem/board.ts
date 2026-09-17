@@ -5,7 +5,7 @@
 // have been played, last season's combined finish (the provisional rank).
 
 import { getMatchups, getStandings, getLeagueUsers } from "@/lib/sleeper"
-import { LEAGUES, sortStandings, type SeasonYear } from "@/lib/leagues"
+import { LEAGUES, sortStandings, teamDisplayName, type SeasonYear } from "@/lib/leagues"
 import { getSeasonLineups } from "@/lib/season"
 import { SEASON, weekLockUtc, weekBuybackEndUtc } from "./config"
 import type { Board, BoardGame, BoardTeam, Side } from "./types"
@@ -47,7 +47,7 @@ async function leagueGames(
     return {
       rosterId,
       ownerId: r?.owner_id ?? "",
-      name: r?.metadata?.team_name || u?.display_name || "Unnamed Team",
+      name: teamDisplayName(r, u),
       owner: u?.display_name ?? "Unknown",
       avatar: u?.avatar ?? null,
     }

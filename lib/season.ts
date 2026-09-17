@@ -9,6 +9,7 @@ import {
   movementSpots,
   sortStandings,
   OWNER_SUCCESSION,
+  teamDisplayName,
   type SeasonYear,
   type RosterLite,
 } from "@/lib/leagues"
@@ -41,9 +42,7 @@ function toTeams(
     const succ = OWNER_SUCCESSION[r.owner_id]
     return {
       owner_id: succ?.id ?? r.owner_id,
-      name:
-        succ?.name ??
-        (r.metadata?.team_name || users[r.owner_id]?.display_name || "Unnamed Team"),
+      name: succ?.name ?? teamDisplayName(r, users[r.owner_id]),
       owner: succ?.name ?? users[r.owner_id]?.display_name ?? "Unknown",
       avatar: succ ? null : users[r.owner_id]?.avatar ?? null,
       rank: i + 1,

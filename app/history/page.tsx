@@ -6,6 +6,7 @@ import {
   LEAGUES,
   movementSpots,
   sortStandings,
+  teamDisplayName,
   type SeasonYear,
   type RosterLite,
 } from "@/lib/leagues"
@@ -151,7 +152,7 @@ export default function HistoryPage() {
   const nameOf = (rec: SeasonRecord, ownerId: string) =>
     rec.users[ownerId]?.display_name || "Unknown"
   const teamOf = (r: Roster, rec: SeasonRecord) =>
-    r.metadata?.team_name || rec.users[r.owner_id]?.display_name || "Unnamed Team"
+    teamDisplayName(r, rec.users[r.owner_id])
   const avatarOf = (rec: SeasonRecord, ownerId: string) => {
     const a = rec.users[ownerId]?.avatar
     return a ? `https://sleepercdn.com/avatars/${a}` : "/default-avatar.png"
