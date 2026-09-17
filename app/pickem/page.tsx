@@ -3,14 +3,8 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react"
 import type { Board, Side } from "@/lib/pickem/types"
 import { getSeasonLineups, type SeasonTeam } from "@/lib/season"
-import {
-  useBoardIntel,
-  isSeriousInj,
-  gameWinProb,
-  makeDemoIntel,
-  defRankTone,
-  type StarterIntel,
-} from "./useBoardIntel"
+import { useBoardIntel, isSeriousInj, gameWinProb, makeDemoIntel } from "./useBoardIntel"
+import { PlayerMatchupTable } from "@/components/PlayerMatchups"
 import {
   TOTAL_POT,
   PICKEM_ENTRANTS,
@@ -61,60 +55,6 @@ type AllPicksRow = {
   buybackChanges: number
 }
 
-/** Per-starter NFL matchup line: opponent + opposing defense's rank vs the
-    player's position. Green = soft defense (23rd-32nd), red = tough (1st-10th).
-    "BYE" in red — that player scores zero this week. */
-const ordinal = (n: number) => {
-  const s = ["th", "st", "nd", "rd"], v = n % 100
-  return `${n}${s[(v - 20) % 10] ?? s[v] ?? s[0]}`
-}
-function NflMatchupTag({ s, right }: { s?: StarterIntel; right?: boolean }) {
-  if (!s) return null
-  if (s.opp === null)
-    return (
-      <span className={`block text-[10px] text-drop ${right ? "text-right" : ""}`}>BYE</span>
-    )
-  if (!s.opp) return null
-  const tone = defRankTone(s.defRank)
-  const cls =
-    tone === "soft" ? "text-promo" : tone === "tough" ? "text-drop" : "text-ink-faint"
-  const env = s.env
-  const icons = env
-    ? [
-        env.dome && ["🏟️", "dome — weather-proof"],
-        env.wind && ["💨", "20+ mph wind forecast"],
-        env.rain && ["🌧️", "rain likely"],
-        env.snow && ["❄️", "snow forecast"],
-      ].filter(Boolean) as [string, string][]
-    : []
-  // Finished/live games: state replaces the pre-game scouting info.
-  if (s.phase === "done")
-    return (
-      <span className={`block truncate text-[10px] text-ink-faint ${right ? "text-right" : ""}`}>
-        {s.home ? "vs" : "@"} {s.opp} · <span className="text-ink-dim">final</span>
-      </span>
-    )
-  return (
-    <span className={`block truncate text-[10px] text-ink-faint ${right ? "text-right" : ""}`}>
-      {s.home ? "vs" : "@"} {s.opp}
-      {s.phase === "live" && (
-        <span className="font-semibold text-promo"> · LIVE</span>
-      )}
-      {s.defRank != null && s.pos && (
-        <span className={cls}>
-          {" · "}
-          {ordinal(s.defRank)} vs {s.pos.toUpperCase()}
-        </span>
-      )}
-      {icons.map(([ic, tip]) => (
-        <span key={ic} title={tip} className="ml-0.5">
-          {ic}
-        </span>
-      ))}
-    </span>
-  )
-}
-
 /** Padlock icon: open shackle = available, closed + filled = your Lock. */
 function LockIcon({ open }: { open: boolean }) {
   return (
@@ -132,35 +72,6 @@ function LockIcon({ open }: { open: boolean }) {
       <rect x="4" y="11" width="16" height="10" rx="2" fill={open ? "none" : "currentColor"} />
       {open ? <path d="M8 11V7a4 4 0 0 1 7.6-1.9" /> : <path d="M8 11V7a4 4 0 0 1 8 0v4" />}
     </svg>
-  )
-}
-
-/** Label sans the " · POS" suffix — the center PosChip carries the position. */
-const playerName = (label?: string) => label?.replace(/\s*·\s*[A-Z]{1,3}$/, "")
-
-/** Center-spine position chip, tinted per position; shows "RB/WR" when the
-    two flex slots differ. */
-const POS_TINT: Record<string, string> = {
-  QB: "bg-brand-deep/40 text-brand",
-  RB: "bg-emerald-500/15 text-emerald-400",
-  WR: "bg-sky-500/15 text-sky-400",
-  TE: "bg-amber-500/15 text-amber-400",
-  K: "bg-slate-500/20 text-slate-300",
-  DEF: "bg-rose-500/15 text-rose-300",
-}
-function PosChip({ a, b }: { a?: StarterIntel; b?: StarterIntel }) {
-  const pa = a?.pos?.toUpperCase()
-  const pb = b?.pos?.toUpperCase()
-  const label = pa && pb && pa !== pb ? `${pa}/${pb}` : pa ?? pb ?? "·"
-  const tint = POS_TINT[label] ?? "bg-white/5 text-ink-faint"
-  return (
-    <span
-      className={`shrink-0 rounded px-1 py-0.5 text-center text-[9px] font-bold leading-none ${tint} ${
-        label.includes("/") ? "min-w-[38px]" : "min-w-[26px]"
-      }`}
-    >
-      {label}
-    </span>
   )
 }
 
@@ -906,7 +817,6 @@ export default function PickemPage() {
                           const B = intel?.get(`${g.league}-${g.b.rosterId}`)?.starters
                           if (!A?.length && !B?.length) return null
                           const open = !!openIntel[g.id]
-                          const n = Math.max(A?.length ?? 0, B?.length ?? 0)
                           return (
                             <>
                               <button
@@ -918,77 +828,12 @@ export default function PickemPage() {
                                 {open ? "hide player matchups ▲" : "player matchups ▼"}
                               </button>
                               {open && (
-                                <div className="border-t border-line bg-surface-2/50 px-2 py-2">
-                                  {/* header: which column is whose */}
-                                  <div className="mb-1 flex items-center justify-between gap-2 px-2 text-[10px] font-semibold uppercase tracking-wider text-ink-faint">
-                                    <span className="min-w-0 flex-1 truncate">{g.a.name}</span>
-                                    <span className="min-w-0 flex-1 truncate text-right">{g.b.name}</span>
-                                  </div>
-                                  {Array.from({ length: n }, (_, i) => {
-                                    const a = A?.[i]
-                                    const b = B?.[i]
-                                    const aWins = (a?.proj ?? 0) > (b?.proj ?? 0)
-                                    const bWins = (b?.proj ?? 0) > (a?.proj ?? 0)
-                                    return (
-                                      <div
-                                        key={i}
-                                        className="flex items-center justify-between gap-2 rounded-md px-2 py-1.5 text-[11px] odd:bg-white/[0.03]"
-                                      >
-                                        <span className="min-w-0 flex-1">
-                                          <span className={`block truncate ${aWins ? "font-medium text-ink" : "text-ink-dim"}`}>
-                                            {playerName(a?.label) ?? "—"}
-                                            {a?.inj && (
-                                              <span className={isSeriousInj(a.inj) ? "text-drop" : "text-gold"}>
-                                                {" "}{a.inj}
-                                              </span>
-                                            )}
-                                          </span>
-                                          <NflMatchupTag s={a} />
-                                        </span>
-                                        {/* Banked (played/playing) numbers go gold
-                                            bold — real points outrank projections. */}
-                                        <span
-                                          className={`tnum shrink-0 ${
-                                            a?.phase === "done"
-                                              ? "font-bold text-gold drop-shadow-[0_0_5px_rgba(250,204,21,0.45)]"
-                                              : a?.phase === "live"
-                                              ? "animate-pulse font-bold text-gold"
-                                              : aWins
-                                              ? "font-semibold text-promo"
-                                              : "text-ink-faint"
-                                          }`}
-                                        >
-                                          {a ? a.proj.toFixed(1) : ""}
-                                        </span>
-                                        <PosChip a={a} b={b} />
-                                        <span
-                                          className={`tnum shrink-0 ${
-                                            b?.phase === "done"
-                                              ? "font-bold text-gold drop-shadow-[0_0_5px_rgba(250,204,21,0.45)]"
-                                              : b?.phase === "live"
-                                              ? "animate-pulse font-bold text-gold"
-                                              : bWins
-                                              ? "font-semibold text-promo"
-                                              : "text-ink-faint"
-                                          }`}
-                                        >
-                                          {b ? b.proj.toFixed(1) : ""}
-                                        </span>
-                                        <span className="min-w-0 flex-1 text-right">
-                                          <span className={`block truncate ${bWins ? "font-medium text-ink" : "text-ink-dim"}`}>
-                                            {b?.inj && (
-                                              <span className={isSeriousInj(b.inj) ? "text-drop" : "text-gold"}>
-                                                {b.inj}{" "}
-                                              </span>
-                                            )}
-                                            {playerName(b?.label) ?? "—"}
-                                          </span>
-                                          <NflMatchupTag s={b} right />
-                                        </span>
-                                      </div>
-                                    )
-                                  })}
-                                </div>
+                                <PlayerMatchupTable
+                                  a={intel?.get(`${g.league}-${g.a.rosterId}`)}
+                                  b={intel?.get(`${g.league}-${g.b.rosterId}`)}
+                                  nameA={g.a.name}
+                                  nameB={g.b.name}
+                                />
                               )}
                             </>
                           )

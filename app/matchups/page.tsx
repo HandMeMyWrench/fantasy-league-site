@@ -14,6 +14,9 @@ import {
 } from "@/lib/sleeper";
 import { LEAGUES, latestActiveSeason, type SeasonYear } from "@/lib/leagues";
 import OffseasonBanner from "@/components/OffseasonBanner";
+import { useBoardIntel } from "@/app/pickem/useBoardIntel";
+import { PlayerMatchupTable } from "@/components/PlayerMatchups";
+import type { Board } from "@/lib/pickem/types";
 
 /* ----------------------------- types ----------------------------- */
 
@@ -264,6 +267,43 @@ const MatchupsPage = () => {
 
   /* --------------------------------- helpers --------------------------------- */
   const teamName = (r?: Roster, u?: User) => r?.metadata?.team_name || u?.display_name || "Team";
+
+  // Pseudo-board so the Lineups expander can reuse the Pick'em intel engine
+  // (per-starter opponent, defense rank, weather, live/final gold points).
+  // favorite is a placeholder — only the starter rows are rendered here.
+  const pseudoBoard = useMemo<Board | null>(() => {
+    if (!selectedWeek) return null;
+    const games: Board["games"] = [];
+    const build = (ms: Matchup[], rosters: Roster[], league: "upper" | "lower") => {
+      const byId = new Map<number, Matchup[]>();
+      for (const m of ms) {
+        if (m.matchup_id == null) continue;
+        (byId.get(m.matchup_id) ?? byId.set(m.matchup_id, []).get(m.matchup_id)!).push(m);
+      }
+      for (const [mid, pair] of byId) {
+        if (pair.length !== 2) continue;
+        const team = (m: Matchup) => {
+          const r = rosters.find((x) => x.roster_id === m.roster_id);
+          const u = r ? usersMap[r.owner_id] : undefined;
+          return {
+            rosterId: m.roster_id,
+            ownerId: r?.owner_id ?? "",
+            name: teamName(r, u),
+            owner: u?.display_name ?? "",
+            avatar: u?.avatar ?? null,
+          };
+        };
+        games.push({ id: `${league}-${mid}`, league, a: team(pair[0]), b: team(pair[1]), favorite: "a" });
+      }
+    };
+    build(upperMatchups, upperLeague, "upper");
+    build(lowerMatchups, lowerLeague, "lower");
+    return games.length
+      ? { season: String(YEAR), week: selectedWeek, createdAt: 0, lockUtc: 0, buybackEndUtc: 0, games }
+      : null;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [upperMatchups, lowerMatchups, upperLeague, lowerLeague, usersMap, selectedWeek]);
+  const lineupIntel = useBoardIntel(pseudoBoard, true);
   const avatar = (u?: User) =>
     u?.avatar ? `https://sleepercdn.com/avatars/${u.avatar}` : "/default-avatar.png";
 
@@ -329,7 +369,12 @@ const MatchupsPage = () => {
     );
   };
 
-  const renderMatchups = (matchups: Matchup[], league: Roster[], proj: Map<string, number>) => {
+  const renderMatchups = (
+    matchups: Matchup[],
+    league: Roster[],
+    proj: Map<string, number>,
+    tier: "upper" | "lower"
+  ) => {
     const pairs = Object.values(
       matchups.reduce((acc, m) => {
         (acc[m.matchup_id] = acc[m.matchup_id] || []).push(m);
@@ -441,12 +486,29 @@ const MatchupsPage = () => {
             {projLoading ? "loading projections…" : projError ? "projections unavailable" : isOpen ? "Hide lineups ▲" : "Lineups ▼"}
           </button>
 
-          {isOpen && (
-            <div className="mt-2 grid grid-cols-2 gap-3 border-t border-line pt-2">
-              <Lineup proj={proj} starters={t1.starters} />
-              <Lineup proj={proj} starters={t2.starters} />
-            </div>
-          )}
+          {isOpen && (() => {
+            // Rich shared table (same as Pick'em) when intel is ready;
+            // simple lists as the fallback while it loads.
+            const ia = lineupIntel?.get(`${tier}-${t1.roster_id}`)
+            const ib = lineupIntel?.get(`${tier}-${t2.roster_id}`)
+            if (ia?.starters.length && ib?.starters.length)
+              return (
+                <div className="mt-2">
+                  <PlayerMatchupTable
+                    a={ia}
+                    b={ib}
+                    nameA={teamName(r1, u1)}
+                    nameB={teamName(r2, u2)}
+                  />
+                </div>
+              )
+            return (
+              <div className="mt-2 grid grid-cols-2 gap-3 border-t border-line pt-2">
+                <Lineup proj={proj} starters={t1.starters} />
+                <Lineup proj={proj} starters={t2.starters} />
+              </div>
+            )
+          })()}
         </div>
       );
     });
@@ -537,7 +599,7 @@ const MatchupsPage = () => {
           <h2 className="mb-3 text-sm font-bold uppercase tracking-wider text-brand">Upper League</h2>
           {upperMatchups.length && upperLeague.length ? (
             <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
-              {renderMatchups(upperMatchups, upperLeague, projUpper)}
+              {renderMatchups(upperMatchups, upperLeague, projUpper, "upper")}
             </div>
           ) : (
             <p className="text-center text-sm text-ink-faint">Waiting for matchups…</p>
@@ -549,7 +611,7 @@ const MatchupsPage = () => {
             <h2 className="mb-3 text-sm font-bold uppercase tracking-wider text-promo">Lower League</h2>
             {lowerMatchups.length && lowerLeague.length ? (
               <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
-                {renderMatchups(lowerMatchups, lowerLeague, projLower)}
+                {renderMatchups(lowerMatchups, lowerLeague, projLower, "lower")}
               </div>
             ) : (
               <p className="text-center text-sm text-ink-faint">Waiting for matchups…</p>
