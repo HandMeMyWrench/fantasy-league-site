@@ -4,22 +4,24 @@
    League-table aesthetic: dark field with a violet cast (brand), emerald
    for promotion, red for the drop. Archivo (condensed, heavy) for display;
    Inter for body and data. */
+/* "Relegation Heritage" palette (Sep 2026 rebrand, replacing the
+   Sleeper-adjacent violet): royal navy field + brass titling — the old
+   football-annual look that matches the league's promotion/relegation
+   soul. Promo green and drop red are semantic and never change.
+   All text tiers verified >=4.5:1 on their surfaces (WCAG small text). */
 :root {
-  --field: #0a0a10;          /* page background */
-  --surface: #12121c;        /* cards */
-  --surface-2: #191927;      /* raised rows, table headers */
-  --line: rgba(255, 255, 255, 0.07);
-  --ink: #f4f4f8;
-  --ink-dim: #9c9cb0;
-  /* HIG/WCAG audit Sep 2026: was #63637a (3.0-3.2:1 on dark surfaces —
-     fails the 4.5:1 minimum for small text). #8b8ba3 clears 4.5:1 while
-     keeping the muted tier clearly quieter than --ink-dim. */
-  --ink-faint: #8b8ba3;
-  --brand: #a78bfa;          /* violet 400 — SWRR purple */
-  --brand-deep: #6d28d9;
-  --promo: #34d399;          /* promotion zone */
-  --drop: #f87171;           /* relegation zone */
-  --gold: #fbbf24;           /* champions / first place */
+  --field: #0b1226;          /* midnight royal — page background */
+  --surface: #132140;        /* navy panels / cards */
+  --surface-2: #1a2c54;      /* raised rows, table headers */
+  --line: rgba(200, 215, 255, 0.12);
+  --ink: #eef2fa;
+  --ink-dim: #aab8d4;
+  --ink-faint: #97a6c4;      /* quietest tier — 5.5:1 on surface-2 */
+  --brand: #e2ba5e;          /* brass — headings, projections, active nav */
+  --brand-deep: #8a6a24;     /* aged brass — buttons, QB chip */
+  --promo: #34d399;          /* promotion zone (semantic, unchanged) */
+  --drop: #f87171;           /* relegation zone (semantic, unchanged) */
+  --gold: #facc15;           /* locks / champions — brighter than brand brass */
 }
 
 @theme inline {
@@ -53,7 +55,7 @@
 
 body {
   background:
-    radial-gradient(1200px 500px at 50% -220px, rgba(109, 40, 217, 0.22), transparent 70%),
+    radial-gradient(1200px 500px at 50% -220px, rgba(37, 84, 180, 0.32), transparent 70%),
     var(--field);
   color: var(--ink);
   font-family: var(--font-body), ui-sans-serif, system-ui, sans-serif;
