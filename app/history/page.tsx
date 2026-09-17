@@ -127,8 +127,12 @@ export default function HistoryPage() {
     let cancelled = false
     const run = async () => {
       setLoading(true)
+      // History is a record book: only COMPLETED seasons appear. The
+      // in-progress season joins automatically the day it wraps — until
+      // then its "promoted/relegated" lists are just this week's standings
+      // wearing a costume.
       const records = (await Promise.all(PR_SEASONS.map(loadSeason))).filter(
-        (r): r is SeasonRecord => r !== null
+        (r): r is SeasonRecord => r !== null && r.complete
       )
       if (!cancelled) {
         setSeasons(records)
