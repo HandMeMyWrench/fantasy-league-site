@@ -57,6 +57,11 @@ export type UserWeekScore = {
   buybackChanges: number
   buybackPenalty: number
   submitted: boolean
+  // LATE CARD (ratified Sep 2026): submitted after Thursday lock with no
+  // pre-lock card. Scored normally minus the buyback price on every pick
+  // (+lock), and INELIGIBLE for the weekly prize/Oracle — season points
+  // only. Still Blindfold-eligible (they submitted).
+  lateCard: boolean
 }
 
 export type WeekResult = {

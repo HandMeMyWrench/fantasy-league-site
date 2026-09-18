@@ -94,7 +94,21 @@ const eff2 = effectivePicks(up2)!
 check("postlock overrides pick", eff2.picks["upper-1"] === "b")
 check("untouched prelock pick survives merge", eff2.picks["upper-2"] === "b")
 check("null postlock lock keeps Thursday Lock", eff2.lockGameId === "upper-1")
-check("no prelock -> null (eat zeros)", effectivePicks({ ownerId: "x", prelock: null, postlock: up2.postlock }) === null)
+// LATE CARD (ratified Sep 2026): postlock with no prelock IS the card.
+check(
+  "no prelock + postlock -> LATE CARD (postlock is the card)",
+  effectivePicks({ ownerId: "x", prelock: null, postlock: up2.postlock })!.picks["upper-1"] === "b"
+)
+check(
+  "no prelock + no postlock -> null (zeros)",
+  effectivePicks({ ownerId: "x", prelock: null, postlock: null }) === null
+)
+// Late-card pricing: full card vs empty prelock = every pick + lock counted.
+const emptyCard = { picks: {}, lockGameId: null, submittedAt: 0 }
+check(
+  "late full card (2 picks + lock) charges 3 changes",
+  countChanges(emptyCard, { picks: { "upper-1": "a", "upper-2": "b" }, lockGameId: "upper-1" }) === 3
+)
 
 // ---------- outcomes & scoring ----------
 console.log("scoring:")
@@ -160,9 +174,9 @@ check("no-show: 0 pts, submitted=false", sNoShow.points === 0 && sNoShow.submitt
 
 // ---------- ranking (money) ----------
 console.log("ranking:")
-const mkScore = (ownerId: string, points: number, submitted = true, correct = 0) => ({
+const mkScore = (ownerId: string, points: number, submitted = true, correct = 0, lateCard = false) => ({
   ownerId, name: ownerId, points, correct, played: 0, upsets: 0,
-  lockResult: "none" as const, buybackChanges: 0, buybackPenalty: 0, submitted,
+  lockResult: "none" as const, buybackChanges: 0, buybackPenalty: 0, submitted, lateCard,
 })
 const r1 = rankScores([mkScore("a", 5), mkScore("b", 5), mkScore("c", 1), mkScore("z", 0, false)])
 check("tied top -> both winners (split cash)", r1.winners.length === 2 && r1.winners.includes("a") && r1.winners.includes("b"))
@@ -173,6 +187,15 @@ check("tied bottom -> nobody wears it", r2.loser === null)
 const r3 = rankScores([mkScore("only", 5)])
 check("single submitter -> no loser", r3.loser === null)
 check("sorted desc by points", r1.sorted[0].points >= r1.sorted[1].points && r1.sorted[1].points >= r1.sorted[2].points)
+
+// ---------- LATE CARDS (RATIFIED Sep 2026) ----------
+// Can't win the weekly prize even with the top score; still Blindfold-eligible.
+const r4 = rankScores([mkScore("late", 12, true, 0, true), mkScore("ontime", 9)])
+check("late card can't win the weekly even with top score", r4.winners.length === 1 && r4.winners[0] === "ontime")
+const r5 = rankScores([mkScore("a", 9), mkScore("late", -2, true, 0, true)])
+check("late card CAN wear the Blindfold", r5.loser === "late")
+const r6 = rankScores([mkScore("late1", 8, true, 0, true), mkScore("late2", 4, true, 0, true)])
+check("all-late week -> no weekly winner (money rolls per commissioner)", r6.winners.length === 0)
 
 // ---------- season prize allocation (RATIFIED: ties split spanned money) ----------
 console.log("season prizes:")

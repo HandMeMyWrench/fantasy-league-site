@@ -18,9 +18,12 @@ import type {
   UserWeekScore,
 } from "./types"
 
-/** Final effective picks: prelock overridden by any buyback edits. */
+/** Final effective picks: prelock overridden by any buyback edits.
+    LATE CARD (ratified Sep 2026): no prelock but a postlock card exists —
+    the postlock IS the card, priced via its `changes` (every pick + lock
+    counted at the buyback rate). */
 export function effectivePicks(up: UserPicks): PickSubmission | null {
-  if (!up.prelock) return null // no pre-lock submission = eat zeros
+  if (!up.prelock) return up.postlock ?? null
   if (!up.postlock) return up.prelock
   return {
     picks: { ...up.prelock.picks, ...up.postlock.picks },
@@ -94,6 +97,7 @@ export function scoreUser(
     buybackChanges,
     buybackPenalty: buybackChanges * BUYBACK_COST,
     submitted: eff !== null,
+    lateCard: !up.prelock && !!up.postlock,
   }
   if (!eff) return base
 
@@ -173,9 +177,12 @@ export function rankScores(scores: UserWeekScore[]): {
     (x, y) => y.points - x.points || y.correct - x.correct || x.name.localeCompare(y.name)
   )
   if (!submitters.length) return { sorted, winners: [], loser: null }
-  const top = Math.max(...submitters.map((s) => s.points))
+  // LATE CARDS (ratified Sep 2026) can't win the weekly prize/Oracle —
+  // that's reserved for on-time submitters. They remain Blindfold-eligible.
+  const onTime = submitters.filter((s) => !s.lateCard)
+  const top = onTime.length ? Math.max(...onTime.map((s) => s.points)) : -Infinity
   const bottom = Math.min(...submitters.map((s) => s.points))
-  const winners = submitters.filter((s) => s.points === top).map((s) => s.ownerId)
+  const winners = onTime.filter((s) => s.points === top).map((s) => s.ownerId)
   const losers = submitters.filter((s) => s.points === bottom)
   return {
     sorted,

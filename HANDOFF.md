@@ -101,6 +101,14 @@ app/api/pickem/{board,picks,leaderboard,health}/route.ts, app/pickem/page.tsx.
   400 pre-lock; buyback edits may stay partial, they merge onto the complete
   Thursday card). Prompted by a one-pick-lock-miss −2 card.
 
+- RATIFIED (Sep 2026, after 17/22 missed Week 2's lock): THE LATE CARD —
+  no pre-lock card? A COMPLETE card may still be filed until Sun 1PM,
+  priced at the buyback rate on every pick + lock (-6.5 full card) via
+  countChanges vs an empty card. Late cards: season points only —
+  INELIGIBLE for weekly $25/Oracle (rankScores excludes them from winners);
+  still Blindfold-eligible. Nothing by Sun 1PM = zeros. Design intent:
+  weekly money rewards punctuality, season race stays alive.
+
 **Commissioner rulings — RATIFIED (Aug 2026):**
 - No-shows are NOT eligible for the weekly Blindfold (only submitters
   compete for it; bottom ties spare everyone). In Rules tab + tests.

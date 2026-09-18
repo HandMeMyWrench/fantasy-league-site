@@ -35,6 +35,7 @@ type LeaderResp = {
       lockResult: string
       buybackChanges: number
       submitted: boolean
+      lateCard?: boolean
     }[]
   }[]
   table: {
@@ -382,6 +383,10 @@ export default function PickemPage() {
       })
       const j = await r.json()
       if (!r.ok) setMsg(`❌ ${j.error ?? "submission failed"}`)
+      else if (j.phase === "late-card")
+        setMsg(
+          `✅ Late card accepted — −${(j.changes * 0.5).toFixed(1)} pts, season points only (weekly $25 needs an on-time card)`
+        )
       else if (j.phase === "buyback")
         setMsg(`✅ Buyback saved — ${j.changes} change${j.changes === 1 ? "" : "s"} (-${(j.changes * 0.5).toFixed(1)} pts)`)
       else setMsg("✅ Picks saved — you can edit free until Thursday lock")
@@ -857,6 +862,12 @@ export default function PickemPage() {
                           · buyback edits cost 0.5 pts each
                         </span>
                       )}
+                      {buybackOpen && (
+                        <span className="block text-xs text-ink-faint">
+                          Missed Thursday? A complete late card still counts
+                          for season points (−6.5, can&apos;t win the weekly $25).
+                        </span>
+                      )}
                     </p>
                     {/* Mobile: dropdown gets its own full-width row (was crushed
                         beside PIN+button); PIN and submit share the second row.
@@ -1082,6 +1093,9 @@ export default function PickemPage() {
                               {!s.submitted && (
                                 <span className="text-ink-faint"> (no picks)</span>
                               )}
+                              {s.lateCard && (
+                                <span className="text-ink-faint"> ⏰ late card</span>
+                              )}
                             </span>
                             <span className="tnum shrink-0 text-ink-dim">
                               {s.points.toFixed(1)} pts
@@ -1118,8 +1132,12 @@ export default function PickemPage() {
               submit</span> — no partial cards (ratified Week 1, after a
               one-pick card scored −2). THE BUYBACK: edit picks until Sunday
               1:00 PM ET at −0.5 pts per change — flips and setting/moving
-              your Lock both count. No pre-lock submission = zeros for the
-              week.
+              your Lock both count. <span className="text-ink">THE LATE CARD</span>{" "}
+              (ratified Week 2): missed Thursday entirely? Submit a complete
+              card until Sunday 1:00 PM at the same rate on every pick —
+              −6.5 for a full card with a Lock. Late cards keep you alive in
+              the season race but can&apos;t win the weekly $25 or the Oracle.
+              Nothing by Sunday 1:00 PM = zeros for the week.
             </p>
             <p>
               <span className="font-semibold text-ink">Money.</span> $25 buy-in —{" "}

@@ -136,12 +136,28 @@ export async function POST(req: NextRequest) {
   }
 
   if (now < board.buybackEndUtc) {
-    // THE BUYBACK — allowed only if there was a pre-lock submission
-    if (!existing.prelock)
-      return NextResponse.json(
-        { error: "no pre-lock submission — you eat zeros this week" },
-        { status: 403 }
-      )
+    // LATE CARD (ratified Sep 2026): no pre-lock submission? You may still
+    // file a COMPLETE card until Sunday 1PM. Every pick (+lock) is priced at
+    // the ratified buyback rate via countChanges against an empty card
+    // (12 picks + lock = -6.5), and late cards can't win the weekly prize.
+    if (!existing.prelock) {
+      const missing = board.games.filter((g) => !picks[g.id]).length
+      if (missing > 0)
+        return NextResponse.json(
+          { error: `late card must be complete — ${missing} still blank` },
+          { status: 400 }
+        )
+      const emptyCard = { picks: {}, lockGameId: null, submittedAt: 0 }
+      const changes = countChanges(emptyCard, { picks, lockGameId })
+      existing.postlock = { picks, lockGameId, submittedAt: now, changes }
+      await setUserPicks(SEASON, week, existing)
+      return NextResponse.json({
+        status: "ok",
+        phase: "late-card",
+        changes,
+        note: `late card accepted — −${changes * 0.5} pts, not eligible for the weekly $25`,
+      })
+    }
     // Penalty = fresh diff of this (full) submission vs the Thursday picks.
     // Recomputed every save: resubmitting identical picks never
     // double-charges, and reverting a pick to Thursday's choice drops its
