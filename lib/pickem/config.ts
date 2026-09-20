@@ -55,3 +55,35 @@ export const TOTAL_POT =
 // Commissioner (PUCKETL's Sleeper user id). PIN resets authenticate against
 // THIS account's Pick'em PIN — claim yours early each season.
 export const COMMISSIONER_OWNER_ID = "723991581237022720"
+
+// WhatsApp group-contact names (commissioner-confirmed, Sep 2026) so share
+// messages call people out by the name the group actually knows —
+// "@Danny Joswick", not "DannyJ627". Plain text, not live mentions (wa.me
+// links can't create real @-pings); the commissioner can convert to real
+// tags by typing @ in WhatsApp. Fallback anywhere unmapped: Sleeper handle.
+export const WHATSAPP_NAMES: Record<string, string> = {
+  "604369602134216704": "AJ Juneja", // AJ1111
+  "604431813766631424": "Danny Joswick", // DannyJ627
+  "604353086655373312": "Tim Schaefer", // schaefer126
+  "604356315598356480": "Mike Lee", // Mikelee400
+  "737092549075996672": "Lucas", // LucasMyerson
+  "1265516792718049280": "Ian V", // ianv000
+  "1135321783214911488": "TP", // TimmP
+  "736575854632652800": "Papa Drew", // PapaDrew17
+  "741709692237156352": "Jake Rill", // JayGrill
+  "653063417137020928": "Josh K", // JoshKnepper
+  "1255292487438696448": "Josh Metz", // BangBangMetz
+  "604375897977450496": "Matt Stein", // SteinerVision
+  "608480864925478912": "Edmund", // ECoughs
+  "593144165831852032": "josh", // JoshScall
+  "723991581237022720": "Leigh", // PUCKETL (commissioner)
+  "725101747936288768": "FaKe", // Drock1080
+  "1255267694018580480": "Brian El Salami", // MandingoSamsel
+  "604388816433782784": "Barrett", // Bearballs85
+  "209110618752417792": "Michael Bayerle Bayerle", // AdamSchefter
+  "604355773107085312": "Kevin Murphy", // poonpunishers
+  "1255288126293680128": "Vitorrio", // Bittybop69
+  "1255336250387214336": "Louis Baltimore", // FuktheSteelers
+  "870496272312864768": "Stephen Puckett", // 1pt21Gigawatts
+  "604360481007788032": "Deshu", // papashu
+}

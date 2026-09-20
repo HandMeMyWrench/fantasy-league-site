@@ -9,6 +9,7 @@ import {
   TOTAL_POT,
   PICKEM_ENTRANTS,
   PICKEM_EXCLUDED_OWNER_IDS,
+  WHATSAPP_NAMES,
 } from "@/lib/pickem/config"
 
 /* SWRR Pick'em — weekly board + submission, leaderboard, rules.
@@ -547,7 +548,14 @@ export default function PickemPage() {
                   const entrants = [...teams.entries()]
                   const inSet = new Set(subs)
                   const done = entrants.filter(([id]) => inSet.has(id)).map(([, n]) => n).sort()
-                  const waiting = entrants.filter(([id]) => !inSet.has(id)).map(([, n]) => n).sort()
+                  const waitingRows = entrants
+                    .filter(([id]) => !inSet.has(id))
+                    .sort((x, y) => x[1].localeCompare(y[1]))
+                  const waiting = waitingRows.map(([, n]) => n)
+                  // WhatsApp callouts use the group's real contact names.
+                  const waitingTags = waitingRows.map(
+                    ([id, n]) => `@${WHATSAPP_NAMES[id] ?? n}`
+                  )
                   return (
                     <div className="mb-4">
                       <button
@@ -587,8 +595,8 @@ export default function PickemPage() {
                                   waShare(
                                     `🏈 SWRR PICK'EM — Week ${board.week}\n` +
                                       `⏱ Picks lock in ${fmtCountdown(board.lockUtc - now)} (${fmtDeadline(board.lockUtc)})\n` +
-                                      `✗ Still missing (${waiting.length}): ${waiting.join(", ")}\n` +
-                                      `No picks = zeros this week.\n👉 ${SITE_URL}`
+                                      `✗ Still missing (${waitingTags.length}):\n${waitingTags.join("\n")}\n` +
+                                      `Late card after lock costs −6.5 and can't win the weekly $25.\n👉 ${SITE_URL}`
                                   )
                                 }
                               />
