@@ -146,6 +146,31 @@ free edits until Thu 8PM ET, buyback (-0.5/change) until Sun 1PM ET, then
 closed. All picks become public after lock. Completed weeks are scored
 lazily on first leaderboard view and cached permanently in Redis.
 
+## NFL Moneyline Pick'em (Sep 2026) — HIDDEN, 2027 LAUNCH
+
+Second game mode built for the future multi-league app (leagues will choose
+fantasy pick'em / NFL moneyline / both per season). Gated behind
+NFL_PICKEM_ENABLED in lib/pickem/nfl.ts (false) — commissioner previews via
+/pickem?nflpreview. Exhibition only: NO money attached.
+
+- Data: ESPN public scoreboard (site.api.espn.com) — games, kickoffs,
+  DraftKings spreads (odds.details names the favorite, e.g. "CAR -2.5"),
+  final scores for grading. Favorite = Vegas line FROZEN at board creation;
+  no line -> home team. lib/pickem/nfl.ts (buildNflBoard, nflPointsMap).
+- Same scoring engine (locks 3/-2, upset +1) via shared scoring.ts; storage
+  keys namespaced by contest ("" = fantasy, "nfl") in storage.ts; routes
+  take ?contest=nfl / body.contest; PINs shared across contests.
+- ROLLING LOCKS (differs from fantasy): each game freezes at ITS OWN
+  kickoff — miss it = zero that game only; Sunday 1PM ET = master cutoff
+  for the whole card (so SNF/MNF picks predate Sunday results). No
+  buyback, no late card. Server merge-freezes started games' picks, lock
+  can't move once its game starts, all-picks reveal at the Sunday cutoff.
+- UI: game-mode tabs inside /pickem (app/pickem/NflBoard.tsx) — spread +
+  Vegas win% per team, dome/weather icons via the shared venue engine.
+- 2027 punch list: NFL leaderboard UI (route supports ?contest=nfl,
+  Leaderboard tab doesn't), submissions counter/share buttons, per-league
+  contest config, money rules if the league votes it real.
+
 ## Nav consolidation (July 2026)
 
 Season nav is now: Standings, Matchups, Pick'em, History (+ Draft Lottery
