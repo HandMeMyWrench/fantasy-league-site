@@ -9,6 +9,7 @@ const BASE_LINKS: { href: string; label: string }[] = [
   { href: "/", label: "Standings" },
   { href: "/matchups", label: "Matchups" },
   { href: "/pickem", label: "Pick'em" },
+  { href: "/bets", label: "Bets" },
   { href: "/history", label: "History" },
 ]
 
