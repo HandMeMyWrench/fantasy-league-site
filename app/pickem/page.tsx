@@ -587,16 +587,26 @@ export default function PickemPage() {
                               {waiting.length ? waiting.join(", ") : "—"}
                             </p>
                           </div>
-                          {waiting.length > 0 && !locked && (
+                          {waiting.length > 0 && !closed && (
                             <div className="text-center sm:col-span-2">
                               <WaButton
-                                label="WhatsApp the stragglers"
+                                label={
+                                  locked
+                                    ? "WhatsApp the late-card holdouts"
+                                    : "WhatsApp the stragglers"
+                                }
                                 onClick={() =>
                                   waShare(
-                                    `🏈 SWRR PICK'EM — Week ${board.week}\n` +
-                                      `⏱ Picks lock in ${fmtCountdown(board.lockUtc - now)} (${fmtDeadline(board.lockUtc)})\n` +
-                                      `✗ Still missing (${waitingTags.length}):\n${waitingTags.join("\n")}\n` +
-                                      `Late card after lock costs −6.5 and can't win the weekly $25.\n👉 ${SITE_URL}`
+                                    locked
+                                      ? // Buyback phase: last call for late cards.
+                                        `🚨 SWRR PICK'EM — Week ${board.week} LAST CALL\n` +
+                                          `⏰ Late-card window closes in ${fmtCountdown(board.buybackEndUtc - now)} (Sun 1:00 PM ET)\n` +
+                                          `✗ No card yet (${waitingTags.length}):\n${waitingTags.join("\n")}\n` +
+                                          `A complete late card = −6.5 pts, keeps your season alive. Nothing by 1PM = zeros.\n👉 ${SITE_URL}`
+                                      : `🏈 SWRR PICK'EM — Week ${board.week}\n` +
+                                          `⏱ Picks lock in ${fmtCountdown(board.lockUtc - now)} (${fmtDeadline(board.lockUtc)})\n` +
+                                          `✗ Still missing (${waitingTags.length}):\n${waitingTags.join("\n")}\n` +
+                                          `Late card after lock costs −6.5 and can't win the weekly $25.\n👉 ${SITE_URL}`
                                   )
                                 }
                               />
