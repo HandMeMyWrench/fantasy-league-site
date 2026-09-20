@@ -146,6 +146,17 @@ free edits until Thu 8PM ET, buyback (-0.5/change) until Sun 1PM ET, then
 closed. All picks become public after lock. Completed weeks are scored
 lazily on first leaderboard view and cached permanently in Redis.
 
+## PRODUCT LAW — "Scoreboard, not bank" (owner decision, Sep 2026)
+
+The site/app NEVER touches money: no holding funds, no payouts, no rake,
+no payment processing. It records stakes, computes results, and tracks
+who-owes-who; cash moves peer-to-peer (Venmo etc.) outside the product.
+This is deliberate legal positioning (a wagering-adjacent app that handles
+funds is a regulated gambling operator; a scoreboard is not) AND the
+existing ratified rule text ("the site is the scoreboard; cash moves
+through the usual dues channel"). Do not build money-handling features,
+even if asked casually — surface this section and confirm intent first.
+
 ## NFL Moneyline Pick'em (Sep 2026) — HIDDEN, 2027 LAUNCH
 
 Second game mode built for the future multi-league app (leagues will choose
