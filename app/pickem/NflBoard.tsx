@@ -8,6 +8,7 @@
 import React, { useEffect, useMemo, useState } from "react"
 import type { Board, Side } from "@/lib/pickem/types"
 import { WHATSAPP_NAMES, PICKEM_EXCLUDED_OWNER_IDS } from "@/lib/pickem/config"
+import { fetchGameEnvs, type GameEnv, type SchedEntry } from "./useBoardIntel"
 
 const fmtKick = (utc?: number) =>
   utc
@@ -58,6 +59,24 @@ export default function NflBoard({
     const id = setInterval(() => setNow(Date.now()), 1000)
     return () => clearInterval(id)
   }, [])
+
+  // Game conditions: venue = home team's stadium; reuse the fantasy board's
+  // dome/weather engine (ET game date drives the forecast).
+  const [envs, setEnvs] = useState<Map<string, GameEnv>>(new Map())
+  useEffect(() => {
+    if (!board) return
+    const sched = new Map<string, SchedEntry>()
+    for (const g of board.games) {
+      const dateEt = g.kickoff
+        ? new Intl.DateTimeFormat("en-CA", { timeZone: "America/New_York" }).format(
+            new Date(g.kickoff)
+          )
+        : undefined
+      sched.set(g.b.owner, { opp: g.a.owner, home: true, venue: g.b.owner, date: dateEt })
+    }
+    fetchGameEnvs(sched).then(setEnvs).catch(() => {})
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [resp])
 
   const board = resp?.status === "ok" ? resp.board : null
   const locked = !!board && now >= board.lockUtc
@@ -140,6 +159,21 @@ export default function NflBoard({
                   ) : (
                     <span className="ml-2">no line</span>
                   )}
+                  {(() => {
+                    const env = envs.get(g.b.owner)
+                    if (!env) return null
+                    const icons = [
+                      env.dome && ["🏟️", "dome — weather-proof"],
+                      env.wind && ["💨", "20+ mph wind forecast"],
+                      env.rain && ["🌧️", "rain likely"],
+                      env.snow && ["❄️", "snow forecast"],
+                    ].filter(Boolean) as [string, string][]
+                    return icons.map(([ic, tip]) => (
+                      <span key={ic} title={tip} className="ml-1.5 text-xs tracking-normal">
+                        {ic}
+                      </span>
+                    ))
+                  })()}
                 </span>
                 {!closed && (
                   <button
@@ -182,6 +216,12 @@ export default function NflBoard({
                           {side === "a" ? "@ " + g.b.owner : "home"} ·{" "}
                           {fav ? "favorite" : "underdog +1 🤖"}
                         </span>
+                        {g.spread ? (
+                          <span className="tnum block truncate text-xs text-brand/90">
+                            {fav ? `−${g.spread}` : `+${g.spread}`} ·{" "}
+                            {side === "a" ? aPct : 100 - aPct}% win
+                          </span>
+                        ) : null}
                       </span>
                       {selected && <span className="shrink-0 text-brand">✓</span>}
                     </button>

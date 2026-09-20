@@ -128,7 +128,7 @@ async function fetchDefRanks(season: number): Promise<DefRanks> {
 }
 
 type SchedGame = { week: number; home: string; away: string; date?: string }
-type SchedEntry = { opp: string; home: boolean; venue: string; date?: string }
+export type SchedEntry = { opp: string; home: boolean; venue: string; date?: string }
 /** team -> game entry for one week; teams absent are on bye. venue = the
     HOME team (whose stadium the game is in). */
 async function fetchWeekSchedule(
@@ -192,8 +192,9 @@ export type GameEnv = { dome?: boolean; wind?: boolean; rain?: boolean; snow?: b
 
 /** One forecast per unique OUTDOOR venue for the week; dome venues are
     marked without a fetch. Forecasts beyond Open-Meteo's ~16-day horizon
-    just fail quietly (no icons — fine, the board only shows current week). */
-async function fetchGameEnvs(sched: Map<string, SchedEntry>): Promise<Map<string, GameEnv>> {
+    just fail quietly (no icons — fine, the board only shows current week).
+    Exported: the NFL moneyline board reuses it (venue = home team). */
+export async function fetchGameEnvs(sched: Map<string, SchedEntry>): Promise<Map<string, GameEnv>> {
   const byVenue = new Map<string, GameEnv>()
   const jobs: Promise<void>[] = []
   for (const e of sched.values()) {
