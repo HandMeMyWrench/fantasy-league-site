@@ -17,44 +17,54 @@ import {
   listPickOwners,
   setWeekResult,
   storageConfigured,
+  type Contest,
 } from "@/lib/pickem/storage"
+import { nflPointsMap } from "@/lib/pickem/nfl"
 
 export const dynamic = "force-dynamic"
 
 type SleeperMatchup = { roster_id: number; points?: number }
 
-async function computeWeek(week: number): Promise<WeekResult | null> {
-  const board = await getBoard(SEASON, week)
+async function computeWeek(week: number, contest: Contest = ""): Promise<WeekResult | null> {
+  const board = await getBoard(SEASON, week, contest)
   if (!board) return null
-  const cfg = LEAGUES[SEASON as SeasonYear]
-  const [um, lm] = (await Promise.all([
-    getMatchups(cfg.upper!, week),
-    getMatchups(cfg.lower!, week),
-  ])) as [SleeperMatchup[], SleeperMatchup[]]
 
-  // League-qualified keys: roster ids 1-12 exist in BOTH leagues, so bare
-  // ids collide and one league's scores overwrite the other's (the Week 1
-  // 2026 bug — upper outcomes computed from lower scores).
-  const points = new Map<string, number>()
-  for (const m of um) points.set(`upper-${m.roster_id}`, m.points ?? 0)
-  for (const m of lm) points.set(`lower-${m.roster_id}`, m.points ?? 0)
+  // Outcome points: fantasy = Sleeper matchup totals (league-qualified keys
+  // — roster ids 1-12 exist in BOTH leagues); NFL = ESPN final scores.
+  let points: Map<string, number>
+  if (contest === "nfl") {
+    points = await nflPointsMap(week)
+  } else {
+    const cfg = LEAGUES[SEASON as SeasonYear]
+    const [um, lm] = (await Promise.all([
+      getMatchups(cfg.upper!, week),
+      getMatchups(cfg.lower!, week),
+    ])) as [SleeperMatchup[], SleeperMatchup[]]
+    points = new Map<string, number>()
+    for (const m of um) points.set(`upper-${m.roster_id}`, m.points ?? 0)
+    for (const m of lm) points.set(`lower-${m.roster_id}`, m.points ?? 0)
+  }
 
   const outcomes = gameOutcomes(board, points)
+  // Manager names: NFL boards hold NFL teams, so names come from the week's
+  // FANTASY board either way.
+  const rosterBoard = contest === "nfl" ? await getBoard(SEASON, week) : board
+  if (!rosterBoard) return null
   const nameByOwner = new Map<string, string>()
-  for (const g of board.games) {
+  for (const g of rosterBoard.games) {
     nameByOwner.set(g.a.ownerId, g.a.name)
     nameByOwner.set(g.b.ownerId, g.b.name)
   }
 
   // Score every ENTRANT on the board — entrants who don't submit appear with
   // zeros (submitted: false). Managers not in the pot are excluded entirely.
-  const submitted = new Set(await listPickOwners(SEASON, week))
+  const submitted = new Set(await listPickOwners(SEASON, week, contest))
   const allOwners = [...nameByOwner.keys()].filter(
     (o) => !PICKEM_EXCLUDED_OWNER_IDS.has(o)
   )
   const allPicks = await Promise.all(
     allOwners.map(async (o): Promise<UserPicks> =>
-      (submitted.has(o) ? await getUserPicks(SEASON, week, o) : null) ??
+      (submitted.has(o) ? await getUserPicks(SEASON, week, o, contest) : null) ??
       ({ ownerId: o, prelock: null, postlock: null } as UserPicks)
     )
   )
@@ -74,9 +84,11 @@ async function computeWeek(week: number): Promise<WeekResult | null> {
   }
 }
 
-export async function GET() {
+export async function GET(req: Request) {
   if (!storageConfigured())
     return NextResponse.json({ status: "unconfigured" }, { status: 503 })
+  const contest: Contest =
+    new URL(req.url).searchParams.get("contest") === "nfl" ? "nfl" : ""
 
   const state = await getNflState()
   const currentWeek =
@@ -89,10 +101,10 @@ export async function GET() {
     // passed (the correction window is over). Before that, recompute fresh
     // on every view — money results must track Sleeper's final numbers.
     const settled = Date.now() >= weekLockUtc(w + 1)
-    let r = settled ? await getWeekResult(SEASON, w) : null
+    let r = settled ? await getWeekResult(SEASON, w, contest) : null
     if (!r) {
-      r = await computeWeek(w)
-      if (r && settled) await setWeekResult(r)
+      r = await computeWeek(w, contest)
+      if (r && settled) await setWeekResult(r, contest)
     }
     if (r) weeks.push(r)
   }

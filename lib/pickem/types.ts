@@ -11,11 +11,14 @@ export type BoardTeam = {
 }
 
 export type BoardGame = {
-  id: string // `${league}-${matchupId}`
-  league: "upper" | "lower"
+  id: string // `${league}-${matchupId}` (fantasy) / `nfl-${espnEventId}` (NFL)
+  league: "upper" | "lower" | "nfl"
   a: BoardTeam
   b: BoardTeam
   favorite: Side // snapshotted at board creation — basis for the upset bonus
+  // NFL moneyline extras (absent on fantasy games):
+  spread?: number // Vegas spread magnitude at snapshot (favorite laying it)
+  kickoff?: number // game start (ms) — NFL cards show it
 }
 
 export type Board = {

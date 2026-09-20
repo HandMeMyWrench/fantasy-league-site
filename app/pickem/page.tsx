@@ -5,6 +5,8 @@ import type { Board, Side } from "@/lib/pickem/types"
 import { getSeasonLineups, type SeasonTeam } from "@/lib/season"
 import { useBoardIntel, isSeriousInj, gameWinProb, makeDemoIntel } from "./useBoardIntel"
 import { PlayerMatchupTable } from "@/components/PlayerMatchups"
+import { NFL_PICKEM_ENABLED } from "@/lib/pickem/nfl"
+import NflBoard from "./NflBoard"
 import {
   TOTAL_POT,
   PICKEM_ENTRANTS,
@@ -238,6 +240,15 @@ export default function PickemPage() {
       .catch(() => setResp({ status: "preseason" }))
   }, [])
 
+  // NFL moneyline game mode — HIDDEN until 2027 (NFL_PICKEM_ENABLED) or
+  // commissioner preview via ?nflpreview.
+  const [gameMode, setGameMode] = useState<"fantasy" | "nfl">("fantasy")
+  const [nflVisible, setNflVisible] = useState(false)
+  useEffect(() => {
+    if (NFL_PICKEM_ENABLED || new URLSearchParams(window.location.search).has("nflpreview"))
+      setNflVisible(true)
+  }, [])
+
   useEffect(() => {
     if (new URLSearchParams(window.location.search).has("preview")) {
       startRehearsal()
@@ -464,7 +475,27 @@ export default function PickemPage() {
         </div>
 
         {/* ---------------- THIS WEEK ---------------- */}
-        {tab === "board" && (
+        {tab === "board" && nflVisible && (
+          <div className="mb-4 flex justify-center gap-1 text-xs">
+            {(["fantasy", "nfl"] as const).map((m) => (
+              <button
+                key={m}
+                onClick={() => setGameMode(m)}
+                className={`rounded-full px-4 py-1.5 font-semibold transition-colors ${
+                  gameMode === m
+                    ? "bg-brand-deep/30 text-brand"
+                    : "text-ink-dim hover:text-ink"
+                }`}
+              >
+                {m === "fantasy" ? "Fantasy matchups" : "NFL moneyline 🏈"}
+              </button>
+            ))}
+          </div>
+        )}
+        {tab === "board" && gameMode === "nfl" && nflVisible && (
+          <NflBoard managers={managers} />
+        )}
+        {tab === "board" && (gameMode === "fantasy" || !nflVisible) && (
           <>
             {!resp && <p className="text-center text-ink-dim">Loading…</p>}
             {resp?.status === "unconfigured" && (

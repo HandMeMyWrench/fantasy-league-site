@@ -19,36 +19,60 @@ export function redis(): Redis | null {
 
 export const storageConfigured = () => redis() !== null
 
+// `contest` dimension (added Sep 2026 for the hidden NFL moneyline game):
+// "" = the original fantasy Pick'em (keys unchanged, fully backward
+// compatible); "nfl" = NFL moneyline. PINs (user auth) are shared across
+// contests — one identity, many games.
+export type Contest = "" | "nfl"
+const c = (contest: Contest) => (contest ? `:${contest}` : "")
+
 const k = {
-  board: (season: string, week: number) => `pickem:board:${season}:${week}`,
-  picks: (season: string, week: number, ownerId: string) =>
-    `pickem:picks:${season}:${week}:${ownerId}`,
-  picksIndex: (season: string, week: number) => `pickem:picksidx:${season}:${week}`,
+  board: (season: string, week: number, contest: Contest = "") =>
+    `pickem${c(contest)}:board:${season}:${week}`,
+  picks: (season: string, week: number, ownerId: string, contest: Contest = "") =>
+    `pickem${c(contest)}:picks:${season}:${week}:${ownerId}`,
+  picksIndex: (season: string, week: number, contest: Contest = "") =>
+    `pickem${c(contest)}:picksidx:${season}:${week}`,
   user: (ownerId: string) => `pickem:user:${ownerId}`,
-  result: (season: string, week: number) => `pickem:result:${season}:${week}`,
+  result: (season: string, week: number, contest: Contest = "") =>
+    `pickem${c(contest)}:result:${season}:${week}`,
 }
 
-export async function getBoard(season: string, week: number) {
-  return (await redis()!.get<Board>(k.board(season, week))) ?? null
+export async function getBoard(season: string, week: number, contest: Contest = "") {
+  return (await redis()!.get<Board>(k.board(season, week, contest))) ?? null
 }
-export async function setBoard(b: Board) {
-  await redis()!.set(k.board(b.season, b.week), b)
+export async function setBoard(b: Board, contest: Contest = "") {
+  await redis()!.set(k.board(b.season, b.week, contest), b)
 }
 
-export async function getUserPicks(season: string, week: number, ownerId: string) {
-  return (await redis()!.get<UserPicks>(k.picks(season, week, ownerId))) ?? null
+export async function getUserPicks(
+  season: string,
+  week: number,
+  ownerId: string,
+  contest: Contest = ""
+) {
+  return (await redis()!.get<UserPicks>(k.picks(season, week, ownerId, contest))) ?? null
 }
-export async function setUserPicks(season: string, week: number, up: UserPicks) {
-  await redis()!.set(k.picks(season, week, up.ownerId), up)
-  await redis()!.sadd(k.picksIndex(season, week), String(up.ownerId))
+export async function setUserPicks(
+  season: string,
+  week: number,
+  up: UserPicks,
+  contest: Contest = ""
+) {
+  await redis()!.set(k.picks(season, week, up.ownerId, contest), up)
+  await redis()!.sadd(k.picksIndex(season, week, contest), String(up.ownerId))
 }
-export async function listPickOwners(season: string, week: number): Promise<string[]> {
+export async function listPickOwners(
+  season: string,
+  week: number,
+  contest: Contest = ""
+): Promise<string[]> {
   // String() every member: Sleeper owner ids are 18-19 digits — BEYOND
   // Number.MAX_SAFE_INTEGER — and the Upstash SDK JSON-parses numeric-looking
   // set members into (silently corrupted) numbers. A numeric member breaks
   // the ===-string submitted-set check in scoring, turning a real submission
   // into a scored no-show. Observed live with one manager pre-Week 1.
-  const members = (await redis()!.smembers(k.picksIndex(season, week))) ?? []
+  const members = (await redis()!.smembers(k.picksIndex(season, week, contest))) ?? []
   return members.map((m) => String(m))
 }
 
@@ -64,9 +88,9 @@ export async function deleteUserAuth(ownerId: string) {
   await redis()!.del(k.user(ownerId))
 }
 
-export async function getWeekResult(season: string, week: number) {
-  return (await redis()!.get<WeekResult>(k.result(season, week))) ?? null
+export async function getWeekResult(season: string, week: number, contest: Contest = "") {
+  return (await redis()!.get<WeekResult>(k.result(season, week, contest))) ?? null
 }
-export async function setWeekResult(r: WeekResult) {
-  await redis()!.set(k.result(r.season, r.week), r)
+export async function setWeekResult(r: WeekResult, contest: Contest = "") {
+  await redis()!.set(k.result(r.season, r.week, contest), r)
 }

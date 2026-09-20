@@ -11,6 +11,7 @@ import {
   setUserAuth,
   setUserPicks,
   storageConfigured,
+  type Contest,
 } from "@/lib/pickem/storage"
 
 export const dynamic = "force-dynamic"
@@ -23,14 +24,15 @@ export async function GET(req: NextRequest) {
   const q = req.nextUrl.searchParams
   const week = Number(q.get("week"))
   if (!week) return NextResponse.json({ error: "week required" }, { status: 400 })
-  const board = await getBoard(SEASON, week)
+  const contest: Contest = q.get("contest") === "nfl" ? "nfl" : ""
+  const board = await getBoard(SEASON, week, contest)
   if (!board) return NextResponse.json({ error: "no board" }, { status: 404 })
 
   // ?count=1 — who has submitted (ids only, no picks). Not private: it
   // reveals THAT someone picked, never WHAT they picked. Lets the
   // commissioner (or the board) chase stragglers before lock.
   if (q.get("count") === "1") {
-    const owners = await listPickOwners(SEASON, week)
+    const owners = await listPickOwners(SEASON, week, contest)
     return NextResponse.json({
       status: "ok",
       submitted: owners.length,
@@ -42,8 +44,8 @@ export async function GET(req: NextRequest) {
   if (q.get("all") === "1") {
     if (Date.now() < board.lockUtc)
       return NextResponse.json({ error: "picks are private until lock" }, { status: 403 })
-    const owners = await listPickOwners(SEASON, week)
-    const all = await Promise.all(owners.map((o) => getUserPicks(SEASON, week, o)))
+    const owners = await listPickOwners(SEASON, week, contest)
+    const all = await Promise.all(owners.map((o) => getUserPicks(SEASON, week, o, contest)))
     const rows = all
       .filter((p): p is UserPicks => p !== null)
       .map((p) => ({
@@ -60,7 +62,7 @@ export async function GET(req: NextRequest) {
   const auth = await getUserAuth(ownerId)
   if (!auth || !pinOk(auth.pinHash, ownerId, pin))
     return NextResponse.json({ error: "bad pin" }, { status: 403 })
-  const picks = await getUserPicks(SEASON, week, ownerId)
+  const picks = await getUserPicks(SEASON, week, ownerId, contest)
   return NextResponse.json({ status: "ok", picks })
 }
 
@@ -77,11 +79,12 @@ export async function POST(req: NextRequest) {
   const ownerId = body.ownerId == null ? "" : String(body.ownerId)
   const picks = (body.picks ?? {}) as Record<string, Side>
   const lockGameId = (body.lockGameId ?? null) as string | null
+  const contest: Contest = body.contest === "nfl" ? "nfl" : ""
 
   if (!week || !ownerId || !pin || typeof pin !== "string" || pin.length < 4)
     return NextResponse.json({ error: "week, ownerId and a 4+ digit pin required" }, { status: 400 })
 
-  const board = await getBoard(SEASON, week)
+  const board = await getBoard(SEASON, week, contest)
   if (!board) return NextResponse.json({ error: "no board this week" }, { status: 404 })
 
   // Validate picks reference real games
@@ -93,8 +96,10 @@ export async function POST(req: NextRequest) {
   if (lockGameId !== null && !gameIds.has(lockGameId))
     return NextResponse.json({ error: "invalid lock" }, { status: 400 })
 
-  // Verify roster ownership of the account (must be one of the 24 managers)
-  const isManager = board.games.some(
+  // Verify the account is one of the 24 managers. NFL boards hold NFL teams,
+  // not managers, so eligibility checks against the week's FANTASY board.
+  const rosterBoard = contest === "nfl" ? await getBoard(SEASON, week) : board
+  const isManager = !!rosterBoard?.games.some(
     (g) => g.a.ownerId === ownerId || g.b.ownerId === ownerId
   )
   if (!isManager) return NextResponse.json({ error: "unknown manager" }, { status: 403 })
@@ -114,7 +119,7 @@ export async function POST(req: NextRequest) {
 
   const now = Date.now()
   const existing =
-    (await getUserPicks(SEASON, week, ownerId)) ??
+    (await getUserPicks(SEASON, week, ownerId, contest)) ??
     ({ ownerId, prelock: null, postlock: null } as UserPicks)
 
   if (now < board.lockUtc) {
@@ -131,7 +136,7 @@ export async function POST(req: NextRequest) {
     // Free edits until Thursday lock
     existing.prelock = { picks, lockGameId, submittedAt: now }
     existing.postlock = null
-    await setUserPicks(SEASON, week, existing)
+    await setUserPicks(SEASON, week, existing, contest)
     return NextResponse.json({ status: "ok", phase: "prelock" })
   }
 
@@ -150,7 +155,7 @@ export async function POST(req: NextRequest) {
       const emptyCard = { picks: {}, lockGameId: null, submittedAt: 0 }
       const changes = countChanges(emptyCard, { picks, lockGameId })
       existing.postlock = { picks, lockGameId, submittedAt: now, changes }
-      await setUserPicks(SEASON, week, existing)
+      await setUserPicks(SEASON, week, existing, contest)
       return NextResponse.json({
         status: "ok",
         phase: "late-card",
@@ -169,7 +174,7 @@ export async function POST(req: NextRequest) {
       submittedAt: now,
       changes,
     }
-    await setUserPicks(SEASON, week, existing)
+    await setUserPicks(SEASON, week, existing, contest)
     return NextResponse.json({ status: "ok", phase: "buyback", changes })
   }
 
