@@ -79,8 +79,8 @@ export default function NflBoard({
   }, [resp])
 
   const board = resp?.status === "ok" ? resp.board : null
-  const locked = !!board && now >= board.lockUtc
   const closed = !!board && now >= board.buybackEndUtc
+  const kicked = (g: { kickoff?: number }) => !!g.kickoff && now >= g.kickoff
   const eligibleManagers = useMemo(
     () => managers.filter(([id]) => !PICKEM_EXCLUDED_OWNER_IDS.has(id)),
     [managers]
@@ -105,11 +105,12 @@ export default function NflBoard({
       })
       const j = await r.json()
       if (!r.ok) setMsg(`❌ ${j.error ?? "submission failed"}`)
-      else if (j.phase === "late-card")
-        setMsg(`✅ Late card accepted — −${(j.changes * 0.5).toFixed(1)} pts`)
-      else if (j.phase === "buyback")
-        setMsg(`✅ Buyback saved — ${j.changes} change${j.changes === 1 ? "" : "s"}`)
-      else setMsg("✅ NFL picks saved — free edits until the first kickoff")
+      else
+        setMsg(
+          j.frozenGames > 0
+            ? `✅ NFL picks saved — ${j.frozenGames} kicked-off game${j.frozenGames === 1 ? "" : "s"} stayed frozen; the rest are editable until Sun 1PM`
+            : "✅ NFL picks saved — every game editable until it kicks off (card closes Sun 1PM)"
+        )
     } catch {
       setMsg("❌ network error")
     } finally {
@@ -125,7 +126,11 @@ export default function NflBoard({
       </p>
     )
 
-  const complete = Object.keys(picks).length >= board.games.length
+  // Completeness counts only games that haven't kicked off — started ones
+  // are frozen server-side (missed = zero on that game alone).
+  const openGames = board.games.filter((g) => !kicked(g))
+  const openPicked = openGames.filter((g) => picks[g.id]).length
+  const complete = openPicked >= openGames.length
 
   return (
     <div>
@@ -134,11 +139,10 @@ export default function NflBoard({
         <span className="mx-2 text-ink-faint">·</span>
         {closed
           ? "closed for this week"
-          : locked
-          ? "late cards only (−0.5 per pick)"
-          : `picks lock at the first kickoff — ${fmtKick(board.lockUtc)}`}
+          : "each game locks at ITS kickoff · whole card closes Sun 1:00 PM ET"}
         <span className="mx-2 text-ink-faint">·</span>
-        favorites are the Vegas line, frozen when the week&apos;s board was created
+        miss a kickoff, zero that game only · favorites = the Vegas line, frozen at
+        board creation
       </div>
 
       <div className="space-y-2">
@@ -175,7 +179,12 @@ export default function NflBoard({
                     ))
                   })()}
                 </span>
-                {!closed && (
+                {kicked(g) && !closed && (
+                  <span className="rounded-full bg-white/5 px-3 py-1 text-[10px] font-semibold tracking-wide text-ink-faint">
+                    kicked off · frozen
+                  </span>
+                )}
+                {!closed && !kicked(g) && (
                   <button
                     onClick={() => setLockGameId(isLock ? null : g.id)}
                     className={`rounded-full border px-3 py-1.5 text-[11px] font-bold tracking-wide transition-all ${
@@ -196,7 +205,7 @@ export default function NflBoard({
                   return (
                     <button
                       key={side}
-                      disabled={closed}
+                      disabled={closed || kicked(g)}
                       onClick={() => setPicks((p) => ({ ...p, [g.id]: side }))}
                       className={`flex items-center gap-2.5 px-3 py-2.5 text-left transition-colors ${
                         side === "a" ? "border-r border-line" : ""
@@ -252,9 +261,11 @@ export default function NflBoard({
       {!closed && (
         <div className="panel mt-4 space-y-3 p-4">
           <p className="text-sm text-ink-dim">
-            {Object.keys(picks).length}/{board.games.length} NFL games picked
+            {openPicked}/{openGames.length} open games picked
+            {openGames.length < board.games.length &&
+              ` (${board.games.length - openGames.length} already kicked off)`}
             {!complete && (
-              <span className="text-gold"> — all {board.games.length} required</span>
+              <span className="text-gold"> — all open games required</span>
             )}
             {lockGameId ? " · lock set 🔒" : " · no lock set"}
           </p>
@@ -282,16 +293,14 @@ export default function NflBoard({
               />
               <button
                 onClick={submit}
-                disabled={busy || !ownerId || pin.length < 4 || (!locked && !complete)}
+                disabled={busy || !ownerId || pin.length < 4 || !complete}
                 className="display flex-1 whitespace-nowrap rounded-lg bg-brand-deep px-5 py-2.5 text-sm tracking-wider text-white transition-colors hover:bg-brand-deep/80 disabled:opacity-40 sm:flex-none sm:py-2"
               >
                 {busy
                   ? "Saving…"
-                  : locked
-                  ? "Late card"
                   : complete
                   ? "Submit NFL picks"
-                  : `Pick ${board.games.length - Object.keys(picks).length} more`}
+                  : `Pick ${openGames.length - openPicked} more`}
               </button>
             </div>
           </div>

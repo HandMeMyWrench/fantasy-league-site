@@ -42,7 +42,10 @@ export async function GET(req: NextRequest) {
   }
 
   if (q.get("all") === "1") {
-    if (Date.now() < board.lockUtc)
+    // NFL rolling locks: picks stay private until the Sunday master cutoff
+    // (revealing at Thursday's kickoff would expose open Sunday picks).
+    const revealAt = contest === "nfl" ? board.buybackEndUtc : board.lockUtc
+    if (Date.now() < revealAt)
       return NextResponse.json({ error: "picks are private until lock" }, { status: 403 })
     const owners = await listPickOwners(SEASON, week, contest)
     const all = await Promise.all(owners.map((o) => getUserPicks(SEASON, week, o, contest)))
@@ -121,6 +124,54 @@ export async function POST(req: NextRequest) {
   const existing =
     (await getUserPicks(SEASON, week, ownerId, contest)) ??
     ({ ownerId, prelock: null, postlock: null } as UserPicks)
+
+  // ---------------- NFL MONEYLINE: ROLLING LOCKS ----------------
+  // Each game freezes at ITS OWN kickoff (miss Thursday = zero on that game
+  // only); Sunday 1PM ET is the master cutoff for the whole card — so
+  // SNF/MNF picks are in before any Sunday results exist. Free edits on any
+  // not-yet-started game; no buyback, no late card in this contest.
+  if (contest === "nfl") {
+    if (now >= board.buybackEndUtc)
+      return NextResponse.json({ error: "NFL card closed (Sunday 1PM cutoff)" }, { status: 403 })
+    const started = new Set(
+      board.games.filter((g) => (g.kickoff ?? 0) <= now).map((g) => g.id)
+    )
+    // Merge: started games keep whatever was saved (attempts to change them
+    // are ignored, not rejected); open games take the incoming picks.
+    const prev = existing.prelock?.picks ?? {}
+    const merged: Record<string, Side> = {}
+    for (const g of board.games) {
+      if (started.has(g.id)) {
+        if (prev[g.id]) merged[g.id] = prev[g.id]
+      } else if (picks[g.id]) merged[g.id] = picks[g.id]
+    }
+    const missingOpen = board.games.filter(
+      (g) => !started.has(g.id) && !merged[g.id]
+    ).length
+    if (missingOpen > 0)
+      return NextResponse.json(
+        { error: `pick all open games — ${missingOpen} still blank (kicked-off games are frozen)` },
+        { status: 400 }
+      )
+    // The 🔒 freezes with its game: once your lock's game kicks off it can't
+    // move, and a new lock can't land on a game already underway.
+    let lock = lockGameId
+    const prevLock = existing.prelock?.lockGameId ?? null
+    if (prevLock && started.has(prevLock)) lock = prevLock
+    else if (lock && started.has(lock))
+      return NextResponse.json(
+        { error: "the lock must be on a game that hasn't kicked off" },
+        { status: 400 }
+      )
+    existing.prelock = { picks: merged, lockGameId: lock, submittedAt: now }
+    existing.postlock = null
+    await setUserPicks(SEASON, week, existing, contest)
+    return NextResponse.json({
+      status: "ok",
+      phase: "nfl",
+      frozenGames: started.size,
+    })
+  }
 
   if (now < board.lockUtc) {
     // COMPLETE CARD REQUIRED (ratified after Week 1 2026: a manager submitted
