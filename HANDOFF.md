@@ -157,7 +157,18 @@ existing ratified rule text ("the site is the scoreboard; cash moves
 through the usual dues channel"). Do not build money-handling features,
 even if asked casually — surface this section and confirm intent first.
 
-## NFL Moneyline Pick'em (Sep 2026) — HIDDEN, 2027 LAUNCH
+## REGIME CHANGE (Sep 22 2026): NFL pick'em IS the game
+
+Commissioner retired the interleague fantasy pick'em after Week 2 (Drock
+won wk1 $25, JoshScall wk2 $25 — both stand; 11 late cards filed wk2).
+From Week 3: NFL moneyline pick'em carries the pot — weekly $25 + season
+$125/$50/$25 on NFL points ONLY, FRESH from zero (wks 1-2 don't carry).
+Mechanics: rolling locks (see NFL section below). Implementation:
+FANTASY_FINAL_WEEK=2 caps fantasy boards/leaderboard (archive under
+"Fantasy" tabs); NFL_PICKEM_ENABLED=true; cron builds the NFL board;
+manager-roster lookups for NFL fall back to the wk-2 fantasy board.
+
+## NFL Moneyline Pick'em (Sep 2026) — was hidden, NOW LIVE (see above)
 
 Second game mode built for the future multi-league app (leagues will choose
 fantasy pick'em / NFL moneyline / both per season). Gated behind
