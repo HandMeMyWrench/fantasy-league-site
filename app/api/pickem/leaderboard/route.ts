@@ -4,6 +4,7 @@ import { LEAGUES, type SeasonYear } from "@/lib/leagues"
 import {
   SEASON,
   REGULAR_SEASON_WEEKS,
+  FANTASY_FINAL_WEEK,
   WEEKLY_PRIZE,
   weekLockUtc,
   PICKEM_EXCLUDED_OWNER_IDS,
@@ -48,7 +49,10 @@ async function computeWeek(week: number, contest: Contest = ""): Promise<WeekRes
   const outcomes = gameOutcomes(board, points)
   // Manager names: NFL boards hold NFL teams, so names come from the week's
   // FANTASY board either way.
-  const rosterBoard = contest === "nfl" ? await getBoard(SEASON, week) : board
+  const rosterBoard =
+    contest === "nfl"
+      ? (await getBoard(SEASON, week)) ?? (await getBoard(SEASON, FANTASY_FINAL_WEEK))
+      : board
   if (!rosterBoard) return null
   const nameByOwner = new Map<string, string>()
   for (const g of rosterBoard.games) {
@@ -95,7 +99,14 @@ export async function GET(req: Request) {
     state.season === SEASON && state.season_type === "regular" ? state.week : 0
 
   const weeks: WeekResult[] = []
-  for (let w = 1; w <= Math.min(REGULAR_SEASON_WEEKS, Math.max(0, currentWeek - 1)); w++) {
+  // Retired fantasy contest: leaderboard covers weeks 1..FANTASY_FINAL_WEEK
+  // only. NFL era: fresh from week 3 (earlier weeks have no NFL boards, so
+  // they skip naturally).
+  const finalWeek =
+    contest === ""
+      ? Math.min(REGULAR_SEASON_WEEKS, FANTASY_FINAL_WEEK)
+      : REGULAR_SEASON_WEEKS
+  for (let w = 1; w <= Math.min(finalWeek, Math.max(0, currentWeek - 1)); w++) {
     // NFL stat corrections land midweek and can flip a fantasy result, so a
     // week is only cached permanently once the NEXT week's Thursday lock has
     // passed (the correction window is over). Before that, recompute fresh

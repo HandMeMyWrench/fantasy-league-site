@@ -12,7 +12,13 @@
 import type { Board, BoardGame, Side } from "./types"
 import { SEASON, weekBuybackEndUtc } from "./config"
 
-export const NFL_PICKEM_ENABLED = false // 2027 launch switch
+// LIVE as the league's primary game from Week 3 2026 (commissioner call,
+// Sep 22 2026): the interleague fantasy pick'em retired after Week 2 and
+// the NFL game inherited the pot — weekly $25 continues, season prizes
+// ($125/$50/$25) decided by NFL points only, FRESH from zero (fantasy
+// weeks 1-2 points do not carry; they live on in the archived leaderboard).
+export const NFL_PICKEM_ENABLED = true
+export const NFL_ERA_START_WEEK = 3
 
 const SCOREBOARD = (season: string, week: number) =>
   `https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard?seasontype=2&week=${week}&dates=${season}`

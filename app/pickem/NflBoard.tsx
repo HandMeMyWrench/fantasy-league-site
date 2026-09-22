@@ -10,6 +10,21 @@ import type { Board, Side } from "@/lib/pickem/types"
 import { WHATSAPP_NAMES, PICKEM_EXCLUDED_OWNER_IDS } from "@/lib/pickem/config"
 import { fetchGameEnvs, type GameEnv, type SchedEntry } from "./useBoardIntel"
 
+const SITE_URL = "https://fantasy-league-site-green.vercel.app/pickem"
+const waShare = (text: string) =>
+  window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, "_blank", "noopener")
+
+const fmtCountdown = (ms: number) => {
+  if (ms <= 0) return "0m"
+  const s = Math.floor(ms / 1000)
+  const d = Math.floor(s / 86400)
+  const h = Math.floor((s % 86400) / 3600)
+  const m = Math.floor((s % 3600) / 60)
+  if (d > 0) return `${d}d ${h}h`
+  if (h > 0) return `${h}h ${m}m`
+  return `${m}m`
+}
+
 const fmtKick = (utc?: number) =>
   utc
     ? new Date(utc).toLocaleString(undefined, {
@@ -59,6 +74,54 @@ export default function NflBoard({
     const id = setInterval(() => setNow(Date.now()), 1000)
     return () => clearInterval(id)
   }, [])
+
+  // Who's submitted (ids only) — 60s poll, same as the old fantasy board.
+  const [subs, setSubs] = useState<string[] | null>(null)
+  useEffect(() => {
+    if (!board) return
+    let stop = false
+    const load = () =>
+      fetch(`/api/pickem/picks?week=${board.week}&count=1&contest=nfl`)
+        .then((r) => r.json())
+        .then((d) => {
+          if (!stop && d.status === "ok")
+            setSubs((d.ownerIds as (string | number)[]).map(String))
+        })
+        .catch(() => {})
+    load()
+    const id = setInterval(load, 60_000)
+    return () => {
+      stop = true
+      clearInterval(id)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [resp])
+
+  const loadMine = async () => {
+    if (!board || !ownerId || pin.length < 4) {
+      setMsg("❌ pick your name and enter your PIN first")
+      return
+    }
+    setBusy(true)
+    setMsg(null)
+    try {
+      const r = await fetch(
+        `/api/pickem/picks?week=${board.week}&contest=nfl&ownerId=${encodeURIComponent(ownerId)}&pin=${encodeURIComponent(pin)}`
+      )
+      const d = await r.json()
+      if (!r.ok) setMsg(`❌ ${d.error ?? "couldn't load"}`)
+      else if (!d.picks?.prelock) setMsg("No saved NFL card yet this week.")
+      else {
+        setPicks(d.picks.prelock.picks ?? {})
+        setLockGameId(d.picks.prelock.lockGameId ?? null)
+        setMsg("✓ Loaded your saved NFL card")
+      }
+    } catch {
+      setMsg("❌ network error")
+    } finally {
+      setBusy(false)
+    }
+  }
 
   // Game conditions: venue = home team's stadium; reuse the fantasy board's
   // dome/weather engine (ET game date drives the forecast).
@@ -135,15 +198,47 @@ export default function NflBoard({
   return (
     <div>
       <div className="panel mb-4 px-4 py-2.5 text-center text-xs text-ink-dim">
-        <span className="display text-gold">NFL MONEYLINE · exhibition preview</span>
+        <span className="display text-brand">WEEK {board.week}</span>
         <span className="mx-2 text-ink-faint">·</span>
         {closed
           ? "closed for this week"
-          : "each game locks at ITS kickoff · whole card closes Sun 1:00 PM ET"}
+          : now < board.lockUtc
+          ? `first kickoff in ${fmtCountdown(board.lockUtc - now)} — each game locks at ITS kickoff`
+          : `card cutoff in ${fmtCountdown(board.buybackEndUtc - now)} (Sun 1PM ET)`}
         <span className="mx-2 text-ink-faint">·</span>
-        miss a kickoff, zero that game only · favorites = the Vegas line, frozen at
-        board creation
+        miss a kickoff, zero that game only
       </div>
+
+      {subs && !closed && (() => {
+        const entrants = eligibleManagers
+        const inSet = new Set(subs)
+        const waiting = entrants.filter(([id]) => !inSet.has(id))
+        return (
+          <div className="panel mb-4 flex flex-wrap items-center justify-center gap-2 px-4 py-2 text-center text-xs text-ink-dim">
+            <span>
+              📋 <span className="tnum font-semibold text-ink">{entrants.length - waiting.length}/{entrants.length}</span> cards in
+              {waiting.length > 0 && <span className="text-gold"> · waiting on {waiting.length}</span>}
+            </span>
+            {waiting.length > 0 && (
+              <button
+                onClick={() =>
+                  waShare(
+                    `🏈 SWRR NFL PICK'EM — Week ${board.week}\n` +
+                      `⏱ ${now < board.lockUtc ? `First kickoff in ${fmtCountdown(board.lockUtc - now)}` : `Card cutoff in ${fmtCountdown(board.buybackEndUtc - now)} (Sun 1PM ET)`}\n` +
+                      `✗ No card yet (${waiting.length}):\n${waiting
+                        .map(([id, label]) => `@${WHATSAPP_NAMES[id] ?? label}`)
+                        .join("\n")}\n` +
+                      `Every game locks at its own kickoff — pick what's still open.\n👉 ${SITE_URL}`
+                  )
+                }
+                className="rounded-lg bg-[#25D366]/15 px-3 py-1.5 font-semibold text-[#25D366] transition-colors hover:bg-[#25D366]/25"
+              >
+                📣 WhatsApp the stragglers
+              </button>
+            )}
+          </div>
+        )
+      })()}
 
       <div className="space-y-2">
         {board.games.map((g) => {
@@ -302,11 +397,20 @@ export default function NflBoard({
                   ? "Submit NFL picks"
                   : `Pick ${openGames.length - openPicked} more`}
               </button>
+              <button
+                onClick={loadMine}
+                disabled={busy || !ownerId || pin.length < 4}
+                title="Restore your saved card onto the board"
+                className="whitespace-nowrap rounded-lg border border-line px-4 py-2.5 text-sm text-ink-dim transition-colors hover:text-ink disabled:opacity-40 sm:py-2"
+              >
+                Load mine
+              </button>
             </div>
           </div>
           <p className="text-xs text-ink-faint">
-            Same PIN as your fantasy Pick&apos;em. Exhibition mode — no money, the
-            leaderboard is for bragging rights while the format&apos;s on trial.
+            Same PIN as before. This is the money game now: $25 to the weekly
+            winner, season prizes ($125/$50/$25) on NFL points from Week 3.
+            Coming back to edit? Name + PIN + Load mine.
           </p>
           {msg && <p className="text-sm">{msg}</p>}
         </div>

@@ -8,6 +8,9 @@
 export const SEASON = "2026"
 export const KICKOFF_THURSDAY_UTC = Date.UTC(2026, 8, 10) // Sep 10, 2026 00:00 UTC
 export const REGULAR_SEASON_WEEKS = 14 // fantasy regular season
+// The interleague fantasy pick'em RETIRED after this week (Sep 2026) —
+// the NFL moneyline game is the league's contest from week 3 on.
+export const FANTASY_FINAL_WEEK = 2
 
 // Deadlines, expressed in UTC using EDT offsets (locks land slightly EARLY
 // after the November DST switch, which is the safe direction):

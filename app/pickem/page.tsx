@@ -240,10 +240,11 @@ export default function PickemPage() {
       .catch(() => setResp({ status: "preseason" }))
   }, [])
 
-  // NFL moneyline game mode — HIDDEN until 2027 (NFL_PICKEM_ENABLED) or
-  // commissioner preview via ?nflpreview.
-  const [gameMode, setGameMode] = useState<"fantasy" | "nfl">("fantasy")
-  const [nflVisible, setNflVisible] = useState(false)
+  // NFL moneyline is THE game from Week 3 (fantasy pick'em retired wk 2).
+  const [gameMode, setGameMode] = useState<"fantasy" | "nfl">(
+    NFL_PICKEM_ENABLED ? "nfl" : "fantasy"
+  )
+  const [nflVisible, setNflVisible] = useState(NFL_PICKEM_ENABLED)
   useEffect(() => {
     if (NFL_PICKEM_ENABLED || new URLSearchParams(window.location.search).has("nflpreview"))
       setNflVisible(true)
@@ -262,13 +263,20 @@ export default function PickemPage() {
     return () => clearInterval(id)
   }, [startRehearsal])
 
+  // Leaderboard era: NFL (the live game, fresh from wk 3) vs the archived
+  // fantasy era (wks 1-2).
+  const [lbContest, setLbContest] = useState<"nfl" | "">(
+    NFL_PICKEM_ENABLED ? "nfl" : ""
+  )
   useEffect(() => {
-    if (tab === "leaderboard" && !leader)
-      fetch("/api/pickem/leaderboard")
-        .then((r) => r.json())
-        .then(setLeader)
-        .catch(() => null)
-  }, [tab, leader])
+    if (tab !== "leaderboard") return
+    setLeader(null)
+    fetch(`/api/pickem/leaderboard${lbContest ? `?contest=${lbContest}` : ""}`)
+      .then((r) => r.json())
+      .then(setLeader)
+      .catch(() => null)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab, lbContest])
 
   const board = resp?.status === "ok" ? resp.board : null
   // Projections + records + starter comparisons. Real data in season;
@@ -477,7 +485,7 @@ export default function PickemPage() {
         {/* ---------------- THIS WEEK ---------------- */}
         {tab === "board" && nflVisible && (
           <div className="mb-4 flex justify-center gap-1 text-xs">
-            {(["fantasy", "nfl"] as const).map((m) => (
+            {(["nfl", "fantasy"] as const).map((m) => (
               <button
                 key={m}
                 onClick={() => setGameMode(m)}
@@ -487,10 +495,16 @@ export default function PickemPage() {
                     : "text-ink-dim hover:text-ink"
                 }`}
               >
-                {m === "fantasy" ? "Fantasy matchups" : "NFL moneyline 🏈"}
+                {m === "fantasy" ? "Fantasy (retired wks 1–2)" : "NFL pick'em 🏈"}
               </button>
             ))}
           </div>
+        )}
+        {tab === "board" && gameMode === "fantasy" && nflVisible && (
+          <p className="mb-4 rounded-lg border border-line px-4 py-2 text-center text-xs text-ink-faint">
+            The interleague fantasy pick&apos;em retired after Week 2 — this is its
+            archive. The game is NFL pick&apos;em now.
+          </p>
         )}
         {tab === "board" && gameMode === "nfl" && nflVisible && (
           <NflBoard managers={managers} />
@@ -1037,6 +1051,28 @@ export default function PickemPage() {
         {/* ---------------- LEADERBOARD ---------------- */}
         {tab === "leaderboard" && (
           <>
+            {nflVisible && (
+              <div className="mb-4 flex justify-center gap-1 text-xs">
+                {(
+                  [
+                    ["nfl", "NFL era (wk 3+)"],
+                    ["", "Fantasy era (wks 1–2)"],
+                  ] as const
+                ).map(([c, label]) => (
+                  <button
+                    key={label}
+                    onClick={() => setLbContest(c)}
+                    className={`rounded-full px-4 py-1.5 font-semibold transition-colors ${
+                      lbContest === c
+                        ? "bg-brand-deep/30 text-brand"
+                        : "text-ink-dim hover:text-ink"
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            )}
             {!leader && <p className="text-center text-ink-dim">Loading…</p>}
             {leader && leader.table.length === 0 && (
               <p className="panel p-6 text-center text-sm text-ink-dim">
@@ -1164,8 +1200,22 @@ export default function PickemPage() {
         {tab === "rules" && (
           <section className="panel space-y-3 p-5 text-sm text-ink-dim">
             <p>
-              <span className="font-semibold text-ink">The game.</span> Every week,
-              pick the winner of all 12 fantasy matchups across both leagues.
+              <span className="font-semibold text-ink">The game (from Week 3):
+              NFL pick&apos;em.</span> Every week, pick the winner of every real NFL
+              game. Favorites are the Vegas line, frozen when the week&apos;s board
+              is created — a correct pick against the spread favorite earns the
+              +1 upset bonus. (Weeks 1–2 ran the retired interleague fantasy
+              format; its archive lives under &quot;Fantasy&quot; on the board and
+              leaderboard tabs.)
+            </p>
+            <p>
+              <span className="font-semibold text-ink">NFL deadlines — rolling
+              locks.</span> Each game freezes at ITS OWN kickoff: miss
+              Thursday&apos;s game and you zero that game only. Sunday 1:00 PM ET is
+              the master cutoff for the whole card (SNF/MNF included — no
+              picking night games off Sunday results). Free edits on any game
+              that hasn&apos;t kicked off. No buyback, no late cards — the rolling
+              locks make them unnecessary.
             </p>
             <p>
               <span className="font-semibold text-ink">Scoring.</span> 1 pt per
@@ -1192,9 +1242,12 @@ export default function PickemPage() {
               <span className="font-semibold text-ink">Money.</span> $25 buy-in —{" "}
               {PICKEM_ENTRANTS} of 24 managers are in this season (${TOTAL_POT} pot).
               $25 to the weekly winner (ties split). Season top 3: $125 / $50 /
-              $25 — season ties split the combined money for the spots they span
-              (2-way tie for 1st = $87.50 each; tie at 3rd = $12.50 each). The
-              site is the scoreboard; cash moves through the usual dues channel.
+              $25 — decided by <span className="text-ink">NFL-era points only,
+              fresh from Week 3</span> (fantasy weeks 1–2 don&apos;t carry; their
+              weekly $25s were paid and stand). Season ties split the combined
+              money for the spots they span (2-way tie for 1st = $87.50 each).
+              The site is the scoreboard; cash moves through the usual dues
+              channel.
             </p>
             <p>
               <span className="font-semibold text-ink">Glory.</span> Weekly winner

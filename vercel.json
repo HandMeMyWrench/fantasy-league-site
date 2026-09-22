@@ -1,7 +1,7 @@
 {
   "crons": [
     {
-      "path": "/api/pickem/board",
+      "path": "/api/pickem/board?contest=nfl",
       "schedule": "0 10 * * *"
     },
     {

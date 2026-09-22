@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from "next/server"
 import { hashPin, pinOk } from "@/lib/pickem/auth"
-import { SEASON, PICKEM_EXCLUDED_OWNER_IDS, PICKEM_ENTRANTS } from "@/lib/pickem/config"
+import {
+  SEASON,
+  PICKEM_EXCLUDED_OWNER_IDS,
+  PICKEM_ENTRANTS,
+  FANTASY_FINAL_WEEK,
+} from "@/lib/pickem/config"
 import { countChanges, effectivePicks } from "@/lib/pickem/scoring"
 import type { Side, UserPicks } from "@/lib/pickem/types"
 import {
@@ -100,8 +105,12 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "invalid lock" }, { status: 400 })
 
   // Verify the account is one of the 24 managers. NFL boards hold NFL teams,
-  // not managers, so eligibility checks against the week's FANTASY board.
-  const rosterBoard = contest === "nfl" ? await getBoard(SEASON, week) : board
+  // not managers, so eligibility checks against a FANTASY board — the same
+  // week's if it exists, else the last one before retirement (wk 2).
+  const rosterBoard =
+    contest === "nfl"
+      ? (await getBoard(SEASON, week)) ?? (await getBoard(SEASON, FANTASY_FINAL_WEEK))
+      : board
   const isManager = !!rosterBoard?.games.some(
     (g) => g.a.ownerId === ownerId || g.b.ownerId === ownerId
   )
