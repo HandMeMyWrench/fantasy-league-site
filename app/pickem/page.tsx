@@ -1223,12 +1223,24 @@ export default function PickemPage() {
               hits and −2 if it misses. Fantasy ties push — no points either way.
             </p>
             <p>
-              <span className="font-semibold text-ink">Complete cards.</span>{" "}
-              Every submission must cover all games that haven&apos;t kicked off yet
-              — no partial cards (ratified Week 1, after a one-pick card scored
-              −2). There is no buyback and no late card in NFL pick&apos;em — the
-              rolling locks replace both. (Those rules governed the retired
-              fantasy game, weeks 1–2 only.)
+              <span className="font-semibold text-ink">Two ways to bet each
+              game.</span> Pick a team to <span className="text-ink">WIN</span>{" "}
+              (moneyline — underdog wins pay the +1 bonus), or to{" "}
+              <span className="text-ink">COVER the spread</span> (1 pt flat, no
+              upset bonus — the line already levels it; land exactly on the
+              number = push, no points either way). Sportsbook rules on lines:
+              spreads move all week, and{" "}
+              <span className="text-ink">you&apos;re graded on the line showing
+              when you saved the pick</span> — later movement never re-prices a
+              placed bet. Changing a pick re-stamps it at the current line.
+            </p>
+            <p>
+              <span className="font-semibold text-ink">Partial cards.</span>{" "}
+              Pick any games, any time, each until its own kickoff — save as
+              often as you like. A game still unpicked when it kicks off scores
+              zero for that game alone. No buyback, no late card — rolling
+              locks replace both. (The old complete-card/buyback rules governed
+              the retired fantasy game, weeks 1–2 only.)
             </p>
             <p>
               <span className="font-semibold text-ink">Money.</span> $25 buy-in —{" "}

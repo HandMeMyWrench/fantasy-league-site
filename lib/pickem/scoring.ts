@@ -12,11 +12,20 @@ import {
 import type {
   Board,
   GameOutcome,
+  NflPick,
   PickSubmission,
+  PickValue,
   Side,
   UserPicks,
   UserWeekScore,
 } from "./types"
+
+/** Normalize legacy plain-side picks and NFL market picks to one shape.
+    Legacy picks have no stamped fav/line — the board's frozen favorite
+    fills in at scoring time (the fantasy contest's original behavior). */
+export const normalizePick = (v: PickValue): NflPick =>
+  typeof v === "string" ? { side: v, market: "ml", line: null, fav: false } : v
+const isLegacy = (v: PickValue): boolean => typeof v === "string"
 
 /** Final effective picks: prelock overridden by any buyback edits.
     LATE CARD (ratified Sep 2026): no prelock but a postlock card exists —
@@ -50,7 +59,9 @@ export function effectivePicks(up: UserPicks): PickSubmission | null {
  */
 export function countChanges(
   prelock: PickSubmission,
-  edit: { picks: Record<string, Side>; lockGameId: string | null }
+  // (fantasy-contest only — its picks are plain sides, so !== works; the
+  // NFL contest never buys back and never calls this)
+  edit: { picks: Record<string, PickValue>; lockGameId: string | null }
 ): number {
   let n = 0
   for (const [gameId, side] of Object.entries(edit.picks)) {
@@ -105,22 +116,52 @@ export function scoreUser(
   let points = 0
 
   for (const g of board.games) {
-    const pick = eff.picks[g.id]
+    const raw = eff.picks[g.id]
     const outcome = outcomeById.get(g.id)
-    if (!pick || !outcome) continue
+    if (!raw || !outcome) continue
+    const p = normalizePick(raw)
     base.played++
     const isLock = eff.lockGameId === g.id
 
+    if (p.market === "ats") {
+      // Against the spread, graded on the line stamped at pick time.
+      // margin for picked side + their line: >0 cover, 0 push, <0 miss.
+      // Unstarted/void games arrive as 0-0 with winner "push" — no points.
+      if (outcome.winner === "push" && outcome.aPoints === 0 && outcome.bPoints === 0) {
+        if (isLock) base.lockResult = "push"
+        continue
+      }
+      const margin =
+        (p.side === "a" ? outcome.aPoints - outcome.bPoints : outcome.bPoints - outcome.aPoints) +
+        (p.line ?? 0)
+      if (margin === 0) {
+        if (isLock) base.lockResult = "push"
+        continue // ATS push — no points, lock unharmed
+      }
+      if (margin > 0) {
+        base.correct++
+        points += isLock ? PTS_LOCK_HIT : PTS_CORRECT // no upset bonus ATS —
+        if (isLock) base.lockResult = "hit" // the spread already levels it
+      } else if (isLock) {
+        points += PTS_LOCK_MISS
+        base.lockResult = "miss"
+      }
+      continue
+    }
+
+    // Moneyline (and all legacy fantasy picks)
     if (outcome.winner === "push") {
       if (isLock) base.lockResult = "push"
       continue // pushes score nothing, locks aren't penalized
     }
-
-    const correct = pick === outcome.winner
+    const correct = p.side === outcome.winner
+    // Upset reference: stamped fav for NFL picks; the board's frozen
+    // favorite for legacy fantasy picks.
+    const wasFavorite = isLegacy(raw) ? p.side === g.favorite : p.fav
     if (correct) {
       base.correct++
       points += isLock ? PTS_LOCK_HIT : PTS_CORRECT
-      if (pick !== g.favorite) {
+      if (!wasFavorite) {
         base.upsets++
         points += PTS_UPSET_BONUS
       }

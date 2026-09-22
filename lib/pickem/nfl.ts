@@ -109,6 +109,35 @@ export async function buildNflBoard(week: number): Promise<Board | null> {
   }
 }
 
+/** Sync a stored NFL board with ESPN's CURRENT lines and kickoff times for
+    games that haven't started. Display-only honesty: every placed pick is
+    graded on the line stamped when it was made, so moving the board's lines
+    never rewrites a bet — it just shows latecomers the real current price.
+    Mutates and returns the board (refreshedAt updated). */
+export async function refreshNflBoard(board: Board): Promise<Board> {
+  const events = await fetchWeek(board.season, board.week)
+  const byId = new Map(events.map((e) => [`nfl-${e.id}`, e]))
+  const now = Date.now()
+  for (const g of board.games) {
+    if (g.kickoff && g.kickoff <= now) continue // started — frozen forever
+    const ev = byId.get(g.id)
+    const comp = ev?.competitions?.[0]
+    if (!comp) continue
+    const kick = Date.parse(comp.date)
+    if (isFinite(kick)) g.kickoff = kick
+    const details = comp.odds?.[0]?.details
+    const favAbbrev = details?.trim().split(/\s+/)[0]
+    if (favAbbrev === g.a.owner) g.favorite = "a"
+    else if (favAbbrev === g.b.owner) g.favorite = "b"
+    const spread = Math.abs(comp.odds?.[0]?.spread ?? 0)
+    g.spread = spread || undefined
+  }
+  // lockUtc = earliest kickoff (may shift with flexed games)
+  board.lockUtc = Math.min(...board.games.map((g) => g.kickoff ?? Infinity))
+  board.refreshedAt = Date.now()
+  return board
+}
+
 /** Final scores for outcome grading, keyed the way gameOutcomes expects
     (`nfl-${rosterId}`). Only FINAL games count; anything else scores 0-0,
     which gameOutcomes treats as a push (no points yet — recomputed until

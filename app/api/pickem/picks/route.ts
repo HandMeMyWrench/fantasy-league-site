@@ -7,7 +7,7 @@ import {
   FANTASY_FINAL_WEEK,
 } from "@/lib/pickem/config"
 import { countChanges, effectivePicks } from "@/lib/pickem/scoring"
-import type { Side, UserPicks } from "@/lib/pickem/types"
+import type { PickValue, UserPicks } from "@/lib/pickem/types"
 import {
   getBoard,
   getUserAuth,
@@ -85,7 +85,7 @@ export async function POST(req: NextRequest) {
   // Redis picks index (number member vs string comparisons in scoring).
   const { week, pin } = body as { week: number; pin: string }
   const ownerId = body.ownerId == null ? "" : String(body.ownerId)
-  const picks = (body.picks ?? {}) as Record<string, Side>
+  const picks = (body.picks ?? {}) as Record<string, PickValue>
   const lockGameId = (body.lockGameId ?? null) as string | null
   const contest: Contest = body.contest === "nfl" ? "nfl" : ""
 
@@ -95,9 +95,10 @@ export async function POST(req: NextRequest) {
   const board = await getBoard(SEASON, week, contest)
   if (!board) return NextResponse.json({ error: "no board this week" }, { status: 404 })
 
-  // Validate picks reference real games
+  // Validate picks reference real games (plain-side or market-object shape)
   const gameIds = new Set(board.games.map((g) => g.id))
-  for (const [gid, side] of Object.entries(picks)) {
+  for (const [gid, v] of Object.entries(picks)) {
+    const side = typeof v === "string" ? v : v?.side
     if (!gameIds.has(gid) || (side !== "a" && side !== "b"))
       return NextResponse.json({ error: `invalid pick ${gid}` }, { status: 400 })
   }
@@ -142,26 +143,61 @@ export async function POST(req: NextRequest) {
   if (contest === "nfl") {
     if (now >= board.buybackEndUtc)
       return NextResponse.json({ error: "NFL card closed (Sunday 1PM cutoff)" }, { status: 403 })
+    const gameById = new Map(board.games.map((g) => [g.id, g]))
     const started = new Set(
       board.games.filter((g) => (g.kickoff ?? 0) <= now).map((g) => g.id)
     )
-    // Merge: started games keep whatever was saved (attempts to change them
-    // are ignored, not rejected); open games take the incoming picks.
+    // TRUE PARTIAL CARDS (commissioner, Sep 2026): pick any subset of open
+    // games, any time before each game's kickoff. Merge: started games keep
+    // whatever was saved; open games take incoming picks, else keep the
+    // previously saved pick. A game never picked before its kickoff = zero
+    // for that game. Every incoming pick is STAMPED here with the board's
+    // CURRENT line + favorite — sportsbook rules: you get the number that
+    // was up when you bet, however it moves afterward.
     const prev = existing.prelock?.picks ?? {}
-    const merged: Record<string, Side> = {}
+    const merged: Record<string, PickValue> = {}
+    let stamped = 0
     for (const g of board.games) {
       if (started.has(g.id)) {
         if (prev[g.id]) merged[g.id] = prev[g.id]
-      } else if (picks[g.id]) merged[g.id] = picks[g.id]
+        continue
+      }
+      const incoming = picks[g.id]
+      if (incoming) {
+        const side = typeof incoming === "string" ? incoming : incoming.side
+        const market =
+          typeof incoming === "object" && incoming.market === "ats" ? "ats" : "ml"
+        if (side !== "a" && side !== "b")
+          return NextResponse.json({ error: `invalid pick ${g.id}` }, { status: 400 })
+        // Unchanged pick (same side + market) keeps its ORIGINAL stamp —
+        // resubmitting your card never re-prices bets you already placed.
+        const prevPick = prev[g.id]
+        if (
+          prevPick &&
+          typeof prevPick === "object" &&
+          prevPick.side === side &&
+          prevPick.market === market
+        ) {
+          merged[g.id] = prevPick
+          continue
+        }
+        const fav = side === g.favorite
+        // line signed FOR the picked side: favorite lays it, dog gets it
+        const line =
+          g.spread != null ? (fav ? -g.spread : g.spread) : null
+        if (market === "ats" && line == null)
+          return NextResponse.json(
+            { error: `no line posted yet for ${g.id} — ATS unavailable, pick moneyline` },
+            { status: 400 }
+          )
+        merged[g.id] = { side, market, line, fav }
+        stamped++
+      } else if (prev[g.id]) {
+        merged[g.id] = prev[g.id]
+      }
     }
-    const missingOpen = board.games.filter(
-      (g) => !started.has(g.id) && !merged[g.id]
-    ).length
-    if (missingOpen > 0)
-      return NextResponse.json(
-        { error: `pick all open games — ${missingOpen} still blank (kicked-off games are frozen)` },
-        { status: 400 }
-      )
+    if (stamped === 0 && !lockGameId)
+      return NextResponse.json({ error: "nothing to save — no new picks" }, { status: 400 })
     // The 🔒 freezes with its game: once your lock's game kicks off it can't
     // move, and a new lock can't land on a game already underway.
     let lock = lockGameId
@@ -172,13 +208,17 @@ export async function POST(req: NextRequest) {
         { error: "the lock must be on a game that hasn't kicked off" },
         { status: 400 }
       )
+    if (lock && !gameById.has(lock))
+      return NextResponse.json({ error: "invalid lock" }, { status: 400 })
     existing.prelock = { picks: merged, lockGameId: lock, submittedAt: now }
     existing.postlock = null
     await setUserPicks(SEASON, week, existing, contest)
     return NextResponse.json({
       status: "ok",
       phase: "nfl",
-      frozenGames: started.size,
+      saved: Object.keys(merged).length,
+      stamped,
+      openLeft: board.games.filter((g) => !started.has(g.id) && !merged[g.id]).length,
     })
   }
 

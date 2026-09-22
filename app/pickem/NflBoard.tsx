@@ -59,7 +59,9 @@ export default function NflBoard({
 }) {
   const [resp, setResp] = useState<BoardResp | null>(null)
   const [now, setNow] = useState(Date.now())
-  const [picks, setPicks] = useState<Record<string, Side>>({})
+  // Each pick: which side + which market (moneyline win, or cover the
+  // spread). The server stamps line/favorite at submit time.
+  const [picks, setPicks] = useState<Record<string, { side: Side; market: "ml" | "ats" }>>({})
   const [lockGameId, setLockGameId] = useState<string | null>(null)
   const [ownerId, setOwnerId] = useState("")
   const [pin, setPin] = useState("")
@@ -112,7 +114,17 @@ export default function NflBoard({
       if (!r.ok) setMsg(`❌ ${d.error ?? "couldn't load"}`)
       else if (!d.picks?.prelock) setMsg("No saved NFL card yet this week.")
       else {
-        setPicks(d.picks.prelock.picks ?? {})
+        const raw = d.picks.prelock.picks ?? {}
+        const norm: Record<string, { side: Side; market: "ml" | "ats" }> = {}
+        for (const [gid, v] of Object.entries(raw) as [string, unknown][]) {
+          if (typeof v === "string") norm[gid] = { side: v as Side, market: "ml" }
+          else if (v && typeof v === "object")
+            norm[gid] = {
+              side: (v as { side: Side }).side,
+              market: (v as { market?: string }).market === "ats" ? "ats" : "ml",
+            }
+        }
+        setPicks(norm)
         setLockGameId(d.picks.prelock.lockGameId ?? null)
         setMsg("✓ Loaded your saved NFL card")
       }
@@ -170,9 +182,11 @@ export default function NflBoard({
       if (!r.ok) setMsg(`❌ ${j.error ?? "submission failed"}`)
       else
         setMsg(
-          j.frozenGames > 0
-            ? `✅ NFL picks saved — ${j.frozenGames} kicked-off game${j.frozenGames === 1 ? "" : "s"} stayed frozen; the rest are editable until Sun 1PM`
-            : "✅ NFL picks saved — every game editable until it kicks off (card closes Sun 1PM)"
+          `✅ Card saved — ${j.saved} game${j.saved === 1 ? "" : "s"} on it` +
+            (j.openLeft > 0
+              ? ` · ${j.openLeft} open game${j.openLeft === 1 ? "" : "s"} still unpicked (zero at kickoff if left blank)`
+              : " · full card, nothing left open") +
+            " · lines locked at the price you saw"
         )
     } catch {
       setMsg("❌ network error")
@@ -189,11 +203,11 @@ export default function NflBoard({
       </p>
     )
 
-  // Completeness counts only games that haven't kicked off — started ones
-  // are frozen server-side (missed = zero on that game alone).
+  // Partial cards are legal: pick any subset, any time before each game's
+  // kickoff. Unpicked at kickoff = zero for that game alone.
   const openGames = board.games.filter((g) => !kicked(g))
   const openPicked = openGames.filter((g) => picks[g.id]).length
-  const complete = openPicked >= openGames.length
+  const hasAnything = Object.keys(picks).length > 0 || !!lockGameId
 
   return (
     <div>
@@ -296,39 +310,69 @@ export default function NflBoard({
                 {(["a", "b"] as const).map((side) => {
                   const t = g[side]
                   const fav = g.favorite === side
-                  const selected = mine === side
+                  const sel = mine?.side === side ? mine : undefined
+                  const line = g.spread != null ? (fav ? -g.spread : g.spread) : null
                   return (
-                    <button
+                    <div
                       key={side}
-                      disabled={closed || kicked(g)}
-                      onClick={() => setPicks((p) => ({ ...p, [g.id]: side }))}
-                      className={`flex items-center gap-2.5 px-3 py-2.5 text-left transition-colors ${
+                      className={`px-3 py-2.5 transition-colors ${
                         side === "a" ? "border-r border-line" : ""
-                      } ${
-                        selected
-                          ? "bg-brand-deep/25"
-                          : "hover:bg-white/5 disabled:hover:bg-transparent"
-                      }`}
+                      } ${sel ? "bg-brand-deep/25" : ""}`}
                     >
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={t.avatar ?? ""} alt="" className="h-8 w-8 shrink-0" />
-                      <span className="min-w-0 flex-1">
-                        <span className="block truncate text-sm font-semibold text-ink">
-                          {t.name}
-                        </span>
-                        <span className="block truncate text-xs text-ink-dim">
-                          {side === "a" ? "@ " + g.b.owner : "home"} ·{" "}
-                          {fav ? "favorite" : "underdog +1 🤖"}
-                        </span>
-                        {g.spread ? (
-                          <span className="tnum block truncate text-xs text-brand/90">
-                            {fav ? `−${g.spread}` : `+${g.spread}`} ·{" "}
-                            {side === "a" ? aPct : 100 - aPct}% win
+                      <div className="flex items-center gap-2.5">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={t.avatar ?? ""} alt="" className="h-8 w-8 shrink-0" />
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate text-sm font-semibold text-ink">
+                            {t.name}
                           </span>
-                        ) : null}
-                      </span>
-                      {selected && <span className="shrink-0 text-brand">✓</span>}
-                    </button>
+                          <span className="block truncate text-xs text-ink-dim">
+                            {side === "a" ? "@ " + g.b.owner : "home"} ·{" "}
+                            {fav ? "favorite" : "underdog +1 🤖"}
+                            {g.spread ? (
+                              <span className="tnum text-brand/90">
+                                {" "}· {side === "a" ? aPct : 100 - aPct}%
+                              </span>
+                            ) : null}
+                          </span>
+                        </span>
+                      </div>
+                      {!closed && !kicked(g) && (
+                        <div className="mt-1.5 flex gap-1">
+                          <button
+                            onClick={() =>
+                              setPicks((p) => ({ ...p, [g.id]: { side, market: "ml" } }))
+                            }
+                            className={`flex-1 rounded-md px-2 py-1 text-[11px] font-semibold transition-colors ${
+                              sel?.market === "ml"
+                                ? "bg-brand-deep/60 text-white"
+                                : "bg-white/5 text-ink-dim hover:bg-white/10 hover:text-ink"
+                            }`}
+                          >
+                            {sel?.market === "ml" ? "✓ " : ""}Win
+                          </button>
+                          {line != null && (
+                            <button
+                              onClick={() =>
+                                setPicks((p) => ({ ...p, [g.id]: { side, market: "ats" } }))
+                              }
+                              className={`flex-1 rounded-md px-2 py-1 text-[11px] font-semibold transition-colors ${
+                                sel?.market === "ats"
+                                  ? "bg-brand-deep/60 text-white"
+                                  : "bg-white/5 text-ink-dim hover:bg-white/10 hover:text-ink"
+                              }`}
+                            >
+                              {sel?.market === "ats" ? "✓ " : ""}Cover {line > 0 ? `+${line}` : line}
+                            </button>
+                          )}
+                        </div>
+                      )}
+                      {(closed || kicked(g)) && sel && (
+                        <p className="tnum mt-1 text-[11px] text-brand">
+                          ✓ {sel.market === "ats" ? `cover ${line != null ? (line > 0 ? `+${line}` : line) : ""}` : "win"}
+                        </p>
+                      )}
+                    </div>
                   )
                 })}
               </div>
@@ -359,10 +403,13 @@ export default function NflBoard({
             {openPicked}/{openGames.length} open games picked
             {openGames.length < board.games.length &&
               ` (${board.games.length - openGames.length} already kicked off)`}
-            {!complete && (
-              <span className="text-gold"> — all open games required</span>
-            )}
             {lockGameId ? " · lock set 🔒" : " · no lock set"}
+            {openPicked < openGames.length && (
+              <span className="block text-xs text-gold">
+                partial cards welcome — but any game still unpicked at its
+                kickoff scores zero
+              </span>
+            )}
           </p>
           <div className="space-y-2 sm:flex sm:items-center sm:gap-2 sm:space-y-0">
             <select
@@ -388,14 +435,10 @@ export default function NflBoard({
               />
               <button
                 onClick={submit}
-                disabled={busy || !ownerId || pin.length < 4 || !complete}
+                disabled={busy || !ownerId || pin.length < 4 || !hasAnything}
                 className="display flex-1 whitespace-nowrap rounded-lg bg-brand-deep px-5 py-2.5 text-sm tracking-wider text-white transition-colors hover:bg-brand-deep/80 disabled:opacity-40 sm:flex-none sm:py-2"
               >
-                {busy
-                  ? "Saving…"
-                  : complete
-                  ? "Submit NFL picks"
-                  : `Pick ${openGames.length - openPicked} more`}
+                {busy ? "Saving…" : "Save picks"}
               </button>
               <button
                 onClick={loadMine}

@@ -28,10 +28,30 @@ export type Board = {
   lockUtc: number
   buybackEndUtc: number
   games: BoardGame[]
+  // NFL boards: when lines/kickoffs were last synced from ESPN (spreads move
+  // all week; picks are graded on their own stamped lines, so refreshing the
+  // DISPLAY is safe and honest).
+  refreshedAt?: number
 }
 
+// A pick is either the legacy plain side (fantasy contest) or, in NFL
+// pick'em, an object carrying the MARKET and the sportsbook-style stamp of
+// conditions at pick time:
+//   market "ml"  — picked side wins outright (upset bonus if fav === false)
+//   market "ats" — picked side covers `line` (line is signed FOR that side:
+//                  -6.5 = laying points, +6.5 = getting them; push = 0 pts)
+// `line`/`fav` are stamped SERVER-SIDE at submit from the live board — the
+// line you bet is the line you're graded on, however it moves later.
+export type NflPick = {
+  side: Side
+  market: "ml" | "ats"
+  line: number | null
+  fav: boolean
+}
+export type PickValue = Side | NflPick
+
 export type PickSubmission = {
-  picks: Record<string, Side> // gameId -> side
+  picks: Record<string, PickValue> // gameId -> pick
   lockGameId: string | null // Lock of the Week
   submittedAt: number
 }
