@@ -152,11 +152,17 @@ export async function GET(req: Request) {
   // spots they span). Shown as "if the season ended today" until week 14.
   // Only managers who have PLAYED at least one week can hold a prize spot —
   // a wall of 0-point no-shows must never split money.
-  const prizeByOwner = allocateSeasonPrizes(
-    [...season.entries()]
-      .filter(([, r]) => r.playedWeeks > 0)
-      .map(([ownerId, r]) => ({ ownerId, points: r.points }))
-  )
+  // Season prizes belong to the NFL era only — the retired fantasy race
+  // shows no prize column (its weekly $25s were paid; the $200 season pool
+  // rides on NFL points from week 3).
+  const prizeByOwner =
+    contest === "nfl"
+      ? allocateSeasonPrizes(
+          [...season.entries()]
+            .filter(([, r]) => r.playedWeeks > 0)
+            .map(([ownerId, r]) => ({ ownerId, points: r.points }))
+        )
+      : new Map<string, number>()
 
   const table = [...season.entries()]
     .map(([ownerId, r]) => ({
