@@ -105,8 +105,7 @@ function BoardLegend() {
       <Row token="15.4 pts · 61% win">
         once games start: points banked so far and live win odds, with{" "}
         <span className="tnum">exp final</span> beneath = expected finish
-        (banked + remaining projections). Updates every minute — built for
-        buyback decisions
+        (banked + remaining projections). Updates every minute
       </Row>
       <Row token="L3 131 🔥 / 🧊">
         last-3-weeks scoring average; flame/ice = running hot or cold vs their norm
@@ -1224,19 +1223,12 @@ export default function PickemPage() {
               hits and −2 if it misses. Fantasy ties push — no points either way.
             </p>
             <p>
-              <span className="font-semibold text-ink">Deadlines.</span> Picks lock
-              Thursday 8:00 PM ET (<span className="text-ink">Week 1 locks
-              Wednesday 8:00 PM ET</span> — the 2026 opener is Wednesday night).
-              <span className="text-ink">All 12 games must be picked to
-              submit</span> — no partial cards (ratified Week 1, after a
-              one-pick card scored −2). THE BUYBACK: edit picks until Sunday
-              1:00 PM ET at −0.5 pts per change — flips and setting/moving
-              your Lock both count. <span className="text-ink">THE LATE CARD</span>{" "}
-              (ratified Week 2): missed Thursday entirely? Submit a complete
-              card until Sunday 1:00 PM at the same rate on every pick —
-              −6.5 for a full card with a Lock. Late cards keep you alive in
-              the season race but can&apos;t win the weekly $25 or the Oracle.
-              Nothing by Sunday 1:00 PM = zeros for the week.
+              <span className="font-semibold text-ink">Complete cards.</span>{" "}
+              Every submission must cover all games that haven&apos;t kicked off yet
+              — no partial cards (ratified Week 1, after a one-pick card scored
+              −2). There is no buyback and no late card in NFL pick&apos;em — the
+              rolling locks replace both. (Those rules governed the retired
+              fantasy game, weeks 1–2 only.)
             </p>
             <p>
               <span className="font-semibold text-ink">Money.</span> $25 buy-in —{" "}

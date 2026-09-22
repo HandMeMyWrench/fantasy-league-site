@@ -106,7 +106,9 @@ export async function GET(req: Request) {
     contest === ""
       ? Math.min(REGULAR_SEASON_WEEKS, FANTASY_FINAL_WEEK)
       : REGULAR_SEASON_WEEKS
-  for (let w = 1; w <= Math.min(finalWeek, Math.max(0, currentWeek - 1)); w++) {
+  // NFL era starts wk 3 — earlier NFL boards (preview artifacts) are ignored.
+  const startWeek = contest === "nfl" ? FANTASY_FINAL_WEEK + 1 : 1
+  for (let w = startWeek; w <= Math.min(finalWeek, Math.max(0, currentWeek - 1)); w++) {
     // NFL stat corrections land midweek and can flip a fantasy result, so a
     // week is only cached permanently once the NEXT week's Thursday lock has
     // passed (the correction window is over). Before that, recompute fresh
@@ -117,11 +119,14 @@ export async function GET(req: Request) {
       r = await computeWeek(w, contest)
       if (r && settled) await setWeekResult(r, contest)
     }
-    if (r) weeks.push(r)
+    // Dead weeks (zero submitters — e.g. a board that existed but nobody
+    // played) don't count: they'd pollute the table with 0-point rows and
+    // let the prize allocator split money across a 22-way tie at zero.
+    if (r && r.scores.some((s) => s.submitted)) weeks.push(r)
   }
 
   // Season aggregate
-  const season = new Map<string, { name: string; points: number; weeklyWins: number; blindfolds: number; cash: number }>()
+  const season = new Map<string, { name: string; points: number; weeklyWins: number; blindfolds: number; cash: number; playedWeeks: number }>()
   for (const wk of weeks) {
     const share = wk.winners.length ? WEEKLY_PRIZE / wk.winners.length : 0
     for (const s of wk.scores) {
@@ -131,8 +136,10 @@ export async function GET(req: Request) {
         weeklyWins: 0,
         blindfolds: 0,
         cash: 0,
+        playedWeeks: 0,
       }
       row.points += s.points
+      if (s.submitted) row.playedWeeks++
       if (wk.winners.includes(s.ownerId)) {
         row.weeklyWins++
         row.cash += share
@@ -143,8 +150,12 @@ export async function GET(req: Request) {
   }
   // Season prizes (RATIFIED: equal points split the combined money for the
   // spots they span). Shown as "if the season ended today" until week 14.
+  // Only managers who have PLAYED at least one week can hold a prize spot —
+  // a wall of 0-point no-shows must never split money.
   const prizeByOwner = allocateSeasonPrizes(
-    [...season.entries()].map(([ownerId, r]) => ({ ownerId, points: r.points }))
+    [...season.entries()]
+      .filter(([, r]) => r.playedWeeks > 0)
+      .map(([ownerId, r]) => ({ ownerId, points: r.points }))
   )
 
   const table = [...season.entries()]
