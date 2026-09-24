@@ -172,8 +172,10 @@ export async function GET(req: Request) {
   // Season prizes belong to the NFL era only — the retired fantasy race
   // shows no prize column (its weekly $25s were paid; the $200 season pool
   // rides on NFL points from week 3).
+  // …and only once at least one week has actually SETTLED — allocating off
+  // the live week alone splits the pool across a giant tie at zero.
   const prizeByOwner =
-    contest === "nfl"
+    contest === "nfl" && weeks.length > 0
       ? allocateSeasonPrizes(
           [...season.entries()]
             .filter(([, r]) => r.playedWeeks > 0)
