@@ -224,10 +224,10 @@ export default function NflBoard({
         {closed
           ? "closed for this week"
           : now < board.lockUtc
-          ? `first kickoff in ${fmtCountdown(board.lockUtc - now)} — each game locks at ITS kickoff`
-          : `card cutoff in ${fmtCountdown(board.buybackEndUtc - now)} (Sun 1PM ET)`}
+          ? `first kickoff in ${fmtCountdown(board.lockUtc - now)} — each game locks at its kickoff or Sun 1PM ET, whichever comes first`
+          : `card cutoff in ${fmtCountdown(board.buybackEndUtc - now)} (Sun 1PM ET — late games lock then too)`}
         <span className="mx-2 text-ink-faint">·</span>
-        miss a kickoff, zero that game only
+        miss a lock, zero that game only
       </div>
 
       {subs && !closed && (() => {

@@ -1255,12 +1255,14 @@ export default function PickemPage() {
             </p>
             <p>
               <span className="font-semibold text-ink">NFL deadlines — rolling
-              locks.</span> Each game freezes at ITS OWN kickoff: miss
-              Thursday&apos;s game and you zero that game only. Sunday 1:00 PM ET is
-              the master cutoff for the whole card (SNF/MNF included — no
-              picking night games off Sunday results). Free edits on any game
-              that hasn&apos;t kicked off. No buyback, no late cards — the rolling
-              locks make them unnecessary.
+              locks.</span> Every game locks at{" "}
+              <span className="text-ink">its own kickoff OR Sunday 1:00 PM ET,
+              whichever comes first</span>. In practice: Thursday&apos;s game locks
+              Thursday night, Sunday early games lock as they kick off, and the
+              late-afternoon, SNF and MNF games all lock at Sunday 1PM — no
+              picking night games off the early results. Miss a lock, you zero
+              that game only. Free edits on anything not yet locked. No
+              buyback, no late cards — the rolling locks make them unnecessary.
             </p>
             <p>
               <span className="font-semibold text-ink">Scoring.</span> 1 pt per
@@ -1294,11 +1296,12 @@ export default function PickemPage() {
             </p>
             <p>
               <span className="font-semibold text-ink">Partial cards.</span>{" "}
-              Pick any games, any time, each until its own kickoff — save as
-              often as you like. A game still unpicked when it kicks off scores
-              zero for that game alone. No buyback, no late card — rolling
-              locks replace both. (The old complete-card/buyback rules governed
-              the retired fantasy game, weeks 1–2 only.)
+              Pick any games, any time, each until its lock (kickoff or Sunday
+              1PM, whichever&apos;s first) — save as often as you like. A game still
+              unpicked at its lock scores zero for that game alone. No buyback,
+              no late card — rolling locks replace both. (The old
+              complete-card/buyback rules governed the retired fantasy game,
+              weeks 1–2 only.)
             </p>
             <p>
               <span className="font-semibold text-ink">Money.</span> $25 buy-in —{" "}
