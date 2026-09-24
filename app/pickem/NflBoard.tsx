@@ -161,7 +161,10 @@ export default function NflBoard({
   }, [resp])
 
   const board = resp?.status === "ok" ? resp.board : null
-  const closed = !!board && now >= board.buybackEndUtc
+  // TRUE ROLLING LOCKS: the card is only closed once EVERY game has kicked
+  // off (computed from kickoffs — stored boards may carry a stale cutoff).
+  const closed =
+    !!board && board.games.every((g) => !!g.kickoff && now >= g.kickoff)
   const kicked = (g: { kickoff?: number }) => !!g.kickoff && now >= g.kickoff
   const eligibleManagers = useMemo(
     () => managers.filter(([id]) => !PICKEM_EXCLUDED_OWNER_IDS.has(id)),
@@ -224,10 +227,15 @@ export default function NflBoard({
         {closed
           ? "closed for this week"
           : now < board.lockUtc
-          ? `first kickoff in ${fmtCountdown(board.lockUtc - now)} — each game locks at its kickoff or Sun 1PM ET, whichever comes first`
-          : `card cutoff in ${fmtCountdown(board.buybackEndUtc - now)} (Sun 1PM ET — late games lock then too)`}
+          ? `first kickoff in ${fmtCountdown(board.lockUtc - now)} — every game locks at its own kickoff`
+          : (() => {
+              const nextKick = Math.min(
+                ...board.games.filter((g) => !kicked(g)).map((g) => g.kickoff ?? Infinity)
+              )
+              return `next lock in ${fmtCountdown(nextKick - now)} — open games take picks until their kickoff`
+            })()}
         <span className="mx-2 text-ink-faint">·</span>
-        miss a lock, zero that game only
+        miss a kickoff, zero that game only
       </div>
 
       {subs && !closed && (() => {
@@ -245,7 +253,7 @@ export default function NflBoard({
                 onClick={() =>
                   waShare(
                     `🏈 SWRR NFL PICK'EM — Week ${board.week}\n` +
-                      `⏱ ${now < board.lockUtc ? `First kickoff in ${fmtCountdown(board.lockUtc - now)}` : `Card cutoff in ${fmtCountdown(board.buybackEndUtc - now)} (Sun 1PM ET)`}\n` +
+                      `⏱ ${now < board.lockUtc ? `First kickoff in ${fmtCountdown(board.lockUtc - now)}` : `Games lock at their own kickoffs — open ones still take picks`}\n` +
                       `✗ No card yet (${waiting.length}):\n${waiting
                         .map(([id, label]) => `@${WHATSAPP_NAMES[id] ?? label}`)
                         .join("\n")}\n` +

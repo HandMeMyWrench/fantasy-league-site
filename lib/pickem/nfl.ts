@@ -59,8 +59,12 @@ async function fetchWeek(season: string, week: number): Promise<EspnEvent[]> {
 /** Build the week's NFL board. Favorite = Vegas spread favorite at snapshot
     (odds.details like "CAR -2.5" names the favorite by abbreviation);
     missing odds fall back to the home team. Lock = first kickoff of the
-    week (usually Thursday night); buyback/late-card window ends Sunday
-    1 PM ET, same as the fantasy game. */
+    week (usually Thursday night). TRUE ROLLING LOCKS (commissioner, Sep 24
+    2026, superseding the Sunday-1PM master cutoff): every game locks at its
+    OWN kickoff — MNF is open until Monday night — so buybackEndUtc = the
+    LAST kickoff (card fully closed). Picks reveal per-game at each kickoff
+    (picks route), so standings knowledge is the only thing a late picker
+    gains — and a spread pick can't be copied off a finished game. */
 export async function buildNflBoard(week: number): Promise<Board | null> {
   const events = await fetchWeek(SEASON, week)
   if (!events.length) return null
@@ -99,12 +103,13 @@ export async function buildNflBoard(week: number): Promise<Board | null> {
   if (!games.length) return null
   games.sort((x, y) => (x.kickoff ?? 0) - (y.kickoff ?? 0))
 
+  const lastKickoff = Math.max(...games.map((g) => g.kickoff ?? 0))
   return {
     season: SEASON,
     week,
     createdAt: Date.now(),
     lockUtc: isFinite(firstKickoff) ? firstKickoff : weekBuybackEndUtc(week),
-    buybackEndUtc: weekBuybackEndUtc(week),
+    buybackEndUtc: lastKickoff > 0 ? lastKickoff : weekBuybackEndUtc(week),
     games,
   }
 }
@@ -132,8 +137,12 @@ export async function refreshNflBoard(board: Board): Promise<Board> {
     const spread = Math.abs(comp.odds?.[0]?.spread ?? 0)
     g.spread = spread || undefined
   }
-  // lockUtc = earliest kickoff (may shift with flexed games)
+  // lockUtc = earliest kickoff, buybackEndUtc = latest (card fully closed);
+  // both may shift with flexed games. Migrates pre-rolling boards (Sunday
+  // 1PM cutoff) forward on their next refresh.
   board.lockUtc = Math.min(...board.games.map((g) => g.kickoff ?? Infinity))
+  const last = Math.max(...board.games.map((g) => g.kickoff ?? 0))
+  if (last > 0) board.buybackEndUtc = last
   board.refreshedAt = Date.now()
   return board
 }

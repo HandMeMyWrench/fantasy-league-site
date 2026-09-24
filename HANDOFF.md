@@ -182,11 +182,18 @@ NFL_PICKEM_ENABLED in lib/pickem/nfl.ts (false) — commissioner previews via
 - Same scoring engine (locks 3/-2, upset +1) via shared scoring.ts; storage
   keys namespaced by contest ("" = fantasy, "nfl") in storage.ts; routes
   take ?contest=nfl / body.contest; PINs shared across contests.
-- ROLLING LOCKS (differs from fantasy): each game freezes at ITS OWN
-  kickoff — miss it = zero that game only; Sunday 1PM ET = master cutoff
-  for the whole card (so SNF/MNF picks predate Sunday results). No
-  buyback, no late card. Server merge-freezes started games' picks, lock
-  can't move once its game starts, all-picks reveal at the Sunday cutoff.
+- TRUE ROLLING LOCKS (Sep 24 2026 — SUPERSEDES the Sunday-1PM master
+  cutoff): each game freezes at ITS OWN kickoff and nothing else — MNF
+  open until Monday night. Rationale: the alt-line tiers exist so trailers
+  can chase; a 1PM cutoff killed the chase exactly when it mattered
+  (behind after the early games). Standings info gives no edge on a
+  spread pick. Miss a kickoff = zero that game only; no buyback, no late
+  card. Server merge-freezes started games, lock can't move once its game
+  starts, card closes when EVERY game has kicked (computed from kickoffs,
+  not buybackEndUtc — old boards migrate on refresh, which now sets
+  buybackEndUtc = last kickoff). PER-GAME REVEAL: ?all=1 shows a game's
+  picks once IT kicks off (frozen = nothing to copy); open-game picks and
+  an un-kicked lock stay private.
 - UI: game-mode tabs inside /pickem (app/pickem/NflBoard.tsx) — spread +
   Vegas win% per team, dome/weather icons via the shared venue engine.
 - MARKETS (Sep 24 2026, ratified): every game offers WIN (moneyline, upset

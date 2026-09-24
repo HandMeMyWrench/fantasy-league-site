@@ -47,21 +47,39 @@ export async function GET(req: NextRequest) {
   }
 
   if (q.get("all") === "1") {
-    // NFL rolling locks: picks stay private until the Sunday master cutoff
-    // (revealing at Thursday's kickoff would expose open Sunday picks).
-    const revealAt = contest === "nfl" ? board.buybackEndUtc : board.lockUtc
-    if (Date.now() < revealAt)
+    // PER-GAME REVEAL (true rolling locks, Sep 24 2026): a game's picks go
+    // public the moment IT kicks off — its picks are frozen, so nothing can
+    // be copied — while picks on still-open games stay private. The lock is
+    // revealed only once its own game has started. (Fantasy contest keeps
+    // its all-at-lock reveal.)
+    if (Date.now() < board.lockUtc)
       return NextResponse.json({ error: "picks are private until lock" }, { status: 403 })
+    const now = Date.now()
+    const startedIds =
+      contest === "nfl"
+        ? new Set(board.games.filter((g) => (g.kickoff ?? 0) <= now).map((g) => g.id))
+        : null
     const owners = await listPickOwners(SEASON, week, contest)
     const all = await Promise.all(owners.map((o) => getUserPicks(SEASON, week, o, contest)))
     const rows = all
       .filter((p): p is UserPicks => p !== null)
-      .map((p) => ({
-        ownerId: p.ownerId,
-        picks: effectivePicks(p)?.picks ?? {},
-        lockGameId: effectivePicks(p)?.lockGameId ?? null,
-        buybackChanges: p.postlock?.changes ?? 0,
-      }))
+      .map((p) => {
+        const eff = effectivePicks(p)
+        let visible = eff?.picks ?? {}
+        let lockId = eff?.lockGameId ?? null
+        if (startedIds) {
+          visible = Object.fromEntries(
+            Object.entries(visible).filter(([gid]) => startedIds.has(gid))
+          )
+          if (lockId && !startedIds.has(lockId)) lockId = null
+        }
+        return {
+          ownerId: p.ownerId,
+          picks: visible,
+          lockGameId: lockId,
+          buybackChanges: p.postlock?.changes ?? 0,
+        }
+      })
     return NextResponse.json({ status: "ok", rows })
   }
 
@@ -135,18 +153,24 @@ export async function POST(req: NextRequest) {
     (await getUserPicks(SEASON, week, ownerId, contest)) ??
     ({ ownerId, prelock: null, postlock: null } as UserPicks)
 
-  // ---------------- NFL MONEYLINE: ROLLING LOCKS ----------------
-  // Each game freezes at ITS OWN kickoff (miss Thursday = zero on that game
-  // only); Sunday 1PM ET is the master cutoff for the whole card — so
-  // SNF/MNF picks are in before any Sunday results exist. Free edits on any
+  // ---------------- NFL MONEYLINE: TRUE ROLLING LOCKS ----------------
+  // (Commissioner, Sep 24 2026 — supersedes the Sunday-1PM master cutoff.)
+  // Each game freezes at ITS OWN kickoff and nothing else: MNF is open until
+  // Monday night. Trailers coming out of the early games CAN chase with
+  // tight alt-lines on whatever hasn't kicked. Picks reveal per-game at each
+  // kickoff (see GET), so the only thing a late picker knows is standings —
+  // a spread pick can't be copied off a finished game. Free edits on any
   // not-yet-started game; no buyback, no late card in this contest.
   if (contest === "nfl") {
-    if (now >= board.buybackEndUtc)
-      return NextResponse.json({ error: "NFL card closed (Sunday 1PM cutoff)" }, { status: 403 })
     const gameById = new Map(board.games.map((g) => [g.id, g]))
     const started = new Set(
       board.games.filter((g) => (g.kickoff ?? 0) <= now).map((g) => g.id)
     )
+    // Card fully closed only when every game has kicked off (computed from
+    // kickoffs, not board.buybackEndUtc — stored boards may predate the
+    // rolling-locks migration).
+    if (started.size === board.games.length)
+      return NextResponse.json({ error: "NFL card closed — every game has kicked off" }, { status: 403 })
     // TRUE PARTIAL CARDS (commissioner, Sep 2026): pick any subset of open
     // games, any time before each game's kickoff. Merge: started games keep
     // whatever was saved; open games take incoming picks, else keep the
