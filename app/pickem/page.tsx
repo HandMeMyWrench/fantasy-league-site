@@ -41,6 +41,16 @@ type LeaderResp = {
       lateCard?: boolean
     }[]
   }[]
+  liveWeek?: {
+    week: number
+    scores: {
+      ownerId: string
+      name: string
+      points: number
+      correct: number
+      submitted: boolean
+    }[]
+  } | null
   table: {
     ownerId: string
     name: string
@@ -1155,6 +1165,42 @@ export default function PickemPage() {
                     </div>
                   )
                 })()}
+
+                {leader.liveWeek && (
+                  <section className="panel mt-4 overflow-hidden">
+                    <h3 className="display flex items-center justify-between border-b border-line bg-surface-2 px-4 py-2 text-sm text-ink">
+                      <span>Week {leader.liveWeek.week}</span>
+                      <span className="flex items-center gap-1.5 rounded-full bg-promo/15 px-2.5 py-0.5 text-[10px] font-bold tracking-widest text-promo">
+                        <span className="inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-promo" />
+                        LIVE
+                      </span>
+                    </h3>
+                    <p className="border-b border-line px-4 py-2 text-[11px] text-ink-faint">
+                      Updates as each game goes final — these points already count in the
+                      season standings above. Weekly 🔮/🦏 settle when the week ends.
+                      Trailing? The tight alt-lines (1½ / 3 pts) are still open on every
+                      game that hasn&apos;t kicked off.
+                    </p>
+                    <ul className="p-2">
+                      {leader.liveWeek.scores
+                        .filter((s) => s.submitted)
+                        .map((s, i) => (
+                          <li
+                            key={s.ownerId}
+                            className="flex items-center justify-between gap-2 px-2 py-1.5 text-sm"
+                          >
+                            <span className="min-w-0 truncate text-ink">
+                              <span className="display mr-2 text-ink-faint">{i + 1}</span>
+                              {s.name}
+                            </span>
+                            <span className="tnum shrink-0 text-ink-dim">
+                              {s.points.toFixed(1)} pts
+                            </span>
+                          </li>
+                        ))}
+                    </ul>
+                  </section>
+                )}
 
                 {leader.weeks
                   .slice()

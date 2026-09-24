@@ -125,10 +125,27 @@ export async function GET(req: Request) {
     if (r && r.scores.some((s) => s.submitted)) weeks.push(r)
   }
 
-  // Season aggregate
+  // LIVE current week (NFL era): rolling locks mean managers pick all week
+  // and need live standings to size their remaining bets (chase with a
+  // tight-line 3-pointer or protect a lead). Scores count FINAL games only
+  // (nflPointsMap leaves unfinished games 0-0 and the engine skips them),
+  // recomputed fresh every view, never cached, and no weekly money or
+  // Blindfold until the week is over. Points come only from finished games,
+  // so nobody's open picks are revealed.
+  let liveWeek: (WeekResult & { live: true }) | null = null
+  if (contest === "nfl" && currentWeek > FANTASY_FINAL_WEEK && currentWeek <= REGULAR_SEASON_WEEKS) {
+    const r = await computeWeek(currentWeek, contest)
+    if (r && r.scores.some((s) => s.submitted)) liveWeek = { ...r, live: true }
+  }
+
+  // Season aggregate. The live week's points count toward the season race
+  // (that's the whole point — live standings), but its winners/loser carry
+  // no money or Blindfold yet, so pass live: true to skip those.
   const season = new Map<string, { name: string; points: number; weeklyWins: number; blindfolds: number; cash: number; playedWeeks: number }>()
-  for (const wk of weeks) {
-    const share = wk.winners.length ? WEEKLY_PRIZE / wk.winners.length : 0
+  const aggregate = liveWeek ? [...weeks, liveWeek] : weeks
+  for (const wk of aggregate) {
+    const isLive = "live" in wk && wk.live
+    const share = !isLive && wk.winners.length ? WEEKLY_PRIZE / wk.winners.length : 0
     for (const s of wk.scores) {
       const row = season.get(s.ownerId) ?? {
         name: s.name,
@@ -140,11 +157,11 @@ export async function GET(req: Request) {
       }
       row.points += s.points
       if (s.submitted) row.playedWeeks++
-      if (wk.winners.includes(s.ownerId)) {
+      if (!isLive && wk.winners.includes(s.ownerId)) {
         row.weeklyWins++
         row.cash += share
       }
-      if (wk.loser === s.ownerId) row.blindfolds++
+      if (!isLive && wk.loser === s.ownerId) row.blindfolds++
       season.set(s.ownerId, row)
     }
   }
@@ -172,5 +189,5 @@ export async function GET(req: Request) {
     }))
     .sort((a, b) => b.points - a.points || b.weeklyWins - a.weeklyWins)
 
-  return NextResponse.json({ status: "ok", weeks, table, currentWeek })
+  return NextResponse.json({ status: "ok", weeks, liveWeek, table, currentWeek })
 }
