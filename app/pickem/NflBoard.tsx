@@ -60,9 +60,21 @@ export default function NflBoard({
   const [resp, setResp] = useState<BoardResp | null>(null)
   const [now, setNow] = useState(Date.now())
   // Each pick: side + market (+ ATS tier — touchdown alt-lines). The server
-  // stamps the final line/favorite at submit time.
+  // stamps the final line/favorite at submit time; `line` here is that
+  // STAMP (loaded back from the server), shown so a Tuesday bet still
+  // displays its Tuesday number after the board's lines move. A fresh
+  // unsaved pick has no line yet — it shows the current board price it's
+  // about to be stamped at.
   const [picks, setPicks] = useState<
-    Record<string, { side: Side; market: "ml" | "ats"; tier?: "tease" | "market" | "tight1" | "tight2" }>
+    Record<
+      string,
+      {
+        side: Side
+        market: "ml" | "ats"
+        tier?: "tease" | "market" | "tight1" | "tight2"
+        line?: number | null
+      }
+    >
   >({})
   const [lockGameId, setLockGameId] = useState<string | null>(null)
   const [ownerId, setOwnerId] = useState("")
@@ -163,13 +175,16 @@ export default function NflBoard({
       for (const [gid, v] of Object.entries(raw) as [string, unknown][]) {
         if (typeof v === "string") norm[gid] = { side: v as Side, market: "ml" }
         else if (v && typeof v === "object") {
-          const o2 = v as { side: Side; market?: string; tier?: string }
+          const o2 = v as { side: Side; market?: string; tier?: string; line?: number | null }
           norm[gid] = {
             side: o2.side,
             market: o2.market === "ats" ? "ats" : "ml",
             ...(o2.market === "ats" && o2.tier && o2.tier !== "market"
               ? { tier: o2.tier as "tease" | "tight1" | "tight2" }
               : {}),
+            // carry the server stamp so the UI shows the line they BET,
+            // not wherever the board has drifted since
+            ...(o2.line != null ? { line: o2.line } : {}),
           }
         }
       }
@@ -296,6 +311,10 @@ export default function NflBoard({
       if (!r.ok) setMsg(`❌ ${j.error ?? "submission failed"}`)
       else {
         remember(ownerId, pin)
+        // Pull the freshly stamped card back so every pick displays the
+        // exact line it was just locked at (then restore the save message,
+        // which loadCard would otherwise overwrite).
+        await loadCard(ownerId, pin, { silent: true })
         setMsg(
           `✅ Card saved — ${j.saved} game${j.saved === 1 ? "" : "s"} on it` +
             (j.openLeft > 0
@@ -569,20 +588,26 @@ export default function NflBoard({
                           </button>
                         )
                         const curTier = sel?.market === "ats" ? sel.tier ?? "market" : null
+                        // The ACTIVE spread chip shows the STAMPED line when we
+                        // have it (loaded from the server) — a Tuesday bet keeps
+                        // showing its Tuesday number however the board moves.
+                        // Inactive chips show the current price a new bet gets.
+                        const shownLine = (tier: "tease" | "market" | "tight1" | "tight2", cur: number) =>
+                          curTier === tier && sel?.line != null ? sel.line : cur
                         return (
                           <>
                             <div className="mt-1.5 flex gap-1 text-[11px]">
                               {chip(sel?.market === "ml", "Win · 1", () => setPick("ml"))}
                               {line != null &&
-                                chip(curTier === "market", `${fmt(line)} · 1½`, () =>
+                                chip(curTier === "market", `${fmt(shownLine("market", line))} · 1½`, () =>
                                   setPick("ats")
                                 )}
                             </div>
                             {line != null && (
                               <div className="mt-1 flex gap-1 text-[10px]">
-                                {chip(curTier === "tease", `${fmt(line + 7)} · 1`, () => setPick("ats", "tease"), true)}
-                                {chip(curTier === "tight1", `${fmt(line - 7)} · 2`, () => setPick("ats", "tight1"), true)}
-                                {chip(curTier === "tight2", `${fmt(line - 14)} · 3`, () => setPick("ats", "tight2"), true)}
+                                {chip(curTier === "tease", `${fmt(shownLine("tease", line + 7))} · 1`, () => setPick("ats", "tease"), true)}
+                                {chip(curTier === "tight1", `${fmt(shownLine("tight1", line - 7))} · 2`, () => setPick("ats", "tight1"), true)}
+                                {chip(curTier === "tight2", `${fmt(shownLine("tight2", line - 14))} · 3`, () => setPick("ats", "tight2"), true)}
                               </div>
                             )}
                           </>
@@ -617,7 +642,9 @@ export default function NflBoard({
                         const tier = sel.tier ?? "market"
                         const adj = { tease: 7, market: 0, tight1: -7, tight2: -14 }[tier]
                         const pts = { tease: "1", market: "1½", tight1: "2", tight2: "3" }[tier]
-                        const l = line != null ? line + adj : null
+                        // Frozen view grades on the STAMP — show it (and compute
+                        // covering/behind against it) whenever we have it.
+                        const l = sel.line ?? (line != null ? line + adj : null)
                         const margin = myDiff != null && l != null ? myDiff + l : null
                         const st =
                           margin == null
