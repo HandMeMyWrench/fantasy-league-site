@@ -101,46 +101,104 @@ export default function NflBoard({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [resp])
 
-  const loadMine = async () => {
-    if (!board || !ownerId || pin.length < 4) {
-      setMsg("❌ pick your name and enter your PIN first")
-      return
+  // REMEMBER ME (Sep 24 2026): after one successful save or load on a
+  // device, identity lives in localStorage and the card auto-loads on every
+  // visit — so on Sunday your covering/behind status is just THERE, no
+  // Name+PIN ritual. Per-device, clearable via "not you?".
+  const REMEMBER_KEY = "swrr-pickem-id"
+  const remember = (o: string, p: string) => {
+    try {
+      localStorage.setItem(REMEMBER_KEY, JSON.stringify({ ownerId: o, pin: p }))
+    } catch {}
+  }
+  const forgetMe = () => {
+    try {
+      localStorage.removeItem(REMEMBER_KEY)
+    } catch {}
+    setOwnerId("")
+    setPin("")
+    setPicks({})
+    setLockGameId(null)
+    setMsg("Signed out on this device.")
+  }
+
+  const loadCard = async (
+    o: string,
+    p: string,
+    opts: { silent?: boolean } = {}
+  ): Promise<boolean> => {
+    if (!board || !o || p.length < 4) {
+      if (!opts.silent) setMsg("❌ pick your name and enter your PIN first")
+      return false
     }
-    setBusy(true)
-    setMsg(null)
+    if (!opts.silent) {
+      setBusy(true)
+      setMsg(null)
+    }
     try {
       const r = await fetch(
-        `/api/pickem/picks?week=${board.week}&contest=nfl&ownerId=${encodeURIComponent(ownerId)}&pin=${encodeURIComponent(pin)}`
+        `/api/pickem/picks?week=${board.week}&contest=nfl&ownerId=${encodeURIComponent(o)}&pin=${encodeURIComponent(p)}`
       )
       const d = await r.json()
-      if (!r.ok) setMsg(`❌ ${d.error ?? "couldn't load"}`)
-      else if (!d.picks?.prelock) setMsg("No saved NFL card yet this week.")
-      else {
-        const raw = d.picks.prelock.picks ?? {}
-        const norm: typeof picks = {}
-        for (const [gid, v] of Object.entries(raw) as [string, unknown][]) {
-          if (typeof v === "string") norm[gid] = { side: v as Side, market: "ml" }
-          else if (v && typeof v === "object") {
-            const o = v as { side: Side; market?: string; tier?: string }
-            norm[gid] = {
-              side: o.side,
-              market: o.market === "ats" ? "ats" : "ml",
-              ...(o.market === "ats" && o.tier && o.tier !== "market"
-                ? { tier: o.tier as "tease" | "tight1" | "tight2" }
-                : {}),
-            }
+      if (!r.ok) {
+        if (!opts.silent) setMsg(`❌ ${d.error ?? "couldn't load"}`)
+        return false
+      }
+      remember(o, p)
+      if (!d.picks?.prelock) {
+        if (!opts.silent) setMsg("No saved NFL card yet this week.")
+        return true
+      }
+      const raw = d.picks.prelock.picks ?? {}
+      const norm: typeof picks = {}
+      for (const [gid, v] of Object.entries(raw) as [string, unknown][]) {
+        if (typeof v === "string") norm[gid] = { side: v as Side, market: "ml" }
+        else if (v && typeof v === "object") {
+          const o2 = v as { side: Side; market?: string; tier?: string }
+          norm[gid] = {
+            side: o2.side,
+            market: o2.market === "ats" ? "ats" : "ml",
+            ...(o2.market === "ats" && o2.tier && o2.tier !== "market"
+              ? { tier: o2.tier as "tease" | "tight1" | "tight2" }
+              : {}),
           }
         }
-        setPicks(norm)
-        setLockGameId(d.picks.prelock.lockGameId ?? null)
-        setMsg("✓ Loaded your saved NFL card")
       }
+      setPicks(norm)
+      setLockGameId(d.picks.prelock.lockGameId ?? null)
+      setMsg(opts.silent ? "✓ Welcome back — your card is loaded" : "✓ Loaded your saved NFL card")
+      return true
     } catch {
-      setMsg("❌ network error")
+      if (!opts.silent) setMsg("❌ network error")
+      return false
     } finally {
-      setBusy(false)
+      if (!opts.silent) setBusy(false)
     }
   }
+  const loadMine = () => loadCard(ownerId, pin)
+
+  // Auto-restore identity + card once the board arrives (once per mount;
+  // a failed stored PIN clears itself so a stale credential can't loop).
+  const [restored, setRestored] = useState(false)
+  useEffect(() => {
+    if (!board || restored) return
+    setRestored(true)
+    let stored: { ownerId?: string; pin?: string } | null = null
+    try {
+      stored = JSON.parse(localStorage.getItem(REMEMBER_KEY) ?? "null")
+    } catch {}
+    if (!stored?.ownerId || !stored?.pin) return
+    setOwnerId(stored.ownerId)
+    setPin(stored.pin)
+    loadCard(stored.ownerId, stored.pin, { silent: true }).then((ok) => {
+      if (!ok) {
+        try {
+          localStorage.removeItem(REMEMBER_KEY)
+        } catch {}
+      }
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [resp, restored])
 
   // LIVE SCORES (Sep 24 2026): true rolling locks mean managers size late
   // bets while early games run — poll the scoreboard every 60s whenever any
@@ -227,7 +285,8 @@ export default function NflBoard({
       })
       const j = await r.json()
       if (!r.ok) setMsg(`❌ ${j.error ?? "submission failed"}`)
-      else
+      else {
+        remember(ownerId, pin)
         setMsg(
           `✅ Card saved — ${j.saved} game${j.saved === 1 ? "" : "s"} on it` +
             (j.openLeft > 0
@@ -235,6 +294,7 @@ export default function NflBoard({
               : " · full card, nothing left open") +
             " · lines locked at the price you saw"
         )
+      }
     } catch {
       setMsg("❌ network error")
     } finally {
@@ -600,7 +660,19 @@ export default function NflBoard({
           <p className="text-xs text-ink-faint">
             Same PIN as before. This is the money game now: $25 to the weekly
             winner, season prizes ($125/$50/$25) on NFL points from Week 3.
-            Coming back to edit? Name + PIN + Load mine.
+            Save or load once and this device remembers you — your card (and
+            live covering/behind status on game day) loads by itself.
+            {ownerId && (
+              <>
+                {" "}
+                <button
+                  onClick={forgetMe}
+                  className="underline decoration-dotted underline-offset-2 hover:text-ink"
+                >
+                  Not {WHATSAPP_NAMES[ownerId] ?? "you"}? Sign out here.
+                </button>
+              </>
+            )}
           </p>
           {msg && <p className="text-sm">{msg}</p>}
         </div>
