@@ -197,6 +197,81 @@ check("late card CAN wear the Blindfold", r5.loser === "late")
 const r6 = rankScores([mkScore("late1", 8, true, 0, true), mkScore("late2", 4, true, 0, true)])
 check("all-late week -> no weekly winner (money rolls per commissioner)", r6.winners.length === 0)
 
+// ---------- NFL ATS + alt-line tiers (tease ½ / market 1 / tight1 1½ / tight2 3) ----------
+console.log("NFL ATS tiers:")
+import { ATS_TIER_PTS, ATS_TIER_ADJUST } from "../lib/pickem/scoring.ts"
+import type { NflPick } from "../lib/pickem/types.ts"
+
+const nflBoard: Board = {
+  season: "2026",
+  week: 3,
+  createdAt: 0,
+  lockUtc: 0,
+  buybackEndUtc: 0,
+  games: [
+    // a = away GB (favorite, -6), b = home CAR (+6)
+    { id: "nfl-1", league: "nfl", a: T(101, "GB"), b: T(102, "CAR"), favorite: "a", spread: 6 },
+    { id: "nfl-2", league: "nfl", a: T(103, "DAL"), b: T(104, "NYG"), favorite: "b", spread: 3 },
+  ],
+}
+// GB wins 27-17 (covers -6 by 4); DAL upsets NYG 21-20.
+const nflPts = new Map<string, number>([
+  ["nfl-101", 27], ["nfl-102", 17],
+  ["nfl-103", 21], ["nfl-104", 20],
+])
+const nflOut = gameOutcomes(nflBoard, nflPts)
+const nflPick = (picks: Record<string, NflPick>, lock: string | null = null): UserPicks => ({
+  ownerId: "n1",
+  prelock: { picks, lockGameId: lock, submittedAt: 0 },
+  postlock: null,
+})
+const atsGB = (line: number, tier?: NflPick["tier"]): NflPick =>
+  ({ side: "a", market: "ats", line, fav: true, ...(tier ? { tier } : {}) })
+
+check("tier tables agree on keys", Object.keys(ATS_TIER_PTS).sort().join() === Object.keys(ATS_TIER_ADJUST).sort().join())
+
+// GB -6, wins by 10.
+const sMkt = scoreUser(nflBoard, nflOut, nflPick({ "nfl-1": atsGB(-6) }), "P")
+check("market cover = 1 pt", sMkt.points === 1, `got ${sMkt.points}`)
+const sTease = scoreUser(nflBoard, nflOut, nflPick({ "nfl-1": atsGB(-6 + 7, "tease") }), "P")
+check("tease cover (+1 line) = ½ pt", sTease.points === 0.5, `got ${sTease.points}`)
+const sT1miss = scoreUser(nflBoard, nflOut, nflPick({ "nfl-1": atsGB(-6 - 7, "tight1") }), "P")
+check("tight1 miss (-13, won by 10) = 0", sT1miss.points === 0, `got ${sT1miss.points}`)
+// If the stamp had been GB -8.5, tight1 line -1.5... use a winnable tight1: stamped -2 → tight1 -9? won by 10 covers.
+const sT1hit = scoreUser(nflBoard, nflOut, nflPick({ "nfl-1": atsGB(-9, "tight1") }), "P")
+check("tight1 cover = 1½ pts", sT1hit.points === 1.5, `got ${sT1hit.points}`)
+const sT2hit = scoreUser(nflBoard, nflOut, nflPick({ "nfl-1": atsGB(-9.5, "tight2") }), "P")
+check("tight2 cover = 3 pts", sT2hit.points === 3, `got ${sT2hit.points}`)
+// Push on the adjusted line: GB won by exactly 10, line -10.
+const sPushAdj = scoreUser(nflBoard, nflOut, nflPick({ "nfl-1": atsGB(-10, "tight1") }, "nfl-1"), "P")
+check("push on adjusted line = 0 pts", sPushAdj.points === 0, `got ${sPushAdj.points}`)
+// No upset bonus ATS: underdog DAL +3 covers (wins outright) — still tier points only.
+const sDogAts = scoreUser(nflBoard, nflOut, nflPick({ "nfl-2": { side: "a", market: "ats", line: 3, fav: false } }), "P")
+check("ATS underdog cover = 1 pt (no upset bonus)", sDogAts.points === 1 && sDogAts.upsets === 0, `got ${sDogAts.points}`)
+// Locks ride the market: lock on market ATS behaves as a lock…
+const sLockMkt = scoreUser(nflBoard, nflOut, nflPick({ "nfl-1": atsGB(-6) }, "nfl-1"), "P")
+check("lock on market cover = 3 pts", sLockMkt.points === 3 && sLockMkt.lockResult === "hit")
+// …but a stray lock on an alt-line scores as a plain tiered pick (no 3/-2).
+const sLockAlt = scoreUser(nflBoard, nflOut, nflPick({ "nfl-1": atsGB(-9.5, "tight2") }, "nfl-1"), "P")
+check("stray lock on alt-line = plain tier pts (3 for tight2, lockResult none)", sLockAlt.points === 3 && sLockAlt.lockResult === "none")
+const sLockAltMiss = scoreUser(nflBoard, nflOut, nflPick({ "nfl-1": atsGB(-13, "tight2") }, "nfl-1"), "P")
+check("stray lock on losing alt-line = 0 (no -2)", sLockAltMiss.points === 0 && sLockAltMiss.lockResult === "none")
+// Unstarted game (0-0) with an ATS pick: skipped, no phantom push points.
+const sUnstarted = scoreUser(
+  nflBoard,
+  gameOutcomes(nflBoard, new Map()),
+  nflPick({ "nfl-1": atsGB(-6) }),
+  "P"
+)
+check("unstarted 0-0 ATS game scores 0", sUnstarted.points === 0)
+// ML lock + upset bonus still intact alongside: DAL ML dog lock = 3 + 1.
+const sMlDogLock = scoreUser(
+  nflBoard, nflOut,
+  nflPick({ "nfl-2": { side: "a", market: "ml", line: 3, fav: false } }, "nfl-2"),
+  "P"
+)
+check("ML underdog lock hit = 4 pts", sMlDogLock.points === 4, `got ${sMlDogLock.points}`)
+
 // ---------- season prize allocation (RATIFIED: ties split spanned money) ----------
 console.log("season prizes:")
 // Allocation MECHANICS tested against a fixed prize set…

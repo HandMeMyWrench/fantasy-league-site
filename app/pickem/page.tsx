@@ -1235,6 +1235,18 @@ export default function PickemPage() {
               placed bet. Changing a pick re-stamps it at the current line.
             </p>
             <p>
+              <span className="font-semibold text-ink">Move the line
+              yourself.</span> On any cover bet you can shift the spread in
+              touchdown steps, priced like the sportsbooks price alt-lines:
+              tease it <span className="text-ink">7 easier → ½ pt</span>, take
+              the <span className="text-ink">market line → 1 pt</span>, tighten
+              it <span className="text-ink">7 → 1½ pts</span>, or tighten it{" "}
+              <span className="text-ink">14 → 3 pts</span>. Alt-lines stamp at
+              save time like everything else. One house rule:{" "}
+              <span className="text-ink">Locks ride the market</span> — you
+              can lock a WIN or a market-line cover, never an alt-line.
+            </p>
+            <p>
               <span className="font-semibold text-ink">Partial cards.</span>{" "}
               Pick any games, any time, each until its own kickoff — save as
               often as you like. A game still unpicked when it kicks off scores

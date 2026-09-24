@@ -20,6 +20,21 @@ import type {
   UserWeekScore,
 } from "./types"
 
+/** ATS payout per tier (see types.ts for the pricing rationale). */
+export const ATS_TIER_PTS: Record<string, number> = {
+  tease: 0.5,
+  market: 1,
+  tight1: 1.5,
+  tight2: 3,
+}
+/** TD-step line adjustment per tier, applied to the picked side's line. */
+export const ATS_TIER_ADJUST: Record<string, number> = {
+  tease: 7,
+  market: 0,
+  tight1: -7,
+  tight2: -14,
+}
+
 /** Normalize legacy plain-side picks and NFL market picks to one shape.
     Legacy picks have no stamped fav/line — the board's frozen favorite
     fills in at scoring time (the fantasy contest's original behavior). */
@@ -121,7 +136,11 @@ export function scoreUser(
     if (!raw || !outcome) continue
     const p = normalizePick(raw)
     base.played++
-    const isLock = eff.lockGameId === g.id
+    // Locks ride the market only: ML picks and market-line ATS. An alt-line
+    // pick with a stray lock scores as a normal tiered pick (no 3/-2).
+    const isLock =
+      eff.lockGameId === g.id &&
+      (p.market === "ml" || (p.tier ?? "market") === "market")
 
     if (p.market === "ats") {
       // Against the spread, graded on the line stamped at pick time.
@@ -140,8 +159,10 @@ export function scoreUser(
       }
       if (margin > 0) {
         base.correct++
-        points += isLock ? PTS_LOCK_HIT : PTS_CORRECT // no upset bonus ATS —
-        if (isLock) base.lockResult = "hit" // the spread already levels it
+        // Tiered payout (market = 1). No upset bonus ATS — the line levels
+        // it. Locks (market-tier only) replace the point as usual.
+        points += isLock ? PTS_LOCK_HIT : ATS_TIER_PTS[p.tier ?? "market"] ?? PTS_CORRECT
+        if (isLock) base.lockResult = "hit"
       } else if (isLock) {
         points += PTS_LOCK_MISS
         base.lockResult = "miss"

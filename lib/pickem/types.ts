@@ -42,11 +42,23 @@ export type Board = {
 //                  -6.5 = laying points, +6.5 = getting them; push = 0 pts)
 // `line`/`fav` are stamped SERVER-SIDE at submit from the live board — the
 // line you bet is the line you're graded on, however it moves later.
+// ATS alt-line tiers (touchdown steps from the market line, priced so the
+// market line is always the best pure-EV bet):
+//   tease  = 7 EASIER  -> 0.5 pt   (~70% cover)
+//   market = the line  -> 1 pt     (~50%)
+//   tight1 = 7 HARDER  -> 1.5 pts  (~30%)
+//   tight2 = 14 HARDER -> 3 pts    (~15%)
+// `line` always stores the FINAL adjusted number the pick is graded on.
+// Locks ride the market only — no alt-line locks (teaser+lock would be a
+// 70% shot at 3 pts; broken combo).
+export type AtsTier = "tease" | "market" | "tight1" | "tight2"
+
 export type NflPick = {
   side: Side
   market: "ml" | "ats"
   line: number | null
   fav: boolean
+  tier?: AtsTier // ATS only; absent = market (back-compat)
 }
 export type PickValue = Side | NflPick
 

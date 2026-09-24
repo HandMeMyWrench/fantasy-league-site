@@ -59,9 +59,11 @@ export default function NflBoard({
 }) {
   const [resp, setResp] = useState<BoardResp | null>(null)
   const [now, setNow] = useState(Date.now())
-  // Each pick: which side + which market (moneyline win, or cover the
-  // spread). The server stamps line/favorite at submit time.
-  const [picks, setPicks] = useState<Record<string, { side: Side; market: "ml" | "ats" }>>({})
+  // Each pick: side + market (+ ATS tier — touchdown alt-lines). The server
+  // stamps the final line/favorite at submit time.
+  const [picks, setPicks] = useState<
+    Record<string, { side: Side; market: "ml" | "ats"; tier?: "tease" | "market" | "tight1" | "tight2" }>
+  >({})
   const [lockGameId, setLockGameId] = useState<string | null>(null)
   const [ownerId, setOwnerId] = useState("")
   const [pin, setPin] = useState("")
@@ -115,14 +117,19 @@ export default function NflBoard({
       else if (!d.picks?.prelock) setMsg("No saved NFL card yet this week.")
       else {
         const raw = d.picks.prelock.picks ?? {}
-        const norm: Record<string, { side: Side; market: "ml" | "ats" }> = {}
+        const norm: typeof picks = {}
         for (const [gid, v] of Object.entries(raw) as [string, unknown][]) {
           if (typeof v === "string") norm[gid] = { side: v as Side, market: "ml" }
-          else if (v && typeof v === "object")
+          else if (v && typeof v === "object") {
+            const o = v as { side: Side; market?: string; tier?: string }
             norm[gid] = {
-              side: (v as { side: Side }).side,
-              market: (v as { market?: string }).market === "ats" ? "ats" : "ml",
+              side: o.side,
+              market: o.market === "ats" ? "ats" : "ml",
+              ...(o.market === "ats" && o.tier && o.tier !== "market"
+                ? { tier: o.tier as "tease" | "tight1" | "tight2" }
+                : {}),
             }
+          }
         }
         setPicks(norm)
         setLockGameId(d.picks.prelock.lockGameId ?? null)
@@ -295,7 +302,13 @@ export default function NflBoard({
                 )}
                 {!closed && !kicked(g) && (
                   <button
-                    onClick={() => setLockGameId(isLock ? null : g.id)}
+                    onClick={() => {
+                      setLockGameId(isLock ? null : g.id)
+                      // Locks ride the market: locking a game with an
+                      // alt-line pick snaps that pick back to the market line.
+                      if (!isLock && mine?.market === "ats" && mine.tier && mine.tier !== "market")
+                        setPicks((p) => ({ ...p, [g.id]: { side: mine.side, market: "ats" } }))
+                    }}
                     className={`rounded-full border px-3 py-1.5 text-[11px] font-bold tracking-wide transition-all ${
                       isLock
                         ? "border-gold/60 bg-gold/15 text-gold shadow-[0_0_10px_rgba(251,191,36,0.35)]"
@@ -337,41 +350,74 @@ export default function NflBoard({
                           </span>
                         </span>
                       </div>
-                      {!closed && !kicked(g) && (
-                        <div className="mt-1.5 flex gap-1">
+                      {!closed && !kicked(g) && (() => {
+                        const fmt = (n: number) => (n > 0 ? `+${n}` : `${n}`)
+                        const setPick = (
+                          market: "ml" | "ats",
+                          tier?: "tease" | "tight1" | "tight2"
+                        ) => {
+                          setPicks((p) => ({
+                            ...p,
+                            [g.id]: { side, market, ...(tier ? { tier } : {}) },
+                          }))
+                          // Locks ride the market — picking an alt-line
+                          // releases a lock sitting on this game.
+                          if (tier && lockGameId === g.id) setLockGameId(null)
+                        }
+                        const chip = (
+                          active: boolean,
+                          label: string,
+                          onClick: () => void,
+                          subtle = false
+                        ) => (
                           <button
-                            onClick={() =>
-                              setPicks((p) => ({ ...p, [g.id]: { side, market: "ml" } }))
-                            }
-                            className={`flex-1 rounded-md px-2 py-1 text-[11px] font-semibold transition-colors ${
-                              sel?.market === "ml"
+                            key={label}
+                            onClick={onClick}
+                            className={`flex-1 whitespace-nowrap rounded-md px-1.5 py-1 font-semibold transition-colors ${
+                              active
                                 ? "bg-brand-deep/60 text-white"
+                                : subtle
+                                ? "bg-white/[0.03] text-ink-faint hover:bg-white/10 hover:text-ink"
                                 : "bg-white/5 text-ink-dim hover:bg-white/10 hover:text-ink"
                             }`}
                           >
-                            {sel?.market === "ml" ? "✓ " : ""}Win
+                            {active ? "✓ " : ""}
+                            {label}
                           </button>
-                          {line != null && (
-                            <button
-                              onClick={() =>
-                                setPicks((p) => ({ ...p, [g.id]: { side, market: "ats" } }))
-                              }
-                              className={`flex-1 rounded-md px-2 py-1 text-[11px] font-semibold transition-colors ${
-                                sel?.market === "ats"
-                                  ? "bg-brand-deep/60 text-white"
-                                  : "bg-white/5 text-ink-dim hover:bg-white/10 hover:text-ink"
-                              }`}
-                            >
-                              {sel?.market === "ats" ? "✓ " : ""}Cover {line > 0 ? `+${line}` : line}
-                            </button>
-                          )}
-                        </div>
-                      )}
-                      {(closed || kicked(g)) && sel && (
-                        <p className="tnum mt-1 text-[11px] text-brand">
-                          ✓ {sel.market === "ats" ? `cover ${line != null ? (line > 0 ? `+${line}` : line) : ""}` : "win"}
-                        </p>
-                      )}
+                        )
+                        const curTier = sel?.market === "ats" ? sel.tier ?? "market" : null
+                        return (
+                          <>
+                            <div className="mt-1.5 flex gap-1 text-[11px]">
+                              {chip(sel?.market === "ml", "Win · 1", () => setPick("ml"))}
+                              {line != null &&
+                                chip(curTier === "market", `Cvr ${fmt(line)} · 1`, () =>
+                                  setPick("ats")
+                                )}
+                            </div>
+                            {line != null && (
+                              <div className="mt-1 flex gap-1 text-[10px]">
+                                {chip(curTier === "tease", `${fmt(line + 7)} · ½`, () => setPick("ats", "tease"), true)}
+                                {chip(curTier === "tight1", `${fmt(line - 7)} · 1½`, () => setPick("ats", "tight1"), true)}
+                                {chip(curTier === "tight2", `${fmt(line - 14)} · 3`, () => setPick("ats", "tight2"), true)}
+                              </div>
+                            )}
+                          </>
+                        )
+                      })()}
+                      {(closed || kicked(g)) && sel && (() => {
+                        if (sel.market !== "ats")
+                          return <p className="tnum mt-1 text-[11px] text-brand">✓ win</p>
+                        const tier = sel.tier ?? "market"
+                        const adj = { tease: 7, market: 0, tight1: -7, tight2: -14 }[tier]
+                        const pts = { tease: "½", market: "1", tight1: "1½", tight2: "3" }[tier]
+                        const l = line != null ? line + adj : null
+                        return (
+                          <p className="tnum mt-1 text-[11px] text-brand">
+                            ✓ cover {l != null ? (l > 0 ? `+${l}` : l) : ""} · {pts} pt
+                          </p>
+                        )
+                      })()}
                     </div>
                   )
                 })}

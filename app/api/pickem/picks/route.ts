@@ -6,8 +6,8 @@ import {
   PICKEM_ENTRANTS,
   FANTASY_FINAL_WEEK,
 } from "@/lib/pickem/config"
-import { countChanges, effectivePicks } from "@/lib/pickem/scoring"
-import type { PickValue, UserPicks } from "@/lib/pickem/types"
+import { countChanges, effectivePicks, ATS_TIER_ADJUST } from "@/lib/pickem/scoring"
+import type { AtsTier, PickValue, UserPicks } from "@/lib/pickem/types"
 import {
   getBoard,
   getUserAuth,
@@ -167,30 +167,45 @@ export async function POST(req: NextRequest) {
         const side = typeof incoming === "string" ? incoming : incoming.side
         const market =
           typeof incoming === "object" && incoming.market === "ats" ? "ats" : "ml"
+        const tierRaw =
+          typeof incoming === "object" && market === "ats"
+            ? (incoming as { tier?: string }).tier ?? "market"
+            : "market"
         if (side !== "a" && side !== "b")
           return NextResponse.json({ error: `invalid pick ${g.id}` }, { status: 400 })
-        // Unchanged pick (same side + market) keeps its ORIGINAL stamp —
-        // resubmitting your card never re-prices bets you already placed.
+        if (!(tierRaw in ATS_TIER_ADJUST))
+          return NextResponse.json({ error: `invalid tier ${tierRaw}` }, { status: 400 })
+        const tier = tierRaw as AtsTier
+        // Unchanged pick (same side + market + tier) keeps its ORIGINAL
+        // stamp — resubmitting never re-prices a placed bet.
         const prevPick = prev[g.id]
         if (
           prevPick &&
           typeof prevPick === "object" &&
           prevPick.side === side &&
-          prevPick.market === market
+          prevPick.market === market &&
+          (prevPick.tier ?? "market") === tier
         ) {
           merged[g.id] = prevPick
           continue
         }
         const fav = side === g.favorite
-        // line signed FOR the picked side: favorite lays it, dog gets it
-        const line =
-          g.spread != null ? (fav ? -g.spread : g.spread) : null
-        if (market === "ats" && line == null)
+        // line signed FOR the picked side, then tier-adjusted (tease +7,
+        // tight1 -7, tight2 -14) — the FINAL number is what's stamped.
+        const baseLine = g.spread != null ? (fav ? -g.spread : g.spread) : null
+        if (market === "ats" && baseLine == null)
           return NextResponse.json(
             { error: `no line posted yet for ${g.id} — ATS unavailable, pick moneyline` },
             { status: 400 }
           )
-        merged[g.id] = { side, market, line, fav }
+        const line =
+          market === "ats" && baseLine != null
+            ? baseLine + ATS_TIER_ADJUST[tier]
+            : baseLine
+        merged[g.id] =
+          market === "ats" && tier !== "market"
+            ? { side, market, line, fav, tier }
+            : { side, market, line, fav }
         stamped++
       } else if (prev[g.id]) {
         merged[g.id] = prev[g.id]
@@ -210,6 +225,16 @@ export async function POST(req: NextRequest) {
       )
     if (lock && !gameById.has(lock))
       return NextResponse.json({ error: "invalid lock" }, { status: 400 })
+    // Locks ride the market: ML or market-line ATS only. A teaser+lock is a
+    // ~70% shot at 3 pts — priced out by rule.
+    if (lock) {
+      const lp = merged[lock]
+      if (lp && typeof lp === "object" && lp.market === "ats" && (lp.tier ?? "market") !== "market")
+        return NextResponse.json(
+          { error: "locks ride the market — no alt-line locks" },
+          { status: 400 }
+        )
+    }
     existing.prelock = { picks: merged, lockGameId: lock, submittedAt: now }
     existing.postlock = null
     await setUserPicks(SEASON, week, existing, contest)

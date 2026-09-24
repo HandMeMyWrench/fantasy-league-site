@@ -189,6 +189,22 @@ NFL_PICKEM_ENABLED in lib/pickem/nfl.ts (false) — commissioner previews via
   can't move once its game starts, all-picks reveal at the Sunday cutoff.
 - UI: game-mode tabs inside /pickem (app/pickem/NflBoard.tsx) — spread +
   Vegas win% per team, dome/weather icons via the shared venue engine.
+- MARKETS (Sep 24 2026, ratified): every game offers WIN (moneyline, upset
+  +1) and COVER (ATS). Picks are STAMPED server-side at save time with the
+  live line + favorite (sportsbook rule: graded on the line you bet, however
+  it moves later); unchanged picks keep their original stamp; board display
+  lines refresh from ESPN on a 5-min throttle (refreshNflBoard).
+- ALT-LINE TIERS (Sep 24 2026, ratified + built): ATS picks can shift the
+  spread in touchdown steps, EV-priced so the market line is the best pure
+  bet — tease +7 easier = ½ pt, market = 1 pt, tighten −7 = 1½ pts, tighten
+  −14 = 3 pts (ATS_TIER_PTS / ATS_TIER_ADJUST in scoring.ts; NflPick.tier).
+  Stored `line` is ALWAYS the final adjusted number the pick grades on.
+  HOUSE RULE: locks ride the market only — no alt-line locks (teaser+lock
+  would be ~70% at 3 pts). Enforced server-side (picks route rejects),
+  scored defensively (stray alt-line lock pays plain tier points, no 3/−2),
+  and the UI snaps: picking an alt-tier clears a lock on that game, locking
+  a game snaps its alt-tier pick back to market. Tier tests in
+  tests/pickem-scoring.test.ts (76 passing).
 - 2027 punch list: NFL leaderboard UI (route supports ?contest=nfl,
   Leaderboard tab doesn't), submissions counter/share buttons, per-league
   contest config, money rules if the league votes it real.
