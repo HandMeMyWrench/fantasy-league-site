@@ -79,8 +79,10 @@ export default function NflBoard({
     return () => clearInterval(id)
   }, [])
 
-  // Who's submitted (ids only) — 60s poll, same as the old fantasy board.
+  // Who's submitted + how many games their card covers (rolling partial
+  // cards make the count the interesting part) — 60s poll.
   const [subs, setSubs] = useState<string[] | null>(null)
+  const [subCounts, setSubCounts] = useState<Record<string, number>>({})
   useEffect(() => {
     if (!board) return
     let stop = false
@@ -88,8 +90,15 @@ export default function NflBoard({
       fetch(`/api/pickem/picks?week=${board.week}&count=1&contest=nfl`)
         .then((r) => r.json())
         .then((d) => {
-          if (!stop && d.status === "ok")
+          if (!stop && d.status === "ok") {
             setSubs((d.ownerIds as (string | number)[]).map(String))
+            if (d.counts) {
+              const c: Record<string, number> = {}
+              for (const [k, v] of Object.entries(d.counts as Record<string, number>))
+                c[String(k)] = Number(v)
+              setSubCounts(c)
+            }
+          }
         })
         .catch(() => {})
     load()
@@ -339,29 +348,77 @@ export default function NflBoard({
         const entrants = eligibleManagers
         const inSet = new Set(subs)
         const waiting = entrants.filter(([id]) => !inSet.has(id))
+        const inCards = entrants.filter(([id]) => inSet.has(id))
+        const total = board.games.length
+        const nameOf = (id: string, label: string) => WHATSAPP_NAMES[id] ?? label
         return (
-          <div className="panel mb-4 flex flex-wrap items-center justify-center gap-2 px-4 py-2 text-center text-xs text-ink-dim">
-            <span>
-              📋 <span className="tnum font-semibold text-ink">{entrants.length - waiting.length}/{entrants.length}</span> cards in
-              {waiting.length > 0 && <span className="text-gold"> · waiting on {waiting.length}</span>}
-            </span>
-            {waiting.length > 0 && (
+          <div className="panel mb-4 px-4 py-2 text-center text-xs text-ink-dim">
+            <div className="flex flex-wrap items-center justify-center gap-2">
+              <details className="group inline-block text-left">
+                <summary className="cursor-pointer list-none rounded-lg px-2 py-1 transition-colors hover:bg-white/5 [&::-webkit-details-marker]:hidden">
+                  📋 <span className="tnum font-semibold text-ink">{inCards.length}/{entrants.length}</span> cards in
+                  {waiting.length > 0 && <span className="text-gold"> · waiting on {waiting.length}</span>}
+                  <span className="ml-1 text-ink-faint transition-transform group-open:hidden">▾</span>
+                  <span className="ml-1 hidden text-ink-faint group-open:inline">▴</span>
+                </summary>
+                <div className="mt-2 grid gap-x-4 gap-y-0.5 rounded-lg bg-white/[0.03] p-3 sm:grid-cols-2">
+                  {inCards
+                    .slice()
+                    .sort(
+                      ([a], [b]) => (subCounts[b] ?? 0) - (subCounts[a] ?? 0)
+                    )
+                    .map(([id, label]) => {
+                      const n = subCounts[id]
+                      const full = n != null && n >= total
+                      return (
+                        <span key={id} className="flex items-center justify-between gap-3">
+                          <span className="truncate text-ink">{nameOf(id, label)}</span>
+                          <span className={`tnum shrink-0 ${full ? "text-promo" : "text-gold"}`}>
+                            {n != null ? `${n}/${total}` : "✓"}
+                          </span>
+                        </span>
+                      )
+                    })}
+                  {waiting.map(([id, label]) => (
+                    <span key={id} className="flex items-center justify-between gap-3">
+                      <span className="truncate text-ink-faint">{nameOf(id, label)}</span>
+                      <span className="tnum shrink-0 text-rose-400">0/{total}</span>
+                    </span>
+                  ))}
+                </div>
+              </details>
+            {(waiting.length > 0 ||
+              inCards.some(([id]) => (subCounts[id] ?? total) < total)) && (
               <button
-                onClick={() =>
+                onClick={() => {
+                  const partials = inCards
+                    .filter(([id]) => (subCounts[id] ?? total) < total)
+                    .sort(([a], [b]) => (subCounts[a] ?? 0) - (subCounts[b] ?? 0))
                   waShare(
                     `🏈 SWRR NFL PICK'EM — Week ${board.week}\n` +
                       `⏱ ${now < board.lockUtc ? `First kickoff in ${fmtCountdown(board.lockUtc - now)}` : `Games lock at their own kickoffs — open ones still take picks`}\n` +
-                      `✗ No card yet (${waiting.length}):\n${waiting
-                        .map(([id, label]) => `@${WHATSAPP_NAMES[id] ?? label}`)
-                        .join("\n")}\n` +
-                      `Every game locks at its own kickoff — pick what's still open.\n👉 ${SITE_URL}`
+                      (waiting.length > 0
+                        ? `✗ No card yet (${waiting.length}):\n${waiting
+                            .map(([id, label]) => `@${WHATSAPP_NAMES[id] ?? label}`)
+                            .join("\n")}\n`
+                        : "") +
+                      (partials.length > 0
+                        ? `⚠️ Short cards:\n${partials
+                            .map(
+                              ([id, label]) =>
+                                `@${WHATSAPP_NAMES[id] ?? label} ${subCounts[id] ?? 0}/${total}`
+                            )
+                            .join("\n")}\n`
+                        : "") +
+                      `Every game locks at its own kickoff — unpicked = zero that game.\n👉 ${SITE_URL}`
                   )
-                }
+                }}
                 className="rounded-lg bg-[#25D366]/15 px-3 py-1.5 font-semibold text-[#25D366] transition-colors hover:bg-[#25D366]/25"
               >
                 📣 WhatsApp the stragglers
               </button>
             )}
+            </div>
           </div>
         )
       })()}

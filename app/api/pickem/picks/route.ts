@@ -35,14 +35,28 @@ export async function GET(req: NextRequest) {
 
   // ?count=1 — who has submitted (ids only, no picks). Not private: it
   // reveals THAT someone picked, never WHAT they picked. Lets the
-  // commissioner (or the board) chase stragglers before lock.
+  // commissioner (or the board) chase stragglers before lock. NFL rolling
+  // partial cards (Sep 24 2026): also HOW MANY games each card covers —
+  // still a count, never a side — so the board can show "Deshu 12/16".
   if (q.get("count") === "1") {
     const owners = await listPickOwners(SEASON, week, contest)
+    let counts: Record<string, number> | undefined
+    if (contest === "nfl") {
+      const all = await Promise.all(
+        owners.map((o) => getUserPicks(SEASON, week, o, contest))
+      )
+      counts = {}
+      for (const p of all) {
+        if (!p) continue
+        counts[p.ownerId] = Object.keys(effectivePicks(p)?.picks ?? {}).length
+      }
+    }
     return NextResponse.json({
       status: "ok",
       submitted: owners.length,
       entrants: PICKEM_ENTRANTS,
       ownerIds: owners,
+      counts,
     })
   }
 
