@@ -49,6 +49,7 @@ type LeaderResp = {
       points: number
       correct: number
       submitted: boolean
+      livePoints?: number
     }[]
   } | null
   table: {
@@ -280,10 +281,18 @@ export default function PickemPage() {
   useEffect(() => {
     if (tab !== "leaderboard") return
     setLeader(null)
-    fetch(`/api/pickem/leaderboard${lbContest ? `?contest=${lbContest}` : ""}`)
-      .then((r) => r.json())
-      .then(setLeader)
-      .catch(() => null)
+    const load = () =>
+      fetch(`/api/pickem/leaderboard${lbContest ? `?contest=${lbContest}` : ""}`)
+        .then((r) => r.json())
+        .then(setLeader)
+        .catch(() => null)
+    load()
+    // NFL era: refresh every 90s so the live-week projection tracks the
+    // games while managers sit on this tab sizing their late bets.
+    const id = lbContest === "nfl" ? setInterval(load, 90_000) : null
+    return () => {
+      if (id) clearInterval(id)
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab, lbContest])
 
@@ -1176,28 +1185,45 @@ export default function PickemPage() {
                       </span>
                     </h3>
                     <p className="border-b border-line px-4 py-2 text-[11px] text-ink-faint">
-                      Updates as each game goes final — these points already count in the
-                      season standings above. Weekly 🔮/🦏 settle when the week ends.
-                      Trailing? The tight alt-lines (1½ / 3 pts) are still open on every
-                      game that hasn&apos;t kicked off.
+                      <span className="text-ink-dim">Banked</span> = finished games only
+                      (official, counts in the standings above).{" "}
+                      <span className="text-promo">Live</span> = if every game in progress
+                      ended right now — the number to size a late bet with. Weekly 🔮/🦏
+                      settle after MNF. Trailing? The tight alt-lines (1½ / 3 pts) stay
+                      open on every game that hasn&apos;t kicked off.
                     </p>
                     <ul className="p-2">
                       {leader.liveWeek.scores
                         .filter((s) => s.submitted)
-                        .map((s, i) => (
-                          <li
-                            key={s.ownerId}
-                            className="flex items-center justify-between gap-2 px-2 py-1.5 text-sm"
-                          >
-                            <span className="min-w-0 truncate text-ink">
-                              <span className="display mr-2 text-ink-faint">{i + 1}</span>
-                              {s.name}
-                            </span>
-                            <span className="tnum shrink-0 text-ink-dim">
-                              {s.points.toFixed(1)} pts
-                            </span>
-                          </li>
-                        ))}
+                        .slice()
+                        .sort(
+                          (x, y) =>
+                            (y.livePoints ?? y.points) - (x.livePoints ?? x.points) ||
+                            y.points - x.points
+                        )
+                        .map((s, i) => {
+                          const lp = s.livePoints ?? s.points
+                          const moving = Math.abs(lp - s.points) > 1e-9
+                          return (
+                            <li
+                              key={s.ownerId}
+                              className="flex items-center justify-between gap-2 px-2 py-1.5 text-sm"
+                            >
+                              <span className="min-w-0 truncate text-ink">
+                                <span className="display mr-2 text-ink-faint">{i + 1}</span>
+                                {s.name}
+                              </span>
+                              <span className="tnum shrink-0 text-ink-dim">
+                                {s.points.toFixed(1)} banked
+                                {moving && (
+                                  <span className={lp > s.points ? "text-promo" : "text-rose-400"}>
+                                    {" "}· {lp.toFixed(1)} live
+                                  </span>
+                                )}
+                              </span>
+                            </li>
+                          )
+                        })}
                     </ul>
                   </section>
                 )}

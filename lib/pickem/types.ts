@@ -97,6 +97,10 @@ export type UserWeekScore = {
   // (+lock), and INELIGIBLE for the weekly prize/Oracle — season points
   // only. Still Blindfold-eligible (they submitted).
   lateCard: boolean
+  // LIVE WEEK ONLY (never persisted): points if every in-progress game
+  // ended at its current score — the projection managers size late bets
+  // with. Official `points` still bank finals only.
+  livePoints?: number
 }
 
 export type WeekResult = {

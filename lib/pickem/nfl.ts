@@ -33,7 +33,7 @@ type EspnEvent = {
   competitions: {
     date: string
     odds?: { details?: string; spread?: number }[]
-    status: { type: { name: string } }
+    status: { type: { name: string; shortDetail?: string } }
     competitors: EspnCompetitor[]
   }[]
 }
@@ -145,6 +145,61 @@ export async function refreshNflBoard(board: Board): Promise<Board> {
   if (last > 0) board.buybackEndUtc = last
   board.refreshedAt = Date.now()
   return board
+}
+
+/** One ESPN fetch → everything live scoring needs (Sep 24 2026: true
+    rolling locks mean the 1PM games are still running when the 4:25 window
+    opens, so managers sizing a late bet need both numbers):
+    - banked: FINAL games only — the official points map (same rule as
+      nflPointsMap: money never rides an unfinished game)
+    - live:   finals + in-progress at their CURRENT score — "if every game
+      ended right now", the projection a trailer sizes an alt-line with
+    - games:  per-game scoreboard (away/home score, phase, "Q3 7:12") for
+      the board UI. */
+export type NflGameLive = {
+  id: string
+  a: number // away score
+  b: number // home score
+  phase: "pre" | "live" | "final"
+  detail: string // ESPN shortDetail: "Q3 7:12", "Final", "Sun 4:25 PM"
+}
+export async function nflWeekSnapshot(week: number): Promise<{
+  banked: Map<string, number>
+  live: Map<string, number>
+  games: NflGameLive[]
+}> {
+  const events = await fetchWeek(SEASON, week)
+  const banked = new Map<string, number>()
+  const live = new Map<string, number>()
+  const games: NflGameLive[] = []
+  for (const ev of events) {
+    const comp = ev.competitions?.[0]
+    if (!comp) continue
+    const statusName = comp.status?.type?.name ?? ""
+    const phase: NflGameLive["phase"] =
+      statusName === "STATUS_FINAL"
+        ? "final"
+        : statusName === "STATUS_SCHEDULED"
+        ? "pre"
+        : "live"
+    let aScore = 0
+    let bScore = 0
+    for (const c of comp.competitors) {
+      const score = Number(c.score ?? 0)
+      banked.set(`nfl-${Number(c.team.id)}`, phase === "final" ? score : 0)
+      live.set(`nfl-${Number(c.team.id)}`, phase === "pre" ? 0 : score)
+      if (c.homeAway === "away") aScore = score
+      else bScore = score
+    }
+    games.push({
+      id: `nfl-${ev.id}`,
+      a: aScore,
+      b: bScore,
+      phase,
+      detail: comp.status?.type?.shortDetail ?? "",
+    })
+  }
+  return { banked, live, games }
 }
 
 /** Final scores for outcome grading, keyed the way gameOutcomes expects

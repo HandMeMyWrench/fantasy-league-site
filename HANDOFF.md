@@ -212,6 +212,17 @@ NFL_PICKEM_ENABLED in lib/pickem/nfl.ts (false) — commissioner previews via
   and the UI snaps: picking an alt-tier clears a lock on that game, locking
   a game snaps its alt-tier pick back to market. Tier tests in
   tests/pickem-scoring.test.ts (76 passing).
+- LIVE SCORING (Sep 24 2026): rolling locks mean the 1PM games are still
+  running when the 4:25 window opens, so managers need live standing to
+  size late bets. nflWeekSnapshot (nfl.ts) = one ESPN fetch → banked map
+  (finals only, official), live map (finals + in-progress at current
+  score), per-game scoreboard. /api/pickem/scores?week=N serves the board
+  UI (NflBoard polls 60s once any game kicks): each card shows live
+  score + clock, and the frozen pick line shows covering/behind-by-N (ATS,
+  vs the displayed tier line) or leading/trailing (ML). Leaderboard live
+  week shows "X banked · Y live" per manager (livePoints on UserWeekScore,
+  live-week only, never persisted — money still banks finals only) and
+  the page polls 90s on the NFL tab.
 - 2027 punch list: NFL leaderboard UI (route supports ?contest=nfl,
   Leaderboard tab doesn't), submissions counter/share buttons, per-league
   contest config, money rules if the league votes it real.

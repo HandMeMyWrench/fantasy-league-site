@@ -20,20 +20,29 @@ import {
   storageConfigured,
   type Contest,
 } from "@/lib/pickem/storage"
-import { nflPointsMap } from "@/lib/pickem/nfl"
+import { nflPointsMap, nflWeekSnapshot } from "@/lib/pickem/nfl"
 
 export const dynamic = "force-dynamic"
 
 type SleeperMatchup = { roster_id: number; points?: number }
 
-async function computeWeek(week: number, contest: Contest = ""): Promise<WeekResult | null> {
+async function computeWeek(
+  week: number,
+  contest: Contest = "",
+  // LIVE WEEK: pre-fetched snapshot — banked (finals only) drives the
+  // official scores, live (finals + in-progress at current score) adds a
+  // livePoints projection to every row. One ESPN fetch, one picks read.
+  liveMaps?: { banked: Map<string, number>; live: Map<string, number> }
+): Promise<WeekResult | null> {
   const board = await getBoard(SEASON, week, contest)
   if (!board) return null
 
   // Outcome points: fantasy = Sleeper matchup totals (league-qualified keys
   // — roster ids 1-12 exist in BOTH leagues); NFL = ESPN final scores.
   let points: Map<string, number>
-  if (contest === "nfl") {
+  if (liveMaps) {
+    points = liveMaps.banked
+  } else if (contest === "nfl") {
     points = await nflPointsMap(week)
   } else {
     const cfg = LEAGUES[SEASON as SeasonYear]
@@ -76,6 +85,17 @@ async function computeWeek(week: number, contest: Contest = ""): Promise<WeekRes
   const scores = allPicks.map((p) =>
     scoreUser(board, outcomes, p, nameByOwner.get(p.ownerId) ?? "Unknown")
   )
+  if (liveMaps) {
+    const liveOutcomes = gameOutcomes(board, liveMaps.live)
+    for (let i = 0; i < allPicks.length; i++) {
+      scores[i].livePoints = scoreUser(
+        board,
+        liveOutcomes,
+        allPicks[i],
+        scores[i].name
+      ).points
+    }
+  }
   const { sorted, winners, loser } = rankScores(scores)
   return {
     season: SEASON,
@@ -134,7 +154,12 @@ export async function GET(req: Request) {
   // so nobody's open picks are revealed.
   let liveWeek: (WeekResult & { live: true }) | null = null
   if (contest === "nfl" && currentWeek > FANTASY_FINAL_WEEK && currentWeek <= REGULAR_SEASON_WEEKS) {
-    const r = await computeWeek(currentWeek, contest)
+    const snap = await nflWeekSnapshot(currentWeek).catch(() => null)
+    const r = await computeWeek(
+      currentWeek,
+      contest,
+      snap ? { banked: snap.banked, live: snap.live } : undefined
+    )
     if (r && r.scores.some((s) => s.submitted)) liveWeek = { ...r, live: true }
   }
 

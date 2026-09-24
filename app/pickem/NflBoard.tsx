@@ -142,6 +142,43 @@ export default function NflBoard({
     }
   }
 
+  // LIVE SCORES (Sep 24 2026): true rolling locks mean managers size late
+  // bets while early games run — poll the scoreboard every 60s whenever any
+  // game has kicked but the week isn't done, so each card shows its real
+  // score and clock next to the frozen pick.
+  const [liveScores, setLiveScores] = useState<
+    Map<string, { a: number; b: number; phase: "pre" | "live" | "final"; detail: string }>
+  >(new Map())
+  useEffect(() => {
+    if (!board) return
+    const anyKicked = () => board.games.some((g) => (g.kickoff ?? 0) <= Date.now())
+    const allFinal = () =>
+      board.games.length > 0 &&
+      board.games.every((g) => liveScores.get(g.id)?.phase === "final")
+    const load = () => {
+      if (!anyKicked()) return
+      fetch(`/api/pickem/scores?week=${board.week}`)
+        .then((r) => r.json())
+        .then((d) => {
+          if (d.status === "ok")
+            setLiveScores(
+              new Map(
+                (d.games as { id: string; a: number; b: number; phase: "pre" | "live" | "final"; detail: string }[]).map(
+                  (g) => [g.id, g]
+                )
+              )
+            )
+        })
+        .catch(() => {})
+    }
+    load()
+    const id = setInterval(() => {
+      if (!allFinal()) load()
+    }, 60_000)
+    return () => clearInterval(id)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [resp])
+
   // Game conditions: venue = home team's stadium; reuse the fantasy board's
   // dome/weather engine (ET game date drives the forecast).
   const [envs, setEnvs] = useState<Map<string, GameEnv>>(new Map())
@@ -279,14 +316,35 @@ export default function NflBoard({
             <div key={g.id} className="panel overflow-hidden">
               <div className="flex items-center justify-between border-b border-line bg-surface-2 px-3 py-1.5">
                 <span className="display text-[11px] tracking-widest text-ink-faint">
-                  {fmtKick(g.kickoff)}
-                  {g.spread ? (
+                  {(() => {
+                    const ls = liveScores.get(g.id)
+                    if (ls && ls.phase !== "pre")
+                      return (
+                        <>
+                          <span className={`tnum font-bold ${ls.phase === "live" ? "text-promo" : "text-ink"}`}>
+                            {g.a.owner} {ls.a}–{ls.b} {g.b.owner}
+                          </span>
+                          <span className="ml-2">
+                            {ls.phase === "live" ? (
+                              <span className="text-promo">
+                                <span className="mr-1 inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-promo align-middle" />
+                                {ls.detail}
+                              </span>
+                            ) : (
+                              "FINAL"
+                            )}
+                          </span>
+                        </>
+                      )
+                    return fmtKick(g.kickoff)
+                  })()}
+                  {g.spread && !(liveScores.get(g.id) && liveScores.get(g.id)!.phase !== "pre") ? (
                     <span className="ml-2 text-brand">
                       {g[g.favorite].owner} −{g.spread}
                     </span>
-                  ) : (
+                  ) : !g.spread ? (
                     <span className="ml-2">no line</span>
-                  )}
+                  ) : null}
                   {(() => {
                     const env = envs.get(g.b.owner)
                     if (!env) return null
@@ -414,15 +472,50 @@ export default function NflBoard({
                         )
                       })()}
                       {(closed || kicked(g)) && sel && (() => {
-                        if (sel.market !== "ats")
-                          return <p className="tnum mt-1 text-[11px] text-brand">✓ win</p>
+                        const ls = liveScores.get(g.id)
+                        const myDiff =
+                          ls && ls.phase !== "pre"
+                            ? (side === "a" ? ls.a - ls.b : ls.b - ls.a)
+                            : null
+                        const status = (label: string, good: boolean | null) =>
+                          good == null ? null : (
+                            <span className={good ? "text-promo" : "text-rose-400"}>
+                              {" "}· {label}
+                            </span>
+                          )
+                        if (sel.market !== "ats") {
+                          const st =
+                            myDiff == null
+                              ? null
+                              : status(
+                                  myDiff > 0 ? "leading" : myDiff < 0 ? "trailing" : "tied",
+                                  myDiff > 0 ? true : myDiff < 0 ? false : null
+                                )
+                          return (
+                            <p className="tnum mt-1 text-[11px] text-brand">
+                              ✓ win{st}
+                            </p>
+                          )
+                        }
                         const tier = sel.tier ?? "market"
                         const adj = { tease: 7, market: 0, tight1: -7, tight2: -14 }[tier]
                         const pts = { tease: "½", market: "1", tight1: "1½", tight2: "3" }[tier]
                         const l = line != null ? line + adj : null
+                        const margin = myDiff != null && l != null ? myDiff + l : null
+                        const st =
+                          margin == null
+                            ? null
+                            : status(
+                                margin > 0
+                                  ? `covering by ${margin}`
+                                  : margin < 0
+                                  ? `behind by ${-margin}`
+                                  : "on the number",
+                                margin > 0 ? true : margin < 0 ? false : null
+                              )
                         return (
                           <p className="tnum mt-1 text-[11px] text-brand">
-                            ✓ cover {l != null ? (l > 0 ? `+${l}` : l) : ""} · {pts} pt
+                            ✓ cover {l != null ? (l > 0 ? `+${l}` : l) : ""} · {pts} pt{st}
                           </p>
                         )
                       })()}
