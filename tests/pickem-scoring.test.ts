@@ -230,16 +230,16 @@ const atsGB = (line: number, tier?: NflPick["tier"]): NflPick =>
 
 check("tier tables agree on keys", Object.keys(ATS_TIER_PTS).sort().join() === Object.keys(ATS_TIER_ADJUST).sort().join())
 
-// GB -6, wins by 10.
+// GB -6, wins by 10. (Payouts repriced Sep 24 2026: 1 / 1½ / 2 / 3.)
 const sMkt = scoreUser(nflBoard, nflOut, nflPick({ "nfl-1": atsGB(-6) }), "P")
-check("market cover = 1 pt", sMkt.points === 1, `got ${sMkt.points}`)
+check("market cover = 1½ pts", sMkt.points === 1.5, `got ${sMkt.points}`)
 const sTease = scoreUser(nflBoard, nflOut, nflPick({ "nfl-1": atsGB(-6 + 7, "tease") }), "P")
-check("tease cover (+1 line) = ½ pt", sTease.points === 0.5, `got ${sTease.points}`)
+check("tease cover (+1 line) = 1 pt", sTease.points === 1, `got ${sTease.points}`)
 const sT1miss = scoreUser(nflBoard, nflOut, nflPick({ "nfl-1": atsGB(-6 - 7, "tight1") }), "P")
 check("tight1 miss (-13, won by 10) = 0", sT1miss.points === 0, `got ${sT1miss.points}`)
 // If the stamp had been GB -8.5, tight1 line -1.5... use a winnable tight1: stamped -2 → tight1 -9? won by 10 covers.
 const sT1hit = scoreUser(nflBoard, nflOut, nflPick({ "nfl-1": atsGB(-9, "tight1") }), "P")
-check("tight1 cover = 1½ pts", sT1hit.points === 1.5, `got ${sT1hit.points}`)
+check("tight1 cover = 2 pts", sT1hit.points === 2, `got ${sT1hit.points}`)
 const sT2hit = scoreUser(nflBoard, nflOut, nflPick({ "nfl-1": atsGB(-9.5, "tight2") }), "P")
 check("tight2 cover = 3 pts", sT2hit.points === 3, `got ${sT2hit.points}`)
 // Push on the adjusted line: GB won by exactly 10, line -10.
@@ -247,7 +247,7 @@ const sPushAdj = scoreUser(nflBoard, nflOut, nflPick({ "nfl-1": atsGB(-10, "tigh
 check("push on adjusted line = 0 pts", sPushAdj.points === 0, `got ${sPushAdj.points}`)
 // No upset bonus ATS: underdog DAL +3 covers (wins outright) — still tier points only.
 const sDogAts = scoreUser(nflBoard, nflOut, nflPick({ "nfl-2": { side: "a", market: "ats", line: 3, fav: false } }), "P")
-check("ATS underdog cover = 1 pt (no upset bonus)", sDogAts.points === 1 && sDogAts.upsets === 0, `got ${sDogAts.points}`)
+check("ATS underdog cover = 1½ pts (no upset bonus)", sDogAts.points === 1.5 && sDogAts.upsets === 0, `got ${sDogAts.points}`)
 // Locks ride the market: lock on market ATS behaves as a lock…
 const sLockMkt = scoreUser(nflBoard, nflOut, nflPick({ "nfl-1": atsGB(-6) }, "nfl-1"), "P")
 check("lock on market cover = 3 pts", sLockMkt.points === 3 && sLockMkt.lockResult === "hit")

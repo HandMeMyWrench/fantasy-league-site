@@ -574,14 +574,14 @@ export default function NflBoard({
                             <div className="mt-1.5 flex gap-1 text-[11px]">
                               {chip(sel?.market === "ml", "Win · 1", () => setPick("ml"))}
                               {line != null &&
-                                chip(curTier === "market", `Cvr ${fmt(line)} · 1`, () =>
+                                chip(curTier === "market", `Cvr ${fmt(line)} · 1½`, () =>
                                   setPick("ats")
                                 )}
                             </div>
                             {line != null && (
                               <div className="mt-1 flex gap-1 text-[10px]">
-                                {chip(curTier === "tease", `${fmt(line + 7)} · ½`, () => setPick("ats", "tease"), true)}
-                                {chip(curTier === "tight1", `${fmt(line - 7)} · 1½`, () => setPick("ats", "tight1"), true)}
+                                {chip(curTier === "tease", `${fmt(line + 7)} · 1`, () => setPick("ats", "tease"), true)}
+                                {chip(curTier === "tight1", `${fmt(line - 7)} · 2`, () => setPick("ats", "tight1"), true)}
                                 {chip(curTier === "tight2", `${fmt(line - 14)} · 3`, () => setPick("ats", "tight2"), true)}
                               </div>
                             )}
@@ -616,7 +616,7 @@ export default function NflBoard({
                         }
                         const tier = sel.tier ?? "market"
                         const adj = { tease: 7, market: 0, tight1: -7, tight2: -14 }[tier]
-                        const pts = { tease: "½", market: "1", tight1: "1½", tight2: "3" }[tier]
+                        const pts = { tease: "1", market: "1½", tight1: "2", tight2: "3" }[tier]
                         const l = line != null ? line + adj : null
                         const margin = myDiff != null && l != null ? myDiff + l : null
                         const st =

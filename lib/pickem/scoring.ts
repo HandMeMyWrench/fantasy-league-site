@@ -20,11 +20,16 @@ import type {
   UserWeekScore,
 } from "./types"
 
-/** ATS payout per tier (see types.ts for the pricing rationale). */
+/** ATS payout per tier (see types.ts for the pricing rationale).
+    REPRICED Sep 24 2026 (league vote, pre-kickoff week 3): a 50/50 cover
+    paying the same 1 pt as a ~63% chalk ML made the spread strictly worse —
+    now the market cover pays a premium over chalk (EV .75 vs ~.63) and each
+    notch tighter is +½ pt. Market stays the best pure-EV spread bet
+    (tease .70 / market .75 / tight1 .60 / tight2 .45). */
 export const ATS_TIER_PTS: Record<string, number> = {
-  tease: 0.5,
-  market: 1,
-  tight1: 1.5,
+  tease: 1,
+  market: 1.5,
+  tight1: 2,
   tight2: 3,
 }
 /** TD-step line adjustment per tier, applied to the picked side's line. */

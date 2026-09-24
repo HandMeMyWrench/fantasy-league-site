@@ -1189,7 +1189,7 @@ export default function PickemPage() {
                       (official, counts in the standings above).{" "}
                       <span className="text-promo">Live</span> = if every game in progress
                       ended right now — the number to size a late bet with. Weekly 🔮/🦏
-                      settle after MNF. Trailing? The tight alt-lines (1½ / 3 pts) stay
+                      settle after MNF. Trailing? The tight alt-lines (2 / 3 pts) stay
                       open on every game that hasn&apos;t kicked off.
                     </p>
                     <ul className="p-2">
@@ -1303,9 +1303,10 @@ export default function PickemPage() {
               <span className="font-semibold text-ink">Two ways to bet each
               game.</span> Pick a team to <span className="text-ink">WIN</span>{" "}
               (moneyline — underdog wins pay the +1 bonus), or to{" "}
-              <span className="text-ink">COVER the spread</span> (1 pt flat, no
-              upset bonus — the line already levels it; land exactly on the
-              number = push, no points either way). Sportsbook rules on lines:
+              <span className="text-ink">COVER the spread</span> (1½ pts — a
+              50/50 cover pays a premium over chalk; no upset bonus, the line
+              already levels it; land exactly on the number = push, no points
+              either way). Sportsbook rules on lines:
               spreads move all week, and{" "}
               <span className="text-ink">you&apos;re graded on the line showing
               when you saved the pick</span> — later movement never re-prices a
@@ -1314,10 +1315,10 @@ export default function PickemPage() {
             <p>
               <span className="font-semibold text-ink">Move the line
               yourself.</span> On any cover bet you can shift the spread in
-              touchdown steps, priced like the sportsbooks price alt-lines:
-              tease it <span className="text-ink">7 easier → ½ pt</span>, take
-              the <span className="text-ink">market line → 1 pt</span>, tighten
-              it <span className="text-ink">7 → 1½ pts</span>, or tighten it{" "}
+              touchdown steps — every notch tighter is +½ pt: tease it{" "}
+              <span className="text-ink">7 easier → 1 pt</span>, take the{" "}
+              <span className="text-ink">market line → 1½ pts</span>, tighten
+              it <span className="text-ink">7 → 2 pts</span>, or tighten it{" "}
               <span className="text-ink">14 → 3 pts</span>. Alt-lines stamp at
               save time like everything else. One house rule:{" "}
               <span className="text-ink">Locks ride the market</span> — you

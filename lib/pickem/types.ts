@@ -43,10 +43,11 @@ export type Board = {
 // `line`/`fav` are stamped SERVER-SIDE at submit from the live board — the
 // line you bet is the line you're graded on, however it moves later.
 // ATS alt-line tiers (touchdown steps from the market line, priced so the
-// market line is always the best pure-EV bet):
-//   tease  = 7 EASIER  -> 0.5 pt   (~70% cover)
-//   market = the line  -> 1 pt     (~50%)
-//   tight1 = 7 HARDER  -> 1.5 pts  (~30%)
+// market line is always the best pure-EV bet; repriced Sep 24 2026 so a
+// 50/50 cover pays a premium over a ~63% chalk ML — see scoring.ts):
+//   tease  = 7 EASIER  -> 1 pt     (~70% cover)
+//   market = the line  -> 1.5 pts  (~50%)
+//   tight1 = 7 HARDER  -> 2 pts    (~30%)
 //   tight2 = 14 HARDER -> 3 pts    (~15%)
 // `line` always stores the FINAL adjusted number the pick is graded on.
 // Locks ride the market only — no alt-line locks (teaser+lock would be a

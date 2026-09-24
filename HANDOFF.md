@@ -201,10 +201,17 @@ NFL_PICKEM_ENABLED in lib/pickem/nfl.ts (false) — commissioner previews via
   live line + favorite (sportsbook rule: graded on the line you bet, however
   it moves later); unchanged picks keep their original stamp; board display
   lines refresh from ESPN on a 5-min throttle (refreshNflBoard).
-- ALT-LINE TIERS (Sep 24 2026, ratified + built): ATS picks can shift the
-  spread in touchdown steps, EV-priced so the market line is the best pure
-  bet — tease +7 easier = ½ pt, market = 1 pt, tighten −7 = 1½ pts, tighten
+- ALT-LINE TIERS (Sep 24 2026, ratified + built; REPRICED same day on
+  league feedback, pre-kickoff): ATS picks shift the spread in touchdown
+  steps — tease +7 = 1 pt, market = 1½ pts, tighten −7 = 2 pts, tighten
   −14 = 3 pts (ATS_TIER_PTS / ATS_TIER_ADJUST in scoring.ts; NflPick.tier).
+  Rationale: at 1 pt a 50/50 cover was strictly dominated by ~63% chalk
+  ML; now the market cover carries an EV premium over chalk (.75 vs ~.63)
+  and each notch tighter is +½ pt. Market stays best pure-EV spread bet
+  (tease .70 / market .75 / tight1 .60 / tight2 .45); small-dog ML (2 pts
+  w/ upset bonus) is still the top-EV play on close games. Constants read
+  at grade time, so week 3's pre-reprice cards got the new (better) prices
+  — nothing was played yet.
   Stored `line` is ALWAYS the final adjusted number the pick grades on.
   HOUSE RULE: locks ride the market only — no alt-line locks (teaser+lock
   would be ~70% at 3 pts). Enforced server-side (picks route rejects),
