@@ -574,7 +574,7 @@ export default function NflBoard({
                             <div className="mt-1.5 flex gap-1 text-[11px]">
                               {chip(sel?.market === "ml", "Win · 1", () => setPick("ml"))}
                               {line != null &&
-                                chip(curTier === "market", `Cvr ${fmt(line)} · 1½`, () =>
+                                chip(curTier === "market", `${fmt(line)} · 1½`, () =>
                                   setPick("ats")
                                 )}
                             </div>
