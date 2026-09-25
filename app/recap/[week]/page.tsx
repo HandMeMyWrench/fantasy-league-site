@@ -38,7 +38,13 @@ type CatRow = {
   position?: string
   injury_status?: string
 }
-type LineupMove = { t: number; team: string; in: string[]; out: string[] }
+type LineupMove = {
+  t: number
+  team: string
+  in: string[]
+  out: string[]
+  inj?: Record<string, string> // injury tags stamped at capture time
+}
 
 type GameLine = { winner: string; wPts: number; loser: string; lPts: number; margin: number }
 
@@ -291,7 +297,10 @@ export default function RecapIssue() {
         { n: 0, excused: 0, scramble: 0, ins: new Set<string>(), outs: new Set<string>() }
       row.n += mv.in.length + mv.out.length
       for (const p of mv.out) {
-        if (INJ.has(cat[p]?.injury_status ?? "")) row.excused++
+        // Capture-time stamp is the truth; read-time catalog tag only
+        // covers pre-stamping events (none after Sep 25 2026).
+        const tag = mv.inj?.[p] ?? cat[p]?.injury_status ?? ""
+        if (INJ.has(tag)) row.excused++
         else if (isSundayScramble(mv.t)) row.scramble++
       }
       mv.in.forEach((p) => row.ins.add(p))

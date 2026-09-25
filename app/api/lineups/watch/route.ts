@@ -31,6 +31,11 @@ export type LineupMove = {
   team: string // `${league}-${rosterId}`
   in: string[] // player ids entering the lineup
   out: string[] // player ids leaving it
+  // Injury tags AT CAPTURE TIME (commissioner, Sep 25 2026): a player's
+  // Questionable can clear by Tuesday, so excusal must be judged on the
+  // tag he carried when the move happened, not at recap time. Only moved
+  // players with a tag appear here.
+  inj?: Record<string, string>
 }
 
 async function starters(leagueId: string, week: number): Promise<Map<string, string[]>> {
@@ -92,6 +97,31 @@ export async function GET() {
       moves.push({ t: now, team, in: added, out: removed })
   }
   if (moves.length) {
+    // Stamp injury tags at capture time. The catalog is ~5MB, so it's
+    // fetched ONLY on runs that actually caught a change (most samples
+    // find nothing) — never on the every-5-min heartbeat itself.
+    try {
+      const catRes = await fetch("https://api.sleeper.app/v1/players/nfl", {
+        cache: "no-store",
+      })
+      if (catRes.ok) {
+        const catalog = (await catRes.json()) as Record<
+          string,
+          { injury_status?: string } | undefined
+        >
+        for (const m of moves) {
+          const inj: Record<string, string> = {}
+          for (const p of [...m.in, ...m.out]) {
+            const s = catalog[p]?.injury_status
+            if (s) inj[p] = s
+          }
+          if (Object.keys(inj).length) m.inj = inj
+        }
+      }
+    } catch {
+      // catalog unavailable — moves still log, just untagged (recap falls
+      // back to read-time tags for these)
+    }
     await db.rpush(kMoves(week), ...moves.map((m) => JSON.stringify(m)))
     await db.ltrim(kMoves(week), -800, -1) // cap the log
     // Season-long TINKER INDEX: running per-team change count — the
