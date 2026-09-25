@@ -14,6 +14,7 @@ const BASE_LINKS: { href: string; label: string }[] = [
   // re-adding: { href: "/matchups", label: "Matchups" },
   { href: "/pickem", label: "Pick'em" },
   { href: "/bets", label: "Bets" },
+  { href: "/recap", label: "Recaps" },
   { href: "/history", label: "History" },
 ]
 

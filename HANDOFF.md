@@ -234,6 +234,26 @@ NFL_PICKEM_ENABLED in lib/pickem/nfl.ts (false) — commissioner previews via
   Leaderboard tab doesn't), submissions counter/share buttons, per-league
   contest config, money rules if the league votes it real.
 
+## THE WEEKLY — recap pages (Sep 25 2026)
+
+Sleeper-overlap purge, same day: Matchups HIDDEN from nav (league checks
+Sleeper; page still live at /matchups, pick'em reuses its machinery; nav
+strategy = only what Sleeper can't do). In its place: /recap (archive
+index) + /recap/[week] ("THE WEEKLY" issue pages). Inspired by League
+Legacy's newsletters, adapted: page-not-post because the WhatsApp chat is
+too noisy for wall-of-text recaps — the chat gets a 2-line teaser + link
+(share button on each issue). Deterministic sportswriting from data the
+site already computes (Sleeper finals + pick'em leaderboard weeks):
+storyline cards (Game of the Week = closest, Beatdown = biggest margin,
+Top Gun / Stinker = high/low team score), pick'em money section (Oracle,
+Blindfold, full card list), per-league results. Weeks 1-2 pull the
+fantasy-era leaderboard, wk 3+ the NFL one. Issue for week N appears only
+once N < currentWeek. Future (app era): AI punch-up pass over the copy,
+commissioner edit box, special editions — the League Legacy playbook.
+OWNER GOALS (stated Sep 25 2026): move to an app after the 2026 season;
+ultimate goal is acquisition by Sleeper — positioning = the money-games +
+relegation layer ON TOP of Sleeper, never duplicating it.
+
 ## Nav consolidation (July 2026)
 
 Season nav is now: Standings, Matchups, Pick'em, History (+ Draft Lottery
