@@ -31,7 +31,13 @@ type Matchup = {
   players?: string[]
   players_points?: Record<string, number>
 }
-type CatRow = { full_name?: string; first_name?: string; last_name?: string; position?: string }
+type CatRow = {
+  full_name?: string
+  first_name?: string
+  last_name?: string
+  position?: string
+  injury_status?: string
+}
 type LineupMove = { t: number; team: string; in: string[]; out: string[] }
 
 type GameLine = { winner: string; wPts: number; loser: string; lPts: number; margin: number }
@@ -97,6 +103,7 @@ export default function RecapIssue() {
   const [cat, setCat] = useState<Record<string, CatRow>>({})
   const [moves, setMoves] = useState<LineupMove[]>([])
   const [tinker, setTinker] = useState<Record<string, number>>({})
+  const [openSnap, setOpenSnap] = useState<Record<string, string[]> | null>(null)
 
   useEffect(() => {
     if (!week || week < 1 || week > 18) {
@@ -156,6 +163,10 @@ export default function RecapIssue() {
     fetch(`/api/lineups/moves?tally=1`)
       .then((r) => r.json())
       .then((d) => setTinker(d.status === "ok" ? (d.tally as Record<string, number>) : {}))
+      .catch(() => {})
+    fetch(`/api/lineups/moves?week=${week}&open=1`)
+      .then((r) => r.json())
+      .then((d) => setOpenSnap(d.status === "ok" ? d.open : null))
       .catch(() => {})
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [week])
@@ -253,22 +264,66 @@ export default function RecapIssue() {
       const r = data?.r.find((x) => x.roster_id === Number(rid))
       return r ? teamDisplayName(r, data!.u[r.owner_id]) : key
     }
-    const perTeam = new Map<string, { n: number; ins: Set<string>; outs: Set<string> }>()
+    // Fairness rules (commissioner, Sep 25 2026): pulling a player who
+    // carries an injury tag is normal management — those changes are
+    // counted but EXCUSED, never mocked. Everything else is discretionary
+    // (projections, vibes), and discretionary moves made Sunday morning
+    // (6 AM–1 PM ET) are the scramble — the ones the recap exists for.
+    const INJ = new Set(["Questionable", "Doubtful", "Out", "IR", "PUP", "Sus", "COV"])
+    const isSundayScramble = (t: number) => {
+      const parts = new Intl.DateTimeFormat("en-US", {
+        timeZone: "America/New_York",
+        weekday: "short",
+        hour: "numeric",
+        hour12: false,
+      }).formatToParts(new Date(t))
+      const wd = parts.find((p) => p.type === "weekday")?.value
+      const hr = Number(parts.find((p) => p.type === "hour")?.value ?? 0)
+      return wd === "Sun" && hr >= 6 && hr < 13
+    }
+    const perTeam = new Map<
+      string,
+      { n: number; excused: number; scramble: number; ins: Set<string>; outs: Set<string> }
+    >()
     for (const mv of moves) {
-      const row = perTeam.get(mv.team) ?? { n: 0, ins: new Set(), outs: new Set() }
+      const row =
+        perTeam.get(mv.team) ??
+        { n: 0, excused: 0, scramble: 0, ins: new Set<string>(), outs: new Set<string>() }
       row.n += mv.in.length + mv.out.length
+      for (const p of mv.out) {
+        if (INJ.has(cat[p]?.injury_status ?? "")) row.excused++
+        else if (isSundayScramble(mv.t)) row.scramble++
+      }
       mv.in.forEach((p) => row.ins.add(p))
       mv.out.forEach((p) => row.outs.add(p))
       perTeam.set(mv.team, row)
+    }
+    // Tinker verdict: final starters' points vs the week-opening lineup's
+    // points (players_points covers the whole roster). Positive = the
+    // tinkering earned its keep; negative = he outsmarted himself.
+    const verdictFor = (key: string): number | null => {
+      if (!openSnap?.[key]) return null
+      const [tier, rid] = key.split("-")
+      const data = tier === "upper" ? raw.upper : raw.lower
+      const m = data?.m.find((x) => x.roster_id === Number(rid))
+      if (!m?.players_points) return null
+      const finalS = (m.starters ?? []).filter((p) => p && p !== "0")
+      const openS = openSnap[key].filter((p) => p && p !== "0")
+      if (finalS.join() === openS.join()) return null
+      const sum = (ids: string[]) => ids.reduce((a, p) => a + (m.players_points![p] ?? 0), 0)
+      return sum(finalS) - sum(openS)
     }
     const fiddlers = [...perTeam.entries()]
       .map(([key, v]) => ({
         team: teamName(key),
         n: v.n,
+        excused: v.excused,
+        scramble: v.scramble,
         season: tinker[key] ?? v.n,
         flipFlops: [...v.ins].filter((p) => v.outs.has(p)).map(pName),
+        verdict: verdictFor(key),
       }))
-      .sort((a, b) => b.n - a.n)
+      .sort((a, b) => b.n - b.excused - (a.n - a.excused) || b.n - a.n)
       .slice(0, 3)
 
     // Season-long Tinker Kings — total logged changes across all weeks.
@@ -278,7 +333,7 @@ export default function RecapIssue() {
       .slice(0, 3)
 
     return { backfires, worst, fiddlers, kings, sampled: moves.length > 0 }
-  }, [raw, cat, moves, tinker])
+  }, [raw, cat, moves, tinker, openSnap])
 
   const oracle = useMemo(() => {
     if (!pickem) return null
@@ -479,8 +534,21 @@ export default function RecapIssue() {
                     <span className="font-semibold">{f.team}</span> —{" "}
                     <span className="tnum">{f.n}</span> lineup change
                     {f.n === 1 ? "" : "s"} this week
+                    {f.excused > 0 && (
+                      <span className="text-ink-faint">
+                        {" "}
+                        ({f.excused} excused — injury tags, we don&apos;t mock medicine)
+                      </span>
+                    )}
+                    {f.scramble > 0 && (
+                      <span className="text-drop">
+                        {" "}
+                        · <span className="tnum">{f.scramble}</span> in the
+                        Sunday-morning scramble
+                      </span>
+                    )}
                     {f.season > f.n && (
-                      <span className="tnum text-ink-faint"> ({f.season} on the season)</span>
+                      <span className="tnum text-ink-faint"> · {f.season} on the season</span>
                     )}
                     {f.flipFlops.length > 0 && (
                       <span className="text-ink-dim">
@@ -488,6 +556,14 @@ export default function RecapIssue() {
                         · couldn&apos;t decide on{" "}
                         <span className="text-gold">{f.flipFlops.join(", ")}</span>{" "}
                         (in, out, in again…)
+                      </span>
+                    )}
+                    {f.verdict != null && (
+                      <span className={f.verdict >= 0 ? "text-promo" : "text-drop"}>
+                        {" "}
+                        · verdict: {f.verdict >= 0 ? "the tinkering earned +" : "all that tinkering cost him "}
+                        <span className="tnum">{Math.abs(f.verdict).toFixed(1)}</span> pts vs
+                        the lineup he started the week with
                       </span>
                     )}
                     .

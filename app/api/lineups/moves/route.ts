@@ -18,6 +18,12 @@ export async function GET(req: NextRequest) {
   }
   const week = Number(req.nextUrl.searchParams.get("week"))
   if (!week) return NextResponse.json({ error: "week required" }, { status: 400 })
+  // ?open=1 -> the week's opening-lineup baseline (for the tinker verdict).
+  if (req.nextUrl.searchParams.get("open") === "1") {
+    const open =
+      (await db.get<Record<string, string[]>>(`lineups:open:${SEASON}:${week}`)) ?? null
+    return NextResponse.json({ status: "ok", open })
+  }
   const raw = (await db.lrange(`lineups:moves:${SEASON}:${week}`, 0, -1)) ?? []
   const moves = raw
     .map((s) => {

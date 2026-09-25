@@ -21,6 +21,10 @@ const RUN_GAP_MS = 5 * 60_000
 const kRun = (w: number) => `lineups:run:${SEASON}:${w}`
 const kSnap = (w: number) => `lineups:snap:${SEASON}:${w}`
 const kMoves = (w: number) => `lineups:moves:${SEASON}:${w}`
+// The week's FIRST recorded lineups — the baseline for the recap's tinker
+// verdict ("all those changes vs the lineup you already had": pts gained
+// or lost). Written once (NX) and never touched again.
+const kOpen = (w: number) => `lineups:open:${SEASON}:${w}`
 
 export type LineupMove = {
   t: number // ms timestamp of the sample that caught it
@@ -71,6 +75,7 @@ export async function GET() {
 
   const prev = (await db.get<Record<string, string[]>>(kSnap(week))) ?? null
   const snapshot = Object.fromEntries(cur)
+  await db.set(kOpen(week), snapshot, { nx: true }) // week-opening baseline
   if (!prev) {
     await db.set(kSnap(week), snapshot)
     return NextResponse.json({ status: "initialized", teams: cur.size })
