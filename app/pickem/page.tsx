@@ -251,9 +251,9 @@ export default function PickemPage() {
   }, [])
 
   // NFL moneyline is THE game from Week 3 (fantasy pick'em retired wk 2).
-  const [gameMode, setGameMode] = useState<"fantasy" | "nfl">(
-    NFL_PICKEM_ENABLED ? "nfl" : "fantasy"
-  )
+  // Retired-era tabs removed Sep 25 2026 — gameMode is now fixed (the
+  // fantasy board renders only when the NFL game is off entirely).
+  const gameMode: "fantasy" | "nfl" = NFL_PICKEM_ENABLED ? "nfl" : "fantasy"
   const [nflVisible, setNflVisible] = useState(NFL_PICKEM_ENABLED)
   useEffect(() => {
     if (NFL_PICKEM_ENABLED || new URLSearchParams(window.location.search).has("nflpreview"))
@@ -275,9 +275,9 @@ export default function PickemPage() {
 
   // Leaderboard era: NFL (the live game, fresh from wk 3) vs the archived
   // fantasy era (wks 1-2).
-  const [lbContest, setLbContest] = useState<"nfl" | "">(
-    NFL_PICKEM_ENABLED ? "nfl" : ""
-  )
+  // Era toggle removed Sep 25 2026 — leaderboard shows the live NFL game
+  // only (fantasy wks 1-2 live in the recap archive).
+  const lbContest: "nfl" | "" = NFL_PICKEM_ENABLED ? "nfl" : ""
   useEffect(() => {
     if (tab !== "leaderboard") return
     setLeader(null)
@@ -500,30 +500,13 @@ export default function PickemPage() {
           </div>
         </div>
 
-        {/* ---------------- THIS WEEK ---------------- */}
-        {tab === "board" && nflVisible && (
-          <div className="mb-4 flex justify-center gap-1 text-xs">
-            {(["nfl", "fantasy"] as const).map((m) => (
-              <button
-                key={m}
-                onClick={() => setGameMode(m)}
-                className={`rounded-full px-4 py-1.5 font-semibold transition-colors ${
-                  gameMode === m
-                    ? "bg-brand-deep/30 text-brand"
-                    : "text-ink-dim hover:text-ink"
-                }`}
-              >
-                {m === "fantasy" ? "Fantasy (retired wks 1–2)" : "NFL pick'em 🏈"}
-              </button>
-            ))}
-          </div>
-        )}
-        {tab === "board" && gameMode === "fantasy" && nflVisible && (
-          <p className="mb-4 rounded-lg border border-line px-4 py-2 text-center text-xs text-ink-faint">
-            The interleague fantasy pick&apos;em retired after Week 2 — this is its
-            archive. The game is NFL pick&apos;em now.
-          </p>
-        )}
+        {/* ---------------- THIS WEEK ----------------
+            Retired-fantasy tabs REMOVED (commissioner, Sep 25 2026): the
+            wks 1-2 fantasy game's board/leaderboard UI is gone from the
+            page — its results live on in the Week 1-2 recap issues. The
+            fantasy machinery below stays intact but unreachable while
+            nflVisible (gameMode stays "nfl"); restore by re-adding the
+            tab strip here. */}
         {tab === "board" && gameMode === "nfl" && nflVisible && (
           <NflBoard managers={managers} />
         )}
@@ -1069,28 +1052,8 @@ export default function PickemPage() {
         {/* ---------------- LEADERBOARD ---------------- */}
         {tab === "leaderboard" && (
           <>
-            {nflVisible && (
-              <div className="mb-4 flex justify-center gap-1 text-xs">
-                {(
-                  [
-                    ["nfl", "NFL era (wk 3+)"],
-                    ["", "Fantasy era (wks 1–2)"],
-                  ] as const
-                ).map(([c, label]) => (
-                  <button
-                    key={label}
-                    onClick={() => setLbContest(c)}
-                    className={`rounded-full px-4 py-1.5 font-semibold transition-colors ${
-                      lbContest === c
-                        ? "bg-brand-deep/30 text-brand"
-                        : "text-ink-dim hover:text-ink"
-                    }`}
-                  >
-                    {label}
-                  </button>
-                ))}
-              </div>
-            )}
+            {/* Fantasy-era toggle removed Sep 25 2026 — wks 1-2 results
+                live in the recap issues (/recap/1, /recap/2). */}
             {!leader && <p className="text-center text-ink-dim">Loading…</p>}
             {leader && leader.table.length === 0 && (
               <p className="panel p-6 text-center text-sm text-ink-dim">
@@ -1275,9 +1238,8 @@ export default function PickemPage() {
               NFL pick&apos;em.</span> Every week, pick the winner of every real NFL
               game. Favorites are the Vegas line, frozen when the week&apos;s board
               is created — a correct pick against the spread favorite earns the
-              +1 upset bonus. (Weeks 1–2 ran the retired interleague fantasy
-              format; its archive lives under &quot;Fantasy&quot; on the board and
-              leaderboard tabs.)
+              +1 upset bonus. (Weeks 1–2 ran a retired interleague fantasy
+              format — those results live in the Week 1 and 2 recaps.)
             </p>
             <p>
               <span className="font-semibold text-ink">NFL deadlines — true
