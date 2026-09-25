@@ -7,7 +7,11 @@ import { lotteryPhase } from "@/lib/lotteryEvent"
 
 const BASE_LINKS: { href: string; label: string }[] = [
   { href: "/", label: "Standings" },
-  { href: "/matchups", label: "Matchups" },
+  // Matchups HIDDEN (commissioner, Sep 25 2026): the league checks Sleeper
+  // for matchups — the site focuses on what Sleeper can't do (pick'em,
+  // relegation, bets). Page still lives at /matchups (direct link works,
+  // and the pick'em board reuses its player-matchup machinery); restore by
+  // re-adding: { href: "/matchups", label: "Matchups" },
   { href: "/pickem", label: "Pick'em" },
   { href: "/bets", label: "Bets" },
   { href: "/history", label: "History" },
