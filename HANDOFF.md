@@ -317,6 +317,21 @@ Growth thesis discussed and kept for the offseason build:
   it for the offseason); (2) app-era — multi-tenant leagues, history
   imports, cross-league record books. That feature set IS the Sleeper-
   acquisition story: leagues that join a pyramid never leave the platform.
+- FEDERATION, NOT PLATFORM (settled Sep 25 2026): joining leagues KEEP
+  their Sleeper league intact — SWRR already proves the model (two intact
+  Sleeper leagues federated by this site). Onboarding = their public
+  Sleeper league ID, nothing else ("Keep your league. Send us your league
+  ID. You're in the pyramid."). Promotion/relegation = the offseason
+  membership swap between Sleeper leagues SWRR already does annually. Do
+  NOT build our own fantasy platform (rosters/scoring/drafts = Sleeper's
+  decade of work, and becoming their competitor kills the acquisition
+  story — we are their retention layer). Constraints to spec in the
+  prospectus: (1) pyramid-standard scoring/roster settings for
+  cross-division fairness on manager moves; (2) redraft leagues are the
+  easy recruits (roster continuity is free); dynasty needs a
+  roster-across-the-boundary rule someday; (3) platform risk: everything
+  rides on Sleeper's unofficial-but-stable read API — acceptable for a
+  companion, one more reason acquisition is the endgame.
 - Caution ratified: recruit ONE league first. A two-division pyramid that
   completes a real promotion/relegation cycle in 2027 beats five leagues
   signed to a format that's never run. The proof season is the marketing.
