@@ -332,6 +332,24 @@ Growth thesis discussed and kept for the offseason build:
   roster-across-the-boundary rule someday; (3) platform risk: everything
   rides on Sleeper's unofficial-but-stable read API — acceptable for a
   companion, one more reason acquisition is the endgame.
+- LEAGUES MOVE, NOT MANAGERS (owner caught the flaw, Sep 25 2026): the
+  manager-swap model (SWRR's own annual up/down shuffle) does NOT
+  generalize to strange leagues — it would inject strangers into a
+  20-year group and exile friends, destroying the exact thing the pitch
+  promises to protect. SWRR's swap only works because all 24 are ONE
+  community. For federated leagues, relegation operates on WHOLE LEAGUES:
+  each league plays its own season untouched; leagues are ranked against
+  each other on pyramid-standard comparables (median weekly score / total
+  points / all-play), bottom league of Div 1 drops, top of Div 2 rises.
+  What moves is status, prizes, shame — never people. Needs: (a) the
+  cross-league yardstick, (b) interleague stakes in the overlay
+  (champions-of-champions playoff, cross-league pick'em cup, division-
+  gated pots), (c) commitment ladder — leagues can join as "cup members"
+  (pick'em/recap/comparisons only, zero season risk) before full pyramid
+  membership. Manager-swap relegation survives as the INTRA-community
+  format (a 20+ person league splits into its own two-tier pyramid).
+  Principle: people only get relegated among friends; strangers compete
+  league-to-league.
 - Caution ratified: recruit ONE league first. A two-division pyramid that
   completes a real promotion/relegation cycle in 2027 beats five leagues
   signed to a format that's never run. The proof season is the marketing.
