@@ -89,6 +89,10 @@ export async function GET() {
   if (moves.length) {
     await db.rpush(kMoves(week), ...moves.map((m) => JSON.stringify(m)))
     await db.ltrim(kMoves(week), -800, -1) // cap the log
+    // Season-long TINKER INDEX: running per-team change count — the
+    // continued-tinkering character study, cheap to read all season.
+    for (const m of moves)
+      await db.hincrby(`lineups:tinker:${SEASON}`, m.team, m.in.length + m.out.length)
   }
   await db.set(kSnap(week), snapshot)
   return NextResponse.json({ status: "ok", changes: moves.length })

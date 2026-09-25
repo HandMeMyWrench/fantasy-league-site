@@ -10,6 +10,12 @@ export const dynamic = "force-dynamic"
 export async function GET(req: NextRequest) {
   const db = redis()
   if (!db) return NextResponse.json({ status: "unconfigured" }, { status: 503 })
+  // ?tally=1 -> season-long tinker index: team key -> total logged changes.
+  if (req.nextUrl.searchParams.get("tally") === "1") {
+    const tally =
+      ((await db.hgetall(`lineups:tinker:${SEASON}`)) as Record<string, number> | null) ?? {}
+    return NextResponse.json({ status: "ok", tally })
+  }
   const week = Number(req.nextUrl.searchParams.get("week"))
   if (!week) return NextResponse.json({ error: "week required" }, { status: 400 })
   const raw = (await db.lrange(`lineups:moves:${SEASON}:${week}`, 0, -1)) ?? []

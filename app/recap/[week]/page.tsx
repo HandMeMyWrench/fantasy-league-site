@@ -96,6 +96,7 @@ export default function RecapIssue() {
   }>({})
   const [cat, setCat] = useState<Record<string, CatRow>>({})
   const [moves, setMoves] = useState<LineupMove[]>([])
+  const [tinker, setTinker] = useState<Record<string, number>>({})
 
   useEffect(() => {
     if (!week || week < 1 || week > 18) {
@@ -151,6 +152,10 @@ export default function RecapIssue() {
     fetch(`/api/lineups/moves?week=${week}`)
       .then((r) => r.json())
       .then((d) => setMoves(d.status === "ok" ? (d.moves as LineupMove[]) : []))
+      .catch(() => {})
+    fetch(`/api/lineups/moves?tally=1`)
+      .then((r) => r.json())
+      .then((d) => setTinker(d.status === "ok" ? (d.tally as Record<string, number>) : {}))
       .catch(() => {})
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [week])
@@ -260,13 +265,20 @@ export default function RecapIssue() {
       .map(([key, v]) => ({
         team: teamName(key),
         n: v.n,
+        season: tinker[key] ?? v.n,
         flipFlops: [...v.ins].filter((p) => v.outs.has(p)).map(pName),
       }))
       .sort((a, b) => b.n - a.n)
       .slice(0, 3)
 
-    return { backfires, worst, fiddlers, sampled: moves.length > 0 }
-  }, [raw, cat, moves])
+    // Season-long Tinker Kings — total logged changes across all weeks.
+    const kings = Object.entries(tinker)
+      .map(([key, n]) => ({ team: teamName(key), n }))
+      .sort((a, b) => b.n - a.n)
+      .slice(0, 3)
+
+    return { backfires, worst, fiddlers, kings, sampled: moves.length > 0 }
+  }, [raw, cat, moves, tinker])
 
   const oracle = useMemo(() => {
     if (!pickem) return null
@@ -466,7 +478,10 @@ export default function RecapIssue() {
                   <p key={i} className="text-ink">
                     <span className="font-semibold">{f.team}</span> —{" "}
                     <span className="tnum">{f.n}</span> lineup change
-                    {f.n === 1 ? "" : "s"} logged
+                    {f.n === 1 ? "" : "s"} this week
+                    {f.season > f.n && (
+                      <span className="tnum text-ink-faint"> ({f.season} on the season)</span>
+                    )}
                     {f.flipFlops.length > 0 && (
                       <span className="text-ink-dim">
                         {" "}
@@ -478,6 +493,14 @@ export default function RecapIssue() {
                     .
                   </p>
                 ))}
+                {secondGuess.kings.length > 0 && (
+                  <p className="mt-2 text-xs text-ink-faint">
+                    👑 Season Tinker Kings:{" "}
+                    {secondGuess.kings
+                      .map((k) => `${k.team} (${k.n})`)
+                      .join(" · ")}
+                  </p>
+                )}
               </div>
             )}
             {!secondGuess.sampled && (
