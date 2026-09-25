@@ -29,6 +29,11 @@ export default function NavBar() {
     const check = () => setShowLottery(lotteryPhase(Date.now()) !== "hidden")
     check()
     const id = setInterval(check, 60_000)
+    // LINEUP SPY heartbeat: every page view pings the lineup sampler
+    // (fire-and-forget; the endpoint self-throttles to one real run per
+    // 5 min). Traffic IS the cron — 22 managers checking the site all
+    // week give the recap its lineup-change diary.
+    fetch("/api/lineups/watch").catch(() => {})
     return () => clearInterval(id)
   }, [])
 

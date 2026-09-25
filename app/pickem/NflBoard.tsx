@@ -238,6 +238,9 @@ export default function NflBoard({
       board.games.length > 0 &&
       board.games.every((g) => liveScores.get(g.id)?.phase === "final")
     const load = () => {
+      // Piggyback the lineup sampler on the game-day poll — Sunday is
+      // when the panic benchings happen (self-throttled server-side).
+      fetch("/api/lineups/watch").catch(() => {})
       if (!anyKicked()) return
       fetch(`/api/pickem/scores?week=${board.week}`)
         .then((r) => r.json())

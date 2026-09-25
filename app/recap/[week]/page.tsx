@@ -23,7 +23,16 @@ type Roster = {
   roster_id: number
 }
 type User = { user_id: string; display_name: string; avatar: string | null }
-type Matchup = { matchup_id: number; roster_id: number; points: number }
+type Matchup = {
+  matchup_id: number
+  roster_id: number
+  points: number
+  starters?: string[]
+  players?: string[]
+  players_points?: Record<string, number>
+}
+type CatRow = { full_name?: string; first_name?: string; last_name?: string; position?: string }
+type LineupMove = { t: number; team: string; in: string[]; out: string[] }
 
 type GameLine = { winner: string; wPts: number; loser: string; lPts: number; margin: number }
 
@@ -79,6 +88,14 @@ export default function RecapIssue() {
   const [lower, setLower] = useState<GameLine[]>([])
   const [pickem, setPickem] = useState<LbWeek | null>(null)
   const [loaded, setLoaded] = useState(false)
+  // Second-Guess Department inputs: raw matchup data (bench points ride
+  // along), the player catalog (names/positions), and the lineup-spy log.
+  const [raw, setRaw] = useState<{
+    upper?: { m: Matchup[]; r: Roster[]; u: Record<string, User> }
+    lower?: { m: Matchup[]; r: Roster[]; u: Record<string, User> }
+  }>({})
+  const [cat, setCat] = useState<Record<string, CatRow>>({})
+  const [moves, setMoves] = useState<LineupMove[]>([])
 
   useEffect(() => {
     if (!week || week < 1 || week > 18) {
@@ -107,18 +124,35 @@ export default function RecapIssue() {
         setCurrentWeek(
           state && state.season === SEASON && state.season_type === "regular" ? state.week : 99
         )
+        const nextRaw: typeof raw = {}
         if (up) {
           const users = Object.fromEntries((up[2] as User[]).map((u) => [u.user_id, u]))
           setUpper(toGames(up[0] as Matchup[], up[1] as Roster[], users))
+          nextRaw.upper = { m: up[0] as Matchup[], r: up[1] as Roster[], u: users }
         }
         if (lo) {
           const users = Object.fromEntries((lo[2] as User[]).map((u) => [u.user_id, u]))
           setLower(toGames(lo[0] as Matchup[], lo[1] as Roster[], users))
+          nextRaw.lower = { m: lo[0] as Matchup[], r: lo[1] as Roster[], u: users }
         }
+        setRaw(nextRaw)
         const wk = (lb?.weeks as LbWeek[] | undefined)?.find((w) => w.week === week)
         setPickem(wk ?? null)
       })
       .finally(() => setLoaded(true))
+    // Player catalog (names + positions) for the Second-Guess Department —
+    // browser-cached, same trick as the old Matchups page.
+    fetch("https://api.sleeper.app/v1/players/nfl", { cache: "force-cache" })
+      .then((r) => r.json())
+      .then((c) => setCat((c as Record<string, CatRow>) ?? {}))
+      .catch(() => {})
+    // Lineup-spy diary for the week (may be empty for weeks before the
+    // sampler existed).
+    fetch(`/api/lineups/moves?week=${week}`)
+      .then((r) => r.json())
+      .then((d) => setMoves(d.status === "ok" ? (d.moves as LineupMove[]) : []))
+      .catch(() => {})
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [week])
 
   const story = useMemo(() => {
@@ -134,6 +168,105 @@ export default function RecapIssue() {
     const bottom = sides.reduce((a, b) => (a.pts <= b.pts ? a : b))
     return { closest, blowout, top, bottom }
   }, [upper, lower])
+
+  // ---- SECOND-GUESS DEPARTMENT ----
+  // Regret math needs no surveillance: Sleeper's matchup rows carry every
+  // rostered player's points, bench included. For each team we find the
+  // best legal same-position swap (benched player over the starter he sat
+  // behind); if a LOSER's best swap beats the margin, that benching lost
+  // the game. Churn narratives come from the lineup-spy log (moves).
+  const secondGuess = useMemo(() => {
+    const pName = (pid: string) => {
+      const c = cat[pid]
+      return c?.full_name ?? [c?.first_name, c?.last_name].filter(Boolean).join(" ") ?? pid
+    }
+    type Regret = {
+      team: string
+      sat: string // benched player
+      started: string // who he sat behind
+      gain: number
+      lostBy: number | null // set when the swap flips a loss
+    }
+    const regrets: Regret[] = []
+    for (const [tier, data] of [
+      ["upper", raw.upper],
+      ["lower", raw.lower],
+    ] as const) {
+      if (!data || !Object.keys(cat).length) continue
+      const byRoster = new Map(data.r.map((r) => [r.roster_id, r]))
+      const pairs = Object.values(
+        data.m.reduce((acc, m) => {
+          ;(acc[m.matchup_id] = acc[m.matchup_id] || []).push(m)
+          return acc
+        }, {} as Record<number, Matchup[]>)
+      ).filter((p) => p.length === 2)
+      for (const [m1, m2] of pairs) {
+        const margin = Math.abs(Number(m1.points ?? 0) - Number(m2.points ?? 0))
+        for (const side of [m1, m2]) {
+          const other = side === m1 ? m2 : m1
+          const lost = Number(side.points ?? 0) < Number(other.points ?? 0)
+          const starters = (side.starters ?? []).filter((p) => p && p !== "0")
+          const bench = (side.players ?? []).filter((p) => !starters.includes(p))
+          const pp = side.players_points ?? {}
+          let best: Regret | null = null
+          for (const s of starters) {
+            const pos = cat[s]?.position
+            if (!pos) continue
+            for (const b of bench) {
+              if (cat[b]?.position !== pos) continue
+              const gain = (pp[b] ?? 0) - (pp[s] ?? 0)
+              if (gain > (best?.gain ?? 0)) {
+                const r = byRoster.get(side.roster_id)
+                best = {
+                  team: teamDisplayName(r, r ? data.u[r.owner_id] : undefined),
+                  sat: pName(b),
+                  started: pName(s),
+                  gain,
+                  lostBy: lost && gain > margin ? margin : null,
+                }
+              }
+            }
+          }
+          if (best && best.gain >= 5) regrets.push(best) // ignore trivia
+        }
+        void tier
+      }
+    }
+    const backfires = regrets
+      .filter((r) => r.lostBy !== null)
+      .sort((a, b) => b.gain - a.gain)
+      .slice(0, 3)
+    const worst = regrets.length
+      ? regrets.reduce((a, b) => (a.gain >= b.gain ? a : b))
+      : null
+
+    // Churn: total logged changes per team + flip-flop players (in AND out
+    // during the week = couldn't decide).
+    const teamName = (key: string) => {
+      const [tier, rid] = key.split("-")
+      const data = tier === "upper" ? raw.upper : raw.lower
+      const r = data?.r.find((x) => x.roster_id === Number(rid))
+      return r ? teamDisplayName(r, data!.u[r.owner_id]) : key
+    }
+    const perTeam = new Map<string, { n: number; ins: Set<string>; outs: Set<string> }>()
+    for (const mv of moves) {
+      const row = perTeam.get(mv.team) ?? { n: 0, ins: new Set(), outs: new Set() }
+      row.n += mv.in.length + mv.out.length
+      mv.in.forEach((p) => row.ins.add(p))
+      mv.out.forEach((p) => row.outs.add(p))
+      perTeam.set(mv.team, row)
+    }
+    const fiddlers = [...perTeam.entries()]
+      .map(([key, v]) => ({
+        team: teamName(key),
+        n: v.n,
+        flipFlops: [...v.ins].filter((p) => v.outs.has(p)).map(pName),
+      }))
+      .sort((a, b) => b.n - a.n)
+      .slice(0, 3)
+
+    return { backfires, worst, fiddlers, sampled: moves.length > 0 }
+  }, [raw, cat, moves])
 
   const oracle = useMemo(() => {
     if (!pickem) return null
@@ -291,6 +424,68 @@ export default function RecapIssue() {
             <p className="text-xs text-ink-faint">
               {oracle.played.length} cards played.
             </p>
+          </div>
+        </section>
+      )}
+
+      {/* ---- second-guess department ---- */}
+      {(secondGuess.backfires.length > 0 ||
+        secondGuess.worst ||
+        secondGuess.fiddlers.length > 0) && (
+        <section className="panel mt-4 overflow-hidden">
+          <h2 className="display border-b border-line bg-surface-2 px-4 py-2.5 text-sm text-brand">
+            Second-Guess Department
+          </h2>
+          <div className="space-y-3 p-4 text-sm">
+            {secondGuess.backfires.map((r, i) => (
+              <p key={i} className="text-ink">
+                🪦 <span className="font-semibold">{r.team}</span> benched{" "}
+                <span className="text-gold">{r.sat}</span> for {r.started} —{" "}
+                {r.sat} outscored him by{" "}
+                <span className="tnum">{r.gain.toFixed(1)}</span>, the game was
+                lost by <span className="tnum">{r.lostBy!.toFixed(1)}</span>.{" "}
+                <span className="text-drop">That benching lost the game.</span>
+              </p>
+            ))}
+            {secondGuess.worst && secondGuess.worst.lostBy === null && (
+              <p className="text-ink">
+                🛋️ Bench regret of the week:{" "}
+                <span className="font-semibold">{secondGuess.worst.team}</span> sat{" "}
+                <span className="text-gold">{secondGuess.worst.sat}</span> behind{" "}
+                {secondGuess.worst.started} and left{" "}
+                <span className="tnum">{secondGuess.worst.gain.toFixed(1)}</span> points
+                on the bench{secondGuess.backfires.length ? "" : " — survivable, this time"}.
+              </p>
+            )}
+            {secondGuess.fiddlers.length > 0 && (
+              <div className="border-t border-line pt-3">
+                <p className="display mb-1.5 text-xs tracking-widest text-ink-faint">
+                  😰 LINEUP ANXIETY METER
+                </p>
+                {secondGuess.fiddlers.map((f, i) => (
+                  <p key={i} className="text-ink">
+                    <span className="font-semibold">{f.team}</span> —{" "}
+                    <span className="tnum">{f.n}</span> lineup change
+                    {f.n === 1 ? "" : "s"} logged
+                    {f.flipFlops.length > 0 && (
+                      <span className="text-ink-dim">
+                        {" "}
+                        · couldn&apos;t decide on{" "}
+                        <span className="text-gold">{f.flipFlops.join(", ")}</span>{" "}
+                        (in, out, in again…)
+                      </span>
+                    )}
+                    .
+                  </p>
+                ))}
+              </div>
+            )}
+            {!secondGuess.sampled && (
+              <p className="text-xs text-ink-faint">
+                No lineup changes logged this week — the anxiety meter started
+                recording Week 3, 2026.
+              </p>
+            )}
           </div>
         </section>
       )}

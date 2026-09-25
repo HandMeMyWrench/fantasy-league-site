@@ -254,6 +254,28 @@ OWNER GOALS (stated Sep 25 2026): move to an app after the 2026 season;
 ultimate goal is acquisition by Sleeper — positioning = the money-games +
 relegation layer ON TOP of Sleeper, never duplicating it.
 
+## LINEUP SPY + Second-Guess Department (Sep 25 2026)
+
+Sleeper has no lineup-history API, so the site samples and diffs:
+/api/lineups/watch (self-throttled to one run/5min however hard it's
+pinged) snapshots both leagues' starters, diffs vs last snapshot, appends
+moves to lineups:moves:{season}:{week} (rpush, capped 800). Pinged
+fire-and-forget from NavBar mount (every page view) + NflBoard's 60s poll
+— traffic IS the cron (Vercel hobby = daily crons only, both slots used).
+Optional upgrade: external pinger (cron-job.org) hitting the endpoint
+every 5min for 24/7 coverage — endpoint unchanged, owner just hasn't
+signed up yet. /api/lineups/moves?week=N reads the log.
+
+THE WEEKLY's Second-Guess Department (recap [week] page):
+- Regret math needs NO surveillance — Sleeper matchup rows carry
+  players_points incl. bench. Best legal same-position swap per team;
+  a loser whose best swap gain > margin = "that benching lost the game"
+  (🪦, top 3); otherwise biggest gain = bench regret of the week (🛋️,
+  ≥5 pts to ignore trivia). Works retroactively for all weeks.
+- Churn (😰 Lineup Anxiety Meter) from the spy log: top-3 fiddlers by
+  logged changes + flip-flop players (in AND out same week). Data begins
+  wk 3 2026 (when the sampler shipped).
+
 ## Nav consolidation (July 2026)
 
 Season nav is now: Standings, Matchups, Pick'em, History (+ Draft Lottery
