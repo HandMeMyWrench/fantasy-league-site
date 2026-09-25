@@ -369,6 +369,21 @@ Growth thesis discussed and kept for the offseason build:
   Strategy: leagues climb the ladder — join for the pick'em, get a
   rivalry, enter the cup, THEN accept divisions after living in the
   overlay for a season or two.
+- MULTI-LEAGUE PICK'EM + MONEY (Sep 25 2026): the game scales trivially —
+  the NFL board is universal (same games/lines for everyone), so it's one
+  board, N leaderboards: storage grows a league dimension
+  (pickem:{leagueId}:...), each league keeps its own weekly
+  winner/Blindfold/pot, and the cross-league cup table compares league
+  aggregates (avg of each league's top-N cards so headcount doesn't win).
+  MONEY FEDERATES, NEVER CENTRALIZES (scoreboard-not-bank holds):
+  intra-league money never leaves the league (their own treasurer, as
+  today); cross-league stakes are small (dinner-sized, trophy-heavy) and
+  settle treasurer-to-treasurer, NETTED by the ledger (side-bets math) to
+  one payment per commissioner pair per season. No super-treasurer ever
+  holds a strange league's pot. At real app scale (strangers), integrate
+  licensed escrow (LeagueSafe pattern) — their compliance problem, not
+  ours; acquisition-friendly (Sleeper can bolt a wallet under our ledger,
+  can't un-build bad payments).
 - Caution ratified: recruit ONE league first. A two-division pyramid that
   completes a real promotion/relegation cycle in 2027 beats five leagues
   signed to a format that's never run. The proof season is the marketing.
