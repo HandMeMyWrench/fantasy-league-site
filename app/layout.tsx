@@ -25,7 +25,7 @@ export const viewport = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" className={`${display.variable} ${body.variable}`}>
-      <body className="min-h-screen font-sans text-ink">
+      <body className="min-h-screen pb-24 font-sans text-ink md:pb-0">
         <NavBar />
         <main>{children}</main>
         <footer className="mx-auto max-w-7xl px-4 pb-8 pt-10 text-center text-xs text-ink-faint">

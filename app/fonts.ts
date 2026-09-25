@@ -14,8 +14,11 @@ export const display = localFont({
   display: "swap",
 });
 
+// Sep 2026 redesign: Archivo carries the body copy too (regular width), so
+// the whole site speaks with one family — condensed-and-black for headers,
+// normal width for text and data. Inter stays on disk, unused.
 export const body = localFont({
-  src: "./fonts/inter.woff2",
+  src: "./fonts/archivo-var.woff2",
   variable: "--font-body",
   weight: "100 900",
   display: "swap",

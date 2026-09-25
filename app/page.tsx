@@ -3,9 +3,10 @@
 import React, { useEffect, useRef, useState } from "react"
 import { computeLeagueOdds } from "@/lib/leagueOdds"
 import type { OddsRow } from "@/lib/odds"
-import { getStandings, getLeagueUsers, getNflState } from "@/lib/sleeper"
+import { getStandings, getLeagueUsers, getNflState, getLeagueMetadata } from "@/lib/sleeper"
 import RelegationSpotlight from "@/components/RelegationSpotlight"
 import LotteryBanner from "@/components/LotteryBanner"
+import HomeRail from "@/components/HomeRail"
 import {
   LEAGUES,
   movementSpots,
@@ -43,6 +44,26 @@ export default function StandingsPage() {
   // Computed in the background after standings render; null = no columns.
   const [oddsUpper, setOddsUpper] = useState<Map<number, OddsRow> | null>(null)
   const [oddsLower, setOddsLower] = useState<Map<number, OddsRow> | null>(null)
+  // Phones show one league at a time (Upper / Lower toggle); md+ shows both.
+  const [tierView, setTierView] = useState<"upper" | "lower">("upper")
+  // Playoff line position (Sleeper league setting) and the live NFL week for
+  // the page eyebrow.
+  const [playoffSpots, setPlayoffSpots] = useState<number>(6)
+  const [nflWeek, setNflWeek] = useState<number | null>(null)
+
+  useEffect(() => {
+    getNflState()
+      .then((st) => setNflWeek(Number(st?.display_week ?? st?.week ?? 0) || null))
+      .catch(() => {})
+  }, [])
+
+  useEffect(() => {
+    const id = LEAGUES[year]?.upper
+    if (!id) return
+    getLeagueMetadata(id)
+      .then((m) => setPlayoffSpots(Number(m?.settings?.playoff_teams) || 6))
+      .catch(() => {})
+  }, [year])
 
   // Show the loading state only on the first load / season change — background
   // auto-refreshes update silently so the table doesn't flash.
@@ -250,7 +271,7 @@ export default function StandingsPage() {
             return (
               <React.Fragment key={team.owner_id}>
                 <li
-                  className={`flex items-center gap-3 border-b border-line px-3 py-2.5 ${
+                  className={`flex min-h-12 items-center gap-3 border-b border-line px-3 py-2 ${
                     zoned
                       ? isUpper
                         ? "border-l-2 border-l-drop bg-drop/5"
@@ -317,6 +338,17 @@ export default function StandingsPage() {
                   )}
                 </li>
 
+                {!provisional &&
+                  index === playoffSpots - 1 &&
+                  index < teams.length - 1 &&
+                  !(showLine && index === lineAfter) && (
+                    <li className="flex items-center gap-3 px-3 py-1 text-brand" aria-label="Playoff line">
+                      <span className="h-0 flex-1 border-t border-dashed border-brand/60" />
+                      <span className="display text-[10px] tracking-[0.14em]">Playoff line</span>
+                      <span className="h-0 flex-1 border-t border-dashed border-brand/60" />
+                    </li>
+                  )}
+
                 {showLine && index === lineAfter && (
                   <li
                     className={`relative flex items-center gap-3 px-3 py-1.5 ${
@@ -362,54 +394,39 @@ export default function StandingsPage() {
       <div className="mx-auto max-w-7xl">
         <LotteryBanner />
 
-        <div className="mb-5 mt-2 flex items-center justify-center gap-3 sm:mb-6 sm:gap-4">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src="/icon-192.png"
-            alt="SWRR Relegation League crest"
-            className="h-12 w-12 rounded-xl sm:h-16 sm:w-16"
-          />
-          <div>
-            <h1 className="display text-2xl leading-none text-ink sm:text-4xl">
-              Self Will Run Riot
-            </h1>
-            <p className="mt-1 text-xs font-medium tracking-wide text-brand sm:text-sm">
-              Fantasy Relegation League
-            </p>
+        <div className="mb-6 mt-2 flex flex-wrap items-end justify-between gap-4 sm:mt-4">
+          <div className="flex flex-col gap-2">
+            <span className="text-xs font-bold uppercase tracking-[0.14em] text-brand sm:text-[13px]">
+              {year} season{nflWeek && year === latestActiveSeason() && !provisional ? ` · Week ${nflWeek}` : ""}
+            </span>
+            <h1 className="display text-[52px] leading-[0.92] text-ink sm:text-[72px]">The Table</h1>
+          </div>
+          <div className="flex items-center gap-3">
+            <label htmlFor="season" className="text-sm font-semibold text-ink-faint">
+              Season
+            </label>
+            <select
+              id="season"
+              value={year}
+              onChange={(e) => setYear(e.target.value as SeasonYear)}
+              className="min-h-11 rounded-lg border border-line bg-surface px-3.5 font-bold text-ink focus:outline-none focus:ring-2 focus:ring-brand"
+            >
+              {SEASONS.map((y) => (
+                <option key={y} value={y}>
+                  {y}
+                </option>
+              ))}
+            </select>
           </div>
         </div>
 
-        <div className="mb-4 flex items-center justify-center gap-2">
-          <label htmlFor="season" className="text-sm font-medium text-ink-dim">
-            Season
-          </label>
-          <select
-            id="season"
-            value={year}
-            onChange={(e) => setYear(e.target.value as SeasonYear)}
-            className="rounded-lg border border-line bg-surface px-3 py-1.5 text-sm text-ink focus:outline-none focus:ring-2 focus:ring-brand-deep"
-          >
-            {SEASONS.map((y) => (
-              <option key={y} value={y}>
-                {y}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <RelegationSpotlight />
+        <RelegationSpotlight oddsUpper={oddsUpper} oddsLower={oddsLower} />
 
         {provisional && (
           <p className="mb-3 text-center text-sm text-gold">
             Provisional {year} lineup — derived from the {Number(year) - 1} final
             standings. Records reset once the season starts. Lines show this
             year&apos;s {movement}-up / {movement}-down rule.
-          </p>
-        )}
-        {!provisional && movement > 0 && (
-          <p className="mb-3 text-center text-sm text-ink-faint">
-            Bottom {movement} of the upper league are relegated · top {movement} of
-            the lower league are promoted
           </p>
         )}
 
@@ -420,22 +437,61 @@ export default function StandingsPage() {
           )}
 
           {!loading && !error && (
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 sm:gap-6">
-              <section className="panel overflow-hidden">
-                <h2 className="display border-b border-line bg-surface-2 px-4 py-3 text-lg text-brand">
-                  Upper League
-                </h2>
-                {renderLeague(upperLeague, "upper")}
-              </section>
-
+            <div className="grid grid-cols-1 items-start gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_300px] lg:gap-6">
               {lowerLeague && (
-                <section className="panel overflow-hidden">
-                  <h2 className="display border-b border-line bg-surface-2 px-4 py-3 text-lg text-promo">
-                    Lower League
-                  </h2>
-                  {renderLeague(lowerLeague, "lower")}
-                </section>
+                <div
+                  role="tablist"
+                  aria-label="League"
+                  className="grid grid-cols-2 gap-1 rounded-xl bg-surface p-1 md:hidden"
+                >
+                  {(["upper", "lower"] as const).map((t) => (
+                    <button
+                      key={t}
+                      role="tab"
+                      type="button"
+                      aria-selected={tierView === t}
+                      onClick={() => setTierView(t)}
+                      className={`display min-h-11 rounded-lg text-sm tracking-[0.06em] transition-colors ${
+                        tierView === t ? "bg-brand text-field" : "text-ink-dim"
+                      }`}
+                    >
+                      {t === "upper" ? "Upper" : "Lower"}
+                    </button>
+                  ))}
+                </div>
               )}
+
+              <div className="grid grid-cols-1 gap-5 md:grid-cols-2 lg:col-span-2 lg:gap-6">
+                <section
+                  aria-label="Upper league"
+                  className={`panel overflow-hidden ${lowerLeague && tierView !== "upper" ? "hidden md:block" : ""}`}
+                >
+                  <div className="flex items-baseline justify-between gap-2 border-b border-line bg-surface-2 px-4 py-3.5">
+                    <h2 className="display text-2xl text-ink">Upper League</h2>
+                    {movement > 0 && (
+                      <span className="text-xs text-ink-faint">Bottom {movement} relegated</span>
+                    )}
+                  </div>
+                  {renderLeague(upperLeague, "upper")}
+                </section>
+
+                {lowerLeague && (
+                  <section
+                    aria-label="Lower league"
+                    className={`panel overflow-hidden ${tierView !== "lower" ? "hidden md:block" : ""}`}
+                  >
+                    <div className="flex items-baseline justify-between gap-2 border-b border-line bg-surface-2 px-4 py-3.5">
+                      <h2 className="display text-2xl text-ink">Lower League</h2>
+                      {movement > 0 && (
+                        <span className="text-xs text-ink-faint">Top {movement} promoted</span>
+                      )}
+                    </div>
+                    {renderLeague(lowerLeague, "lower")}
+                  </section>
+                )}
+              </div>
+
+              <HomeRail />
             </div>
           )}
         </div>
