@@ -49,6 +49,24 @@ navy SWRR crest generated via PIL (`public/icon-192.png`, `icon-512.png`,
 `apple-touch-icon.png`, `app/favicon.ico`); installable PWA
 (`app/manifest.ts`, theme_color #0b1226). All text tiers >=4.5:1 verified.
 
+## Standings redesign — "The Table" (Sep 25 2026)
+
+Shipped from the SWRR Redesign canvas. Home page: eyebrow (season · week)
+over a big condensed "THE TABLE" title; RelegationSpotlight restyled as
+**THE LINE** (Upper drop zone faces Lower promo places, drop/promo odds as
+bars once the standings page's Monte Carlo runs — SAME Week-4 arming rule,
+pre-arm shows a slim "arms after Week 4" strip). Tables gained a dashed
+brass PLAYOFF LINE (league `playoff_teams`, default 6); rhino/promo art
+kept. Desktop: tables + a 300px rail (components/HomeRail.tsx: Pick'em
+card = next kickoff window + live-week leaders from the NFL board /
+leaderboard APIs, hides itself when Pick'em is off; THE WEEKLY card = latest
+issue). Phones: Upper/Lower toggle (one table at a time) and a bottom tab
+bar in NavBar (body gets pb-24 below md). Type: body switched to Archivo
+(same variable file as display), Inter no longer loaded. Pick'em board
+restyle (kickoff-window grouping, Win/Cover buttons, tier chips) is designed
+but deliberately NOT shipped mid-week — do it after MNF so nobody's live
+card changes under them.
+
 ## Ideas not yet built (backlog)
 - **Trash-talk / video board** (Marco Polo style, video-with-captions). Plan: Cloudflare R2 for video (free, zero egress) + native-camera capture + a small backend. *Paused.*
 - **WhatsApp chat synopsis** — via WhatsApp's "Export chat" → generate a recap (live mirroring is ToS-risky, avoided).
