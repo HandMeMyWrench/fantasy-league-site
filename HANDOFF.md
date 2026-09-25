@@ -49,24 +49,6 @@ navy SWRR crest generated via PIL (`public/icon-192.png`, `icon-512.png`,
 `apple-touch-icon.png`, `app/favicon.ico`); installable PWA
 (`app/manifest.ts`, theme_color #0b1226). All text tiers >=4.5:1 verified.
 
-## Standings redesign — "The Table" (Sep 25 2026)
-
-Shipped from the SWRR Redesign canvas. Home page: eyebrow (season · week)
-over a big condensed "THE TABLE" title; RelegationSpotlight restyled as
-**THE LINE** (Upper drop zone faces Lower promo places, drop/promo odds as
-bars once the standings page's Monte Carlo runs — SAME Week-4 arming rule,
-pre-arm shows a slim "arms after Week 4" strip). Tables gained a dashed
-brass PLAYOFF LINE (league `playoff_teams`, default 6); rhino/promo art
-kept. Desktop: tables + a 300px rail (components/HomeRail.tsx: Pick'em
-card = next kickoff window + live-week leaders from the NFL board /
-leaderboard APIs, hides itself when Pick'em is off; THE WEEKLY card = latest
-issue). Phones: Upper/Lower toggle (one table at a time) and a bottom tab
-bar in NavBar (body gets pb-24 below md). Type: body switched to Archivo
-(same variable file as display), Inter no longer loaded. Pick'em board
-restyle (kickoff-window grouping, Win/Cover buttons, tier chips) is designed
-but deliberately NOT shipped mid-week — do it after MNF so nobody's live
-card changes under them.
-
 ## Ideas not yet built (backlog)
 - **Trash-talk / video board** (Marco Polo style, video-with-captions). Plan: Cloudflare R2 for video (free, zero egress) + native-camera capture + a small backend. *Paused.*
 - **WhatsApp chat synopsis** — via WhatsApp's "Export chat" → generate a recap (live mirroring is ToS-risky, avoided).
@@ -293,6 +275,33 @@ THE WEEKLY's Second-Guess Department (recap [week] page):
 - Churn (😰 Lineup Anxiety Meter) from the spy log: top-3 fiddlers by
   logged changes + flip-flop players (in AND out same week). Data begins
   wk 3 2026 (when the sampler shipped).
+
+## OFFSEASON 2027 — EXPANSION NOTES (parked Sep 25 2026, owner's call)
+
+Growth thesis discussed and kept for the offseason build:
+- Unit of growth = INTACT LEAGUES, not individuals. Old leagues won't
+  dissolve (the 20-yr group chat is what they're protecting); a pyramid of
+  intact leagues lets them keep name/history/rivalries and adds the one
+  thing they can't make internally: external stakes. Pitch: "Your league,
+  but the bottom two play for their lives."
+- Expansion leagues enter at the BOTTOM and earn promotion — that's the
+  romance, not hazing ("Founded 2003, promoted to the top flight 2028"),
+  and it dodges who-gets-top-tier-slots entirely. 3-league pyramid is
+  already viable (12/12/12, two up two down at each boundary).
+- History = the recruitment hook. SWRR itself dates to 2002 and LOST its
+  ESPN-era history in the Sleeper switch — every old league has this
+  wound. "Bring your history with you" (imports are provably doable — see
+  League Legacy) is the emotional close. Cross-league visible history
+  (browse another division's record book/champions/relegations) is the
+  flex nobody else has.
+- Build order: (1) cheap now — an "Expansion" page: manifesto + joining
+  prospectus + "WhatsApp the commissioner" (NOT built yet; owner parked
+  it for the offseason); (2) app-era — multi-tenant leagues, history
+  imports, cross-league record books. That feature set IS the Sleeper-
+  acquisition story: leagues that join a pyramid never leave the platform.
+- Caution ratified: recruit ONE league first. A two-division pyramid that
+  completes a real promotion/relegation cycle in 2027 beats five leagues
+  signed to a format that's never run. The proof season is the marketing.
 
 ## Nav consolidation (July 2026)
 
