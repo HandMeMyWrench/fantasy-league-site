@@ -111,7 +111,7 @@ const MatchupsPage = () => {
   const [projLoading, setProjLoading] = useState(false);
   const [projError, setProjError] = useState<string | null>(null);
 
-  const [openLineups, setOpenLineups] = useState<Record<number, boolean>>({});
+  const [openLineups, setOpenLineups] = useState<Record<string, boolean>>({});
 
   // Live-refresh plumbing: bump `refreshNonce` to re-fetch; `now` ticks each
   // second so the "updated Xs ago" label stays current.
@@ -403,7 +403,10 @@ const MatchupsPage = () => {
           })();
 
       const lead1 = a1 === a2 ? w1 >= w2 : a1 > a2;
-      const id = pair[0].matchup_id;
+      // League-qualified key: matchup ids 1-6 exist in BOTH leagues, so a
+      // bare id toggled upper AND lower game N together (same collision
+      // family as the Week 1 scoring bug).
+      const id = `${tier}-${pair[0].matchup_id}`;
       const isOpen = !!openLineups[id];
 
       return (
