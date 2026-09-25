@@ -86,7 +86,9 @@ export default function RecapIssue() {
       return
     }
     const cfg = LEAGUES[YEAR]
-    const contest = week <= 2 ? "" : "nfl" // wks 1-2 = retired fantasy game
+    // Pick'em section covers the NFL game only (wk 3+) — the retired
+    // wks 1-2 fantasy betting is fully buried (commissioner, Sep 25 2026):
+    // those issues carry fantasy results and storylines, no betting.
     Promise.all([
       getNflState().catch(() => null),
       cfg.upper
@@ -95,9 +97,11 @@ export default function RecapIssue() {
       cfg.lower
         ? Promise.all([getMatchups(cfg.lower, week), getStandings(cfg.lower), getLeagueUsers(cfg.lower)])
         : null,
-      fetch(`/api/pickem/leaderboard${contest ? `?contest=${contest}` : ""}`)
-        .then((r) => r.json())
-        .catch(() => null),
+      week > 2
+        ? fetch(`/api/pickem/leaderboard?contest=nfl`)
+            .then((r) => r.json())
+            .catch(() => null)
+        : null,
     ])
       .then(([state, up, lo, lb]) => {
         setCurrentWeek(
@@ -193,7 +197,6 @@ export default function RecapIssue() {
       <h1 className="display mt-1 text-center text-3xl text-brand">WEEK {week}</h1>
       <p className="mt-1 text-center text-xs text-ink-faint">
         SWRR Relegation League · {SEASON} season
-        {week <= 2 ? " · fantasy pick'em era" : ""}
       </p>
 
       <div className="mt-3 text-center">
@@ -251,7 +254,7 @@ export default function RecapIssue() {
       {oracle && (
         <section className="panel mt-4 overflow-hidden">
           <h2 className="display border-b border-line bg-surface-2 px-4 py-2.5 text-sm text-brand">
-            {week <= 2 ? "Pick'em (fantasy era)" : "NFL Pick'em"} — the money
+            NFL Pick&apos;em — the money
           </h2>
           <div className="space-y-2 p-4 text-sm">
             {oracle.winners.length > 0 ? (

@@ -56,12 +56,7 @@ export default function RecapIndex() {
             href={`/recap/${w}`}
             className="panel flex items-center justify-between px-4 py-3 transition-colors hover:bg-white/5"
           >
-            <span>
-              <span className="display text-ink">Week {w}</span>
-              {w <= 2 && (
-                <span className="ml-2 text-xs text-ink-faint">fantasy pick&apos;em era</span>
-              )}
-            </span>
+            <span className="display text-ink">Week {w}</span>
             <span className="text-sm text-brand">Read →</span>
           </Link>
         ))}
