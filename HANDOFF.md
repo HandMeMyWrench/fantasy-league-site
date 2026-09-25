@@ -350,6 +350,25 @@ Growth thesis discussed and kept for the offseason build:
   format (a 20+ person league splits into its own two-tier pyramid).
   Principle: people only get relegated among friends; strangers compete
   league-to-league.
+- THE COMMITMENT LADDER (Sep 25 2026) — alternatives that keep league
+  individuality, lightest to heaviest; not competitors but rungs, each
+  running entirely in the overlay on data we already pull:
+  1. Pick'em federation — leagues run our NFL pick'em internally,
+     league totals feed a cross-league table + interleague pot. Already
+     built; the wedge product. Could go live with a second league today.
+  2. Ryder Cup — two leagues, designated rivalry week(s), all-play
+     aggregate for a cup + side pot. Annual tradition / rivalry engine.
+  3. FA Cup — season-long knockout alongside normal seasons; paired
+     leagues per round, league median advances. No hierarchy, re-enter
+     yearly, cup-upset narratives for THE WEEKLY.
+  4. Champions-of-champions — each league's title winner enters a
+     cross-league playoff (wks 15-17 or best-ball). Individual glory,
+     nobody moves.
+  5. League-as-club pyramid (above) — divisions, whole-league
+     promotion/relegation. Heaviest, most permanent.
+  Strategy: leagues climb the ladder — join for the pick'em, get a
+  rivalry, enter the cup, THEN accept divisions after living in the
+  overlay for a season or two.
 - Caution ratified: recruit ONE league first. A two-division pyramid that
   completes a real promotion/relegation cycle in 2027 beats five leagues
   signed to a format that's never run. The proof season is the marketing.
