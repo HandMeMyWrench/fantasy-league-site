@@ -37,6 +37,7 @@ export default function BetsPage() {
   const [stake, setStake] = useState("")
   const [claim, setClaim] = useState("")
   const [takerLimit, setTakerLimit] = useState("1")
+  const [expiresHours, setExpiresHours] = useState("0")
 
   useEffect(() => {
     fetch(`/api/bets?season=${SEASON}`)
@@ -72,7 +73,18 @@ export default function BetsPage() {
   }
 
   const bets = data?.bets ?? []
-  const offers = (data?.offers ?? []).filter((o) => o.open)
+  // Open AND not past their expiry — expired offers drop off the board
+  // (server also lazy-closes them if anyone tries a stale take).
+  const offers = (data?.offers ?? []).filter(
+    (o) => o.open && (!o.expiresAt || o.expiresAt > Date.now())
+  )
+  const fmtLeft = (ms: number) => {
+    const h = Math.floor(ms / 3_600_000)
+    const m = Math.floor((ms % 3_600_000) / 60_000)
+    if (h >= 48) return `${Math.floor(h / 24)}d`
+    if (h > 0) return `${h}h ${m}m`
+    return `${m}m`
+  }
   const active = bets.filter((b) => b.status === "active")
   const settled = bets.filter((b) => b.status === "settled")
   const paid = bets.filter((b) => b.status === "paid")
@@ -201,6 +213,11 @@ export default function BetsPage() {
                           {o.takerLimit === 0
                             ? `unlimited takers (${o.taken.length} so far)`
                             : `${o.taken.length}/${o.takerLimit} taken`}
+                          {o.expiresAt && (
+                            <span className="text-drop">
+                              {" "}· ⏳ expires in {fmtLeft(o.expiresAt - Date.now())}
+                            </span>
+                          )}
                         </p>
                       </div>
                       <div className="flex shrink-0 gap-1.5">
@@ -218,10 +235,10 @@ export default function BetsPage() {
                         {(ownerId === o.posterId || isCommish) && (
                           <button
                             disabled={busy}
-                            onClick={() => act({ action: "closeOffer", offerId: o.id }, "offer closed")}
-                            className="rounded-full border border-line px-2.5 py-1.5 text-[11px] text-ink-faint hover:text-ink"
+                            onClick={() => act({ action: "closeOffer", offerId: o.id }, "offer pulled off the board")}
+                            className="rounded-full border border-line px-2.5 py-1.5 text-[11px] text-ink-faint hover:text-drop"
                           >
-                            Close
+                            ✕ Remove
                           </button>
                         )}
                       </div>
@@ -339,16 +356,33 @@ export default function BetsPage() {
               className="w-28 rounded-lg border border-line bg-surface px-3 py-2 text-sm text-ink"
             />
             {mode === "open" && (
-              <label className="flex items-center gap-2 text-xs text-ink-dim">
-                max takers
-                <input
-                  value={takerLimit}
-                  onChange={(e) => setTakerLimit(e.target.value)}
-                  inputMode="numeric"
-                  className="w-16 rounded-lg border border-line bg-surface px-2 py-2 text-sm text-ink"
-                />
-                <span className="text-ink-faint">(0 = unlimited)</span>
-              </label>
+              <>
+                <label className="flex items-center gap-2 text-xs text-ink-dim">
+                  max takers
+                  <input
+                    value={takerLimit}
+                    onChange={(e) => setTakerLimit(e.target.value)}
+                    inputMode="numeric"
+                    className="w-16 rounded-lg border border-line bg-surface px-2 py-2 text-sm text-ink"
+                  />
+                  <span className="text-ink-faint">(0 = unlimited)</span>
+                </label>
+                <label className="flex items-center gap-2 text-xs text-ink-dim">
+                  expires
+                  <select
+                    value={expiresHours}
+                    onChange={(e) => setExpiresHours(e.target.value)}
+                    className="rounded-lg border border-line bg-surface px-2 py-2 text-sm text-ink"
+                  >
+                    <option value="0">never</option>
+                    <option value="1">in 1 hour</option>
+                    <option value="6">in 6 hours</option>
+                    <option value="24">in 24 hours</option>
+                    <option value="72">in 3 days</option>
+                    <option value="168">in 1 week</option>
+                  </select>
+                </label>
+              </>
             )}
             <button
               disabled={busy}
@@ -359,7 +393,13 @@ export default function BetsPage() {
                       "bet recorded — it's in the book"
                     )
                   : act(
-                      { action: "offer", stake: Number(stake), claim, takerLimit: Number(takerLimit) },
+                      {
+                        action: "offer",
+                        stake: Number(stake),
+                        claim,
+                        takerLimit: Number(takerLimit),
+                        expiresHours: Number(expiresHours),
+                      },
                       "open bet posted — let them come"
                     )
               }

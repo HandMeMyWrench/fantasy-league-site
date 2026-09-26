@@ -91,8 +91,12 @@ export async function POST(req: NextRequest) {
     const stake = Number(body.stake)
     const claim = String(body.claim ?? "").trim()
     const takerLimit = Math.max(0, Math.floor(Number(body.takerLimit) || 0))
+    // Optional expiry: hours from now (0/absent = never expires).
+    const expiresHours = Number(body.expiresHours) || 0
     if (!isFinite(stake) || stake <= 0 || claim.length < 5)
       return NextResponse.json({ error: "need a stake and the claim" }, { status: 400 })
+    if (expiresHours < 0 || expiresHours > 24 * 30)
+      return NextResponse.json({ error: "expiry must be within 30 days" }, { status: 400 })
     const offer: BetOffer = {
       id: `o-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
       season,
@@ -103,6 +107,7 @@ export async function POST(req: NextRequest) {
       taken: [],
       open: true,
       createdAt: Date.now(),
+      expiresAt: expiresHours > 0 ? Date.now() + expiresHours * 3_600_000 : null,
     }
     await r.hset(K.offers(season), { [offer.id]: offer })
     return NextResponse.json({ status: "ok", offer })
@@ -113,6 +118,11 @@ export async function POST(req: NextRequest) {
     const offer = (await r.hget<BetOffer>(K.offers(season), offerId)) ?? null
     if (!offer || !offer.open)
       return NextResponse.json({ error: "offer not open" }, { status: 404 })
+    if (offer.expiresAt && Date.now() > offer.expiresAt) {
+      offer.open = false // lazy-expire on first touch
+      await r.hset(K.offers(season), { [offer.id]: offer })
+      return NextResponse.json({ error: "this offer expired — too slow" }, { status: 410 })
+    }
     if (offer.posterId === ownerId)
       return NextResponse.json({ error: "can't take your own bet" }, { status: 400 })
     if (offer.taken.includes(ownerId))

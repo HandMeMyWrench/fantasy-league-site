@@ -35,6 +35,9 @@ export type BetOffer = {
   taken: string[] // ownerIds who took it
   open: boolean
   createdAt: number
+  // Optional shelf life (Sep 26 2026): past this, the offer can't be taken
+  // and drops off the board. Bets already spawned from it are untouched.
+  expiresAt?: number | null
 }
 
 // ---- managers (Sleeper owner ids) ----
