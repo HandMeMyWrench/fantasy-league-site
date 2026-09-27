@@ -23,8 +23,8 @@ export default function SplashIntro() {
       return
     }
     setShow(true)
-    const t1 = setTimeout(() => setLeaving(true), 1650)
-    const t2 = setTimeout(() => setShow(false), 2100)
+    const t1 = setTimeout(() => setLeaving(true), 2600)
+    const t2 = setTimeout(() => setShow(false), 3100)
     return () => {
       clearTimeout(t1)
       clearTimeout(t2)
@@ -55,43 +55,43 @@ export default function SplashIntro() {
         @keyframes swrr-drop { from { transform: translateY(-18px); opacity: 0 } to { transform: translateY(0); opacity: 1 } }
         @keyframes swrr-fade { from { opacity: 0 } to { opacity: 1 } }
       `}</style>
-      <div className="w-44">
+      <div className="w-72 max-w-[70vw]">
         {/* two safe brass bars */}
         {[0, 1].map((i) => (
           <div
             key={i}
-            className="mb-4 h-6 rounded-full"
+            className="mb-6 h-9 rounded-full"
             style={{
               background: "linear-gradient(180deg,#f5d68c,#e2ba5e)",
               transformOrigin: "left center",
-              animation: `swrr-bar 420ms cubic-bezier(.2,.8,.2,1) ${i * 140}ms both`,
+              animation: `swrr-bar 560ms cubic-bezier(.2,.8,.2,1) ${i * 200}ms both`,
             }}
           />
         ))}
         {/* the dashed drop line */}
-        <div className="mb-4 flex gap-1.5">
+        <div className="mb-6 flex gap-2.5">
           {[0, 1, 2, 3, 4, 5].map((i) => (
             <div
               key={i}
-              className="h-1.5 flex-1 rounded-full"
+              className="h-2.5 flex-1 rounded-full"
               style={{
                 background: "#f87171",
-                animation: `swrr-dash 240ms ease-out ${420 + i * 55}ms both`,
+                animation: `swrr-dash 300ms ease-out ${620 + i * 80}ms both`,
               }}
             />
           ))}
         </div>
         {/* the doomed bar drops in below the line */}
         <div
-          className="relative h-6 rounded-full"
+          className="relative h-9 rounded-full"
           style={{
             backgroundColor: "#263458",
-            animation: "swrr-drop 380ms cubic-bezier(.3,1.2,.4,1) 880ms both",
+            animation: "swrr-drop 480ms cubic-bezier(.3,1.2,.4,1) 1300ms both",
           }}
         >
           <svg
             viewBox="0 0 24 24"
-            className="absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2"
+            className="absolute right-4 top-1/2 h-5 w-5 -translate-y-1/2"
             fill="#f87171"
             aria-hidden
           >
@@ -100,8 +100,8 @@ export default function SplashIntro() {
         </div>
       </div>
       <p
-        className="display mt-8 text-[13px] tracking-[0.35em] text-ink-faint"
-        style={{ animation: "swrr-fade 500ms ease 1050ms both" }}
+        className="display mt-10 text-[17px] tracking-[0.4em] text-ink-dim"
+        style={{ animation: "swrr-fade 650ms ease 1600ms both" }}
       >
         SELF WILL RUN RIOT
       </p>
