@@ -1318,7 +1318,17 @@ export default function PickemPage() {
                         )
                         .map((s, i) => {
                           const lp = s.livePoints ?? s.points
-                          const moving = Math.abs(lp - s.points) > 1e-9
+                          // Everyone shows a live number — a pick that's
+                          // currently LOSING projects the same as banked
+                          // (wrong picks score 0, not negative), so hiding
+                          // equal values made it look like only the
+                          // currently-winning managers were tracked.
+                          const dir =
+                            lp > s.points + 1e-9
+                              ? "text-promo"
+                              : lp < s.points - 1e-9
+                              ? "text-rose-400"
+                              : "text-ink-faint"
                           const reveal = lbReveal?.find((r) => r.ownerId === String(s.ownerId))
                           const canExpand = !!reveal && !!lbNflBoard
                           const header = (
@@ -1332,8 +1342,8 @@ export default function PickemPage() {
                               </span>
                               <span className="tnum shrink-0 text-ink-dim">
                                 {s.points.toFixed(1)} banked
-                                {moving && (
-                                  <span className={lp > s.points ? "text-promo" : "text-rose-400"}>
+                                {s.livePoints != null && (
+                                  <span className={dir}>
                                     {" "}· {lp.toFixed(1)} live
                                   </span>
                                 )}
