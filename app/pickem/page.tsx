@@ -43,6 +43,7 @@ type LeaderResp = {
   }[]
   liveWeek?: {
     week: number
+    outcomes?: { gameId: string; winner: "a" | "b" | "push"; aPoints: number; bPoints: number }[]
     scores: {
       ownerId: string
       name: string
@@ -68,6 +69,88 @@ type AllPicksRow = {
   picks: Record<string, Side>
   lockGameId: string | null
   buybackChanges: number
+}
+
+// NFL reveal rows: picks are stamped objects; only kicked-off games are
+// present (per-game reveal — the server filters).
+type NflPickView = {
+  side: Side
+  market?: "ml" | "ats"
+  line?: number | null
+  fav?: boolean
+  tier?: "tease" | "market" | "tight1" | "tight2"
+}
+type NflRevealRow = {
+  ownerId: string
+  picks: Record<string, string | NflPickView>
+  lockGameId: string | null
+}
+type LbOutcome = { gameId: string; winner: Side | "push"; aPoints: number; bPoints: number }
+
+/** Graded pick list under a manager on the NFL leaderboard — fills in as
+    the scoreboard does (per-game reveal means only kicked games appear). */
+function GradedPicks({
+  row,
+  board,
+  outcomes,
+}: {
+  row: NflRevealRow
+  board: Board
+  outcomes: Map<string, LbOutcome>
+}) {
+  const entries = board.games
+    .filter((g) => row.picks[g.id] !== undefined)
+    .map((g) => {
+      const raw = row.picks[g.id]
+      const p: NflPickView = typeof raw === "string" ? { side: raw as Side } : raw
+      const picked = g[p.side].owner
+      const other = g[p.side === "a" ? "b" : "a"].owner
+      const isAts = p.market === "ats"
+      const line = p.line ?? null
+      const tierPts = { tease: "1", market: "1½", tight1: "2", tight2: "3" }[p.tier ?? "market"]
+      const desc = isAts
+        ? `${picked} ${line != null ? (line > 0 ? `+${line}` : line) : "cover"} · ${tierPts}`
+        : `${picked} ML${p.fav === false ? " 🤖" : ""}`
+      const o = outcomes.get(g.id)
+      const final = !!o && !(o.winner === "push" && o.aPoints === 0 && o.bPoints === 0)
+      let verdict: "win" | "loss" | "push" | "live" = "live"
+      if (final && o) {
+        if (isAts && line != null) {
+          const margin =
+            (p.side === "a" ? o.aPoints - o.bPoints : o.bPoints - o.aPoints) + line
+          verdict = margin > 0 ? "win" : margin < 0 ? "loss" : "push"
+        } else {
+          verdict = o.winner === "push" ? "push" : p.side === o.winner ? "win" : "loss"
+        }
+      }
+      return { g, picked, other, desc, verdict, isLock: row.lockGameId === g.id }
+    })
+  if (!entries.length)
+    return <p className="px-2 py-1 text-xs text-ink-faint">No picks revealed yet — games unlock as they kick off.</p>
+  return (
+    <ul className="space-y-0.5 px-2 py-1">
+      {entries.map((e) => (
+        <li key={e.g.id} className="flex items-center justify-between gap-2 text-xs">
+          <span className="min-w-0 truncate text-ink-dim">
+            <span
+              className={
+                e.verdict === "win"
+                  ? "font-semibold text-promo"
+                  : e.verdict === "loss"
+                  ? "font-semibold text-rose-400"
+                  : "font-semibold text-ink"
+              }
+            >
+              {e.verdict === "win" ? "✓" : e.verdict === "loss" ? "✗" : e.verdict === "push" ? "➖" : "⏳"}
+            </span>{" "}
+            {e.desc}
+            {e.isLock && " 🔒"}
+            <span className="text-ink-faint"> vs {e.other}</span>
+          </span>
+        </li>
+      ))}
+    </ul>
+  )
 }
 
 /** Padlock icon: open shackle = available, closed + filled = your Lock. */
@@ -278,13 +361,38 @@ export default function PickemPage() {
   // Era toggle removed Sep 25 2026 — leaderboard shows the live NFL game
   // only (fantasy wks 1-2 live in the recap archive).
   const lbContest: "nfl" | "" = NFL_PICKEM_ENABLED ? "nfl" : ""
+  // Graded-picks dropdowns on the live week: the NFL board (for team
+  // labels) + the per-game reveal rows (kicked games only).
+  const [lbNflBoard, setLbNflBoard] = useState<Board | null>(null)
+  const [lbReveal, setLbReveal] = useState<NflRevealRow[] | null>(null)
   useEffect(() => {
     if (tab !== "leaderboard") return
     setLeader(null)
     const load = () =>
       fetch(`/api/pickem/leaderboard${lbContest ? `?contest=${lbContest}` : ""}`)
         .then((r) => r.json())
-        .then(setLeader)
+        .then((d) => {
+          setLeader(d)
+          if (lbContest === "nfl" && d?.liveWeek?.week) {
+            fetch(`/api/pickem/board?contest=nfl`)
+              .then((r) => r.json())
+              .then((b) => setLbNflBoard(b?.status === "ok" ? b.board : null))
+              .catch(() => {})
+            fetch(`/api/pickem/picks?week=${d.liveWeek.week}&all=1&contest=nfl`)
+              .then((r) => (r.ok ? r.json() : null))
+              .then((p) =>
+                setLbReveal(
+                  p?.status === "ok"
+                    ? (p.rows as NflRevealRow[]).map((r0) => ({
+                        ...r0,
+                        ownerId: String(r0.ownerId),
+                      }))
+                    : null
+                )
+              )
+              .catch(() => {})
+          }
+        })
         .catch(() => null)
     load()
     // NFL era: refresh every 90s so the live-week projection tracks the
@@ -1167,14 +1275,16 @@ export default function PickemPage() {
                         .map((s, i) => {
                           const lp = s.livePoints ?? s.points
                           const moving = Math.abs(lp - s.points) > 1e-9
-                          return (
-                            <li
-                              key={s.ownerId}
-                              className="flex items-center justify-between gap-2 px-2 py-1.5 text-sm"
-                            >
+                          const reveal = lbReveal?.find((r) => r.ownerId === String(s.ownerId))
+                          const canExpand = !!reveal && !!lbNflBoard
+                          const header = (
+                            <>
                               <span className="min-w-0 truncate text-ink">
                                 <span className="display mr-2 text-ink-faint">{i + 1}</span>
                                 {s.name}
+                                {canExpand && (
+                                  <span className="ml-1.5 text-[10px] text-ink-faint">▾</span>
+                                )}
                               </span>
                               <span className="tnum shrink-0 text-ink-dim">
                                 {s.points.toFixed(1)} banked
@@ -1184,6 +1294,36 @@ export default function PickemPage() {
                                   </span>
                                 )}
                               </span>
+                            </>
+                          )
+                          if (!canExpand)
+                            return (
+                              <li
+                                key={s.ownerId}
+                                className="flex items-center justify-between gap-2 px-2 py-1.5 text-sm"
+                              >
+                                {header}
+                              </li>
+                            )
+                          // Graded picks dropdown — only kicked-off games are
+                          // in the reveal, so nothing here is copyable.
+                          const outcomeMap = new Map(
+                            (leader.liveWeek?.outcomes ?? []).map((o) => [o.gameId, o])
+                          )
+                          return (
+                            <li key={s.ownerId}>
+                              <details className="group">
+                                <summary className="flex cursor-pointer list-none items-center justify-between gap-2 rounded-lg px-2 py-1.5 text-sm transition-colors hover:bg-white/5 [&::-webkit-details-marker]:hidden">
+                                  {header}
+                                </summary>
+                                <div className="mb-1 ml-6 rounded-lg bg-white/[0.03]">
+                                  <GradedPicks
+                                    row={reveal}
+                                    board={lbNflBoard!}
+                                    outcomes={outcomeMap}
+                                  />
+                                </div>
+                              </details>
                             </li>
                           )
                         })}
