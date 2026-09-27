@@ -2,10 +2,10 @@ import type { MetadataRoute } from "next"
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "Self Will Run Riot Fantasy Relegation League",
-    short_name: "SWRR League",
+    name: "Relegation Line",
+    short_name: "Relegation Line",
     description:
-      "Upper/lower relegation fantasy league — live standings, matchups, power rankings, promotion/relegation, and history.",
+      "The relegation league app — pick'em with real stakes, live standings, promotion and the drop. Home of Self Will Run Riot.",
     start_url: "/",
     display: "standalone",
     background_color: "#0b1226",

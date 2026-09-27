@@ -4,14 +4,16 @@ import SplashIntro from "@/components/SplashIntro"
 import { display, body } from "./fonts"
 
 export const metadata = {
-  title: "Self Will Run Riot Fantasy League",
+  // App brand = Relegation Line (Sep 27 2026); Self Will Run Riot is the
+  // league ON the app — the product/tenant split for the multi-league era.
+  title: "Relegation Line · Self Will Run Riot",
   description:
-    "Upper/lower relegation fantasy league — live standings, matchups, odds, promotion/relegation, and history.",
+    "Relegation Line — the relegation league app. Pick'em with real stakes, live standings, promotion and the drop. Home of Self Will Run Riot.",
   manifest: "/manifest.webmanifest",
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
-    title: "SWRR League",
+    title: "Relegation Line",
   },
   icons: {
     icon: "/icon-192.png",
