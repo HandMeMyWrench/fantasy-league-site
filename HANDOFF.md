@@ -388,6 +388,21 @@ Growth thesis discussed and kept for the offseason build:
   completes a real promotion/relegation cycle in 2027 beats five leagues
   signed to a format that's never run. The proof season is the marketing.
 
+## Icon v2 + splash intro (Sep 27 2026)
+
+App icon redesigned: "THE LINE" — two brass bars, dashed red drop line,
+one doomed navy bar with down arrow; NO wordmark (app label carries the
+name). Full-bleed squares (OS masks corners): public/icon-512/192,
+apple-touch-icon, app/favicon.ico; generator lives in this session's
+/tmp/iconlab (concept sheet: A line/B chevrons/C crest/D masthead — D is
+the future app-store candidate). Sleeper-style splash
+(components/SplashIntro.tsx in layout): three brass bars draw in, the
+line ticks across, the bottom bar FALLS through and drains to doomed
+navy, survivors close ranks — final frame IS the icon (~4.4s, once per
+session via sessionStorage 'swrr-splash', tap to skip, prefers-reduced-
+motion exempt). Remind users: iOS caches home-screen icons — re-add to
+get the new one.
+
 ## Nav consolidation (July 2026)
 
 Season nav is now: Standings, Matchups, Pick'em, History (+ Draft Lottery
