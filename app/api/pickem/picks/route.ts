@@ -193,12 +193,24 @@ export async function POST(req: NextRequest) {
     // CURRENT line + favorite — sportsbook rules: you get the number that
     // was up when you bet, however it moves afterward.
     const prev = existing.prelock?.picks ?? {}
+    // Explicit UN-picks (Sep 27 2026): the merge keeps saved picks by
+    // default, so removing one takes an explicit clears entry — only
+    // honored on games that haven't kicked off (started picks are frozen,
+    // removals included).
+    const clears = new Set<string>(
+      (Array.isArray(body.clears) ? body.clears : []).map(String)
+    )
     const merged: Record<string, PickValue> = {}
     let stamped = 0
+    let removed = 0
     for (const g of board.games) {
       if (started.has(g.id)) {
         if (prev[g.id]) merged[g.id] = prev[g.id]
         continue
+      }
+      if (clears.has(g.id) && !picks[g.id]) {
+        if (prev[g.id]) removed++
+        continue // dropped — no action on this game
       }
       const incoming = picks[g.id]
       if (incoming) {
@@ -249,7 +261,7 @@ export async function POST(req: NextRequest) {
         merged[g.id] = prev[g.id]
       }
     }
-    if (stamped === 0 && !lockGameId)
+    if (stamped === 0 && removed === 0 && !lockGameId)
       return NextResponse.json({ error: "nothing to save — no new picks" }, { status: 400 })
     // The 🔒 freezes with its game: once your lock's game kicks off it can't
     // move, and a new lock can't land on a game already underway.
@@ -263,6 +275,9 @@ export async function POST(req: NextRequest) {
       )
     if (lock && !gameById.has(lock))
       return NextResponse.json({ error: "invalid lock" }, { status: 400 })
+    // A lock on a game with no pick (e.g. the pick was just cleared) is
+    // meaningless — drop it rather than error.
+    if (lock && !started.has(lock) && !merged[lock]) lock = null
     // Locks ride the market: ML or market-line ATS only. A teaser+lock is a
     // ~70% shot at 3 pts — priced out by rule.
     if (lock) {

@@ -77,6 +77,10 @@ export default function NflBoard({
     >
   >({})
   const [lockGameId, setLockGameId] = useState<string | null>(null)
+  // Games the user explicitly UN-picked this session (toggle-off). The
+  // server's merge keeps previously saved picks by default, so removals
+  // must be sent explicitly (body.clears).
+  const [cleared, setCleared] = useState<Set<string>>(new Set())
   const [ownerId, setOwnerId] = useState("")
   const [pin, setPin] = useState("")
   const [msg, setMsg] = useState<string | null>(null)
@@ -308,12 +312,14 @@ export default function NflBoard({
           pin,
           picks,
           lockGameId,
+          clears: [...cleared], // explicit un-picks (merge keeps prev otherwise)
         }),
       })
       const j = await r.json()
       if (!r.ok) setMsg(`❌ ${j.error ?? "submission failed"}`)
       else {
         remember(ownerId, pin)
+        setCleared(new Set()) // removals applied server-side
         // Pull the freshly stamped card back so every pick displays the
         // exact line it was just locked at (then restore the save message,
         // which loadCard would otherwise overwrite).
@@ -345,7 +351,7 @@ export default function NflBoard({
   // kickoff. Unpicked at kickoff = zero for that game alone.
   const openGames = board.games.filter((g) => !kicked(g))
   const openPicked = openGames.filter((g) => picks[g.id]).length
-  const hasAnything = Object.keys(picks).length > 0 || !!lockGameId
+  const hasAnything = Object.keys(picks).length > 0 || !!lockGameId || cleared.size > 0
 
   return (
     <div>
@@ -561,10 +567,33 @@ export default function NflBoard({
                           market: "ml" | "ats",
                           tier?: "tease" | "tight1" | "tight2"
                         ) => {
+                          // TOGGLE-OFF (Sep 27 2026): clicking the chip you
+                          // already have selected UN-picks the game — no
+                          // action on it at all (server told via clears).
+                          const same =
+                            mine?.side === side &&
+                            mine.market === market &&
+                            (mine.tier ?? undefined) === (tier ?? undefined)
+                          if (same) {
+                            setPicks((p) => {
+                              const n = { ...p }
+                              delete n[g.id]
+                              return n
+                            })
+                            setCleared((c) => new Set(c).add(g.id))
+                            if (lockGameId === g.id) setLockGameId(null)
+                            return
+                          }
                           setPicks((p) => ({
                             ...p,
                             [g.id]: { side, market, ...(tier ? { tier } : {}) },
                           }))
+                          setCleared((c) => {
+                            if (!c.has(g.id)) return c
+                            const n = new Set(c)
+                            n.delete(g.id)
+                            return n
+                          })
                           // Locks ride the market — picking an alt-line
                           // releases a lock sitting on this game.
                           if (tier && lockGameId === g.id) setLockGameId(null)
