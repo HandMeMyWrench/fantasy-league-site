@@ -23,8 +23,8 @@ export default function SplashIntro() {
       return
     }
     setShow(true)
-    const t1 = setTimeout(() => setLeaving(true), 2600)
-    const t2 = setTimeout(() => setShow(false), 3100)
+    const t1 = setTimeout(() => setLeaving(true), 3400)
+    const t2 = setTimeout(() => setShow(false), 3900)
     return () => {
       clearTimeout(t1)
       clearTimeout(t2)
@@ -52,24 +52,35 @@ export default function SplashIntro() {
       <style>{`
         @keyframes swrr-bar { from { transform: scaleX(0); opacity: 0 } to { transform: scaleX(1); opacity: 1 } }
         @keyframes swrr-dash { from { transform: translateY(6px); opacity: 0 } to { transform: translateY(0); opacity: 1 } }
-        @keyframes swrr-drop { from { transform: translateY(-18px); opacity: 0 } to { transform: translateY(0); opacity: 1 } }
+        @keyframes swrr-fall { from { transform: translateY(0) } to { transform: translateY(120px) } }
         @keyframes swrr-fade { from { opacity: 0 } to { opacity: 1 } }
+        @keyframes swrr-fadeout { from { opacity: 1 } to { opacity: 0 } }
       `}</style>
-      <div className="w-72 max-w-[70vw]">
-        {/* two safe brass bars */}
-        {[0, 1].map((i) => (
-          <div
-            key={i}
-            className="mb-6 h-9 rounded-full"
-            style={{
-              background: "linear-gradient(180deg,#f5d68c,#e2ba5e)",
-              transformOrigin: "left center",
-              animation: `swrr-bar 560ms cubic-bezier(.2,.8,.2,1) ${i * 200}ms both`,
-            }}
-          />
-        ))}
+      {/* Fixed 216px stage: slot1 = safe bar, slot2 = the faller's start,
+          slot3 = the drop line, slot4 = where the faller lands. The second
+          brass bar FALLS through the line and drains to doomed navy — the
+          whole league format in one move. */}
+      <div className="relative h-[216px] w-72 max-w-[70vw]">
+        {/* safe bar with the promotion arrow punched in */}
+        <div
+          className="absolute left-0 top-0 h-9 w-full rounded-full"
+          style={{
+            background: "linear-gradient(180deg,#f5d68c,#e2ba5e)",
+            transformOrigin: "left center",
+            animation: "swrr-bar 560ms cubic-bezier(.2,.8,.2,1) 0ms both",
+          }}
+        >
+          <svg
+            viewBox="0 0 24 24"
+            className="absolute right-4 top-1/2 h-5 w-5 -translate-y-1/2"
+            fill="#18223e"
+            aria-hidden
+          >
+            <path d="M4 16h16l-8-10z" />
+          </svg>
+        </div>
         {/* the dashed drop line */}
-        <div className="mb-6 flex gap-2.5">
+        <div className="absolute left-0 top-[133px] flex w-full gap-2.5">
           {[0, 1, 2, 3, 4, 5].map((i) => (
             <div
               key={i}
@@ -81,27 +92,42 @@ export default function SplashIntro() {
             />
           ))}
         </div>
-        {/* the doomed bar drops in below the line */}
+        {/* the faller: brass at first, drops through the line at ~1.5s and
+            drains to doomed navy as it crosses */}
         <div
-          className="relative h-9 rounded-full"
-          style={{
-            backgroundColor: "#263458",
-            animation: "swrr-drop 480ms cubic-bezier(.3,1.2,.4,1) 1300ms both",
-          }}
+          className="absolute left-0 top-[60px] h-9 w-full"
+          style={{ animation: "swrr-fall 700ms cubic-bezier(.55,0,.65,1) 1500ms both" }}
         >
-          <svg
-            viewBox="0 0 24 24"
-            className="absolute right-4 top-1/2 h-5 w-5 -translate-y-1/2"
-            fill="#f87171"
-            aria-hidden
+          <div
+            className="absolute inset-0 rounded-full"
+            style={{
+              background: "linear-gradient(180deg,#f5d68c,#e2ba5e)",
+              transformOrigin: "left center",
+              animation:
+                "swrr-bar 560ms cubic-bezier(.2,.8,.2,1) 200ms both, swrr-fadeout 450ms ease 1750ms forwards",
+            }}
+          />
+          <div
+            className="absolute inset-0 rounded-full"
+            style={{
+              backgroundColor: "#263458",
+              animation: "swrr-fade 450ms ease 1750ms both",
+            }}
           >
-            <path d="M4 8h16l-8 10z" />
-          </svg>
+            <svg
+              viewBox="0 0 24 24"
+              className="absolute right-4 top-1/2 h-5 w-5 -translate-y-1/2"
+              fill="#f87171"
+              aria-hidden
+            >
+              <path d="M4 8h16l-8 10z" />
+            </svg>
+          </div>
         </div>
       </div>
       <p
         className="display mt-10 text-[17px] tracking-[0.4em] text-ink-dim"
-        style={{ animation: "swrr-fade 650ms ease 1600ms both" }}
+        style={{ animation: "swrr-fade 650ms ease 2350ms both" }}
       >
         SELF WILL RUN RIOT
       </p>
