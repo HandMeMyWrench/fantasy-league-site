@@ -1191,8 +1191,28 @@ export default function PickemPage() {
                 No completed weeks yet — the board fills in after Week 1.
               </p>
             )}
-            {leader && leader.table.length > 0 && (
+            {leader && leader.table.length > 0 && (() => {
+              // GAMES-RUNNING FOCUS (commissioner, Sep 27 2026): while the
+              // week is actually in flight (something has kicked off and
+              // not everything is final), the Leaderboard tab shows ONLY
+              // the live board — no season table, no past weeks, no share
+              // button competing for the screen. Tuesday (all final) the
+              // full leaderboard returns.
+              const anyKicked = !!lbNflBoard?.games.some(
+                (g) => g.kickoff && g.kickoff <= Date.now()
+              )
+              const allFinal =
+                !!lbNflBoard &&
+                !!leader.liveWeek?.outcomes &&
+                lbNflBoard.games.every((g) => {
+                  const o = leader.liveWeek!.outcomes!.find((x) => x.gameId === g.id)
+                  return o && !(o.winner === "push" && o.aPoints === 0 && o.bPoints === 0)
+                })
+              const liveOnly =
+                lbContest === "nfl" && !!leader.liveWeek && anyKicked && !allFinal
+              return (
               <>
+                {!liveOnly && (
                 <section className="panel overflow-hidden">
                   <h2 className="display border-b border-line bg-surface-2 px-4 py-2.5 text-sm text-brand">
                     Season standings
@@ -1236,8 +1256,9 @@ export default function PickemPage() {
                     </tbody>
                   </table>
                 </section>
+                )}
 
-                {(() => {
+                {!liveOnly && (() => {
                   const wk = leader.weeks[leader.weeks.length - 1]
                   if (!wk) return null
                   const nameOf = (id: string) =>
@@ -1280,7 +1301,7 @@ export default function PickemPage() {
                     </h3>
                     <p className="border-b border-line px-4 py-2 text-[11px] text-ink-faint">
                       <span className="text-ink-dim">Banked</span> = finished games only
-                      (official, counts in the standings above).{" "}
+                      (official, feeds the season standings).{" "}
                       <span className="text-promo">Live</span> = if every game in progress
                       ended right now — the number to size a late bet with. Weekly 🔮/🦏
                       settle after MNF. Trailing? The tight alt-lines (2 / 3 pts) stay
@@ -1354,7 +1375,7 @@ export default function PickemPage() {
                   </section>
                 )}
 
-                {leader.weeks
+                {!liveOnly && leader.weeks
                   .slice()
                   .reverse()
                   .map((w) => (
@@ -1389,7 +1410,8 @@ export default function PickemPage() {
                     </section>
                   ))}
               </>
-            )}
+              )
+            })()}
           </>
         )}
 
