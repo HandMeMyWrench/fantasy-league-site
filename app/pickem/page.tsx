@@ -267,6 +267,29 @@ const fmtDeadline = (utc: number) =>
 
 export default function PickemPage() {
   const [tab, setTab] = useState<"board" | "leaderboard" | "rules">("board")
+  // TIME-AWARE LANDING (commissioner, Sep 27 2026): open where the action
+  // is. Any game on the current NFL board kicked off -> land on the LIVE
+  // leaderboard (game day + the settled aftermath through Tuesday).
+  // Fresh board with nothing kicked (Tue onward) -> land on This Week to
+  // pick. One-shot on mount; manual tab taps always win after that.
+  useEffect(() => {
+    if (!NFL_PICKEM_ENABLED) return
+    let stale = false
+    fetch("/api/pickem/board?contest=nfl")
+      .then((r) => r.json())
+      .then((d) => {
+        if (stale || d?.status !== "ok") return
+        const anyKicked = (d.board?.games ?? []).some(
+          (g: { kickoff?: number }) => g.kickoff && g.kickoff <= Date.now()
+        )
+        if (anyKicked) setTab((t) => (t === "board" ? "leaderboard" : t))
+      })
+      .catch(() => {})
+    return () => {
+      stale = true
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
   const [resp, setResp] = useState<BoardResp | null>(null)
   const [leader, setLeader] = useState<LeaderResp | null>(null)
   const [allPicks, setAllPicks] = useState<AllPicksRow[] | null>(null)
