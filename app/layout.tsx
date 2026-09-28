@@ -35,9 +35,15 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             IMMEDIATELY (pre-paint) when this session won't show the
             splash; otherwise SplashIntro clears it once the animation is
             on screen. */}
+        {/* NOTE: the pre-hydration script must only HIDE the guard (style
+            mutation, tolerated via suppressHydrationWarning) — REMOVING the
+            node before React hydrates threw error #418 and forced a full
+            client re-render on every page load (the "site feels broken"
+            bug, Sep 28 2026). SplashIntro removes it post-hydration. */}
         <div
           id="splash-guard"
           aria-hidden
+          suppressHydrationWarning
           style={{
             position: "fixed",
             inset: 0,
@@ -47,7 +53,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         />
         <script
           dangerouslySetInnerHTML={{
-            __html: `try{if(sessionStorage.getItem('swrr-splash')||matchMedia('(prefers-reduced-motion: reduce)').matches){var g=document.getElementById('splash-guard');g&&g.remove()}}catch(e){var g=document.getElementById('splash-guard');g&&g.remove()}`,
+            __html: `try{if(sessionStorage.getItem('swrr-splash')||matchMedia('(prefers-reduced-motion: reduce)').matches){var g=document.getElementById('splash-guard');g&&(g.style.display='none')}}catch(e){var g=document.getElementById('splash-guard');g&&(g.style.display='none')}`,
           }}
         />
         <SplashIntro />

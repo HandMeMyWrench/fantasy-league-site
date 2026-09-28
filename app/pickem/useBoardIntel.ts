@@ -207,6 +207,18 @@ export async function fetchGameEnvs(sched: Map<string, SchedEntry>): Promise<Map
     }
     if (!e.date) continue
     byVenue.set(e.venue, {}) // reserve so we fetch once
+    // 6-hour localStorage cache per venue+date (Sep 28 2026): a full live
+    // Sunday of 22 managers polling blew through Open-Meteo's free-tier
+    // rate limit (429s league-wide). Forecasts don't change enough in 6h
+    // to matter for a wind/rain icon.
+    const cacheKey = `swrr-wx:${e.venue}:${e.date}`
+    try {
+      const hit = JSON.parse(localStorage.getItem(cacheKey) ?? "null")
+      if (hit && Date.now() - hit.t < 6 * 3_600_000) {
+        byVenue.set(e.venue, hit.env)
+        continue
+      }
+    } catch {}
     const url =
       `https://api.open-meteo.com/v1/forecast?latitude=${st.lat}&longitude=${st.lon}` +
       `&daily=precipitation_probability_max,wind_speed_10m_max,snowfall_sum` +
@@ -214,14 +226,18 @@ export async function fetchGameEnvs(sched: Map<string, SchedEntry>): Promise<Map
       `&start_date=${e.date}&end_date=${e.date}&timezone=America%2FNew_York`
     jobs.push(
       fetch(url, { cache: "force-cache" })
-        .then((r) => r.json())
+        .then((r) => (r.ok ? r.json() : Promise.reject(r.status)))
         .then((d: { daily?: { precipitation_probability_max?: number[]; wind_speed_10m_max?: number[]; snowfall_sum?: number[] } }) => {
           const day = d.daily
-          byVenue.set(e.venue, {
+          const env = {
             wind: (day?.wind_speed_10m_max?.[0] ?? 0) >= 20,
             rain: (day?.precipitation_probability_max?.[0] ?? 0) >= 50,
             snow: (day?.snowfall_sum?.[0] ?? 0) > 0,
-          })
+          }
+          byVenue.set(e.venue, env)
+          try {
+            localStorage.setItem(cacheKey, JSON.stringify({ t: Date.now(), env }))
+          } catch {}
         })
         .catch(() => {})
     )
