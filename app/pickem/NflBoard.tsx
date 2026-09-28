@@ -85,6 +85,30 @@ export default function NflBoard({
   const [pin, setPin] = useState("")
   const [msg, setMsg] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  // THE DOUBT LEDGER (Sep 28 2026): season standing + alt-line P&L,
+  // surfaced while they size a gamble — the weekly pot wants variance,
+  // the season pot keeps receipts.
+  const [ledger, setLedger] = useState<{
+    settledWeeks: number
+    season: {
+      points: number
+      rank: number
+      of: number
+      inTheMoney: boolean
+      gapToMoney: number
+    } | null
+    alt: { plays: number; cashes: number; pnl: number }
+  } | null>(null)
+  useEffect(() => {
+    if (!ownerId) {
+      setLedger(null)
+      return
+    }
+    fetch(`/api/pickem/ledger?ownerId=${encodeURIComponent(ownerId)}`)
+      .then((r) => r.json())
+      .then((d) => setLedger(d?.status === "ok" ? d : null))
+      .catch(() => {})
+  }, [ownerId])
 
   useEffect(() => {
     fetch("/api/pickem/board?contest=nfl")
@@ -352,6 +376,10 @@ export default function NflBoard({
   const openGames = board.games.filter((g) => !kicked(g))
   const openPicked = openGames.filter((g) => picks[g.id]).length
   const hasAnything = Object.keys(picks).length > 0 || !!lockGameId || cleared.size > 0
+  // Doubt math: alt-lines currently on the card + what they're risking
+  const altsOnCard = Object.values(picks).filter(
+    (p) => p.market === "ats" && p.tier && p.tier !== "market"
+  ).length
 
   return (
     <div>
@@ -734,6 +762,44 @@ export default function NflBoard({
               </span>
             )}
           </p>
+          {/* THE DOUBT CARD: season-pot conscience, shown once we know
+              who's holding the pen and at least one week has settled. */}
+          {ledger?.season && ledger.settledWeeks > 0 && (
+            <div className="rounded-lg border border-gold/20 bg-gold/5 px-3 py-2 text-xs text-ink-dim">
+              <span className="font-semibold text-gold">Season pot check:</span>{" "}
+              you&apos;re <span className="tnum text-ink">#{ledger.season.rank}</span> of{" "}
+              {ledger.season.of} ({ledger.season.points.toFixed(1)} pts)
+              {ledger.season.inTheMoney ? (
+                <span className="text-promo"> — sitting IN the season money ($125/$50/$25).</span>
+              ) : (
+                <span>
+                  {" "}—{" "}
+                  <span className="tnum text-drop">{ledger.season.gapToMoney.toFixed(1)}</span> back
+                  of the season money.
+                </span>
+              )}
+              {ledger.alt.plays > 0 && (
+                <span>
+                  {" "}Your alt-lines this season:{" "}
+                  <span className="tnum">{ledger.alt.cashes}/{ledger.alt.plays}</span> cashed, net{" "}
+                  <span className={`tnum ${ledger.alt.pnl >= 0 ? "text-promo" : "text-drop"}`}>
+                    {ledger.alt.pnl >= 0 ? "+" : ""}
+                    {ledger.alt.pnl.toFixed(1)}
+                  </span>{" "}
+                  vs the market.
+                  {ledger.alt.pnl < 0 && " The book thanks you."}
+                </span>
+              )}
+              {altsOnCard >= 2 && (
+                <span className="mt-1 block text-ink-faint">
+                  ⚠️ {altsOnCard} alt-lines on this card right now.{" "}
+                  {ledger.season.inTheMoney
+                    ? "You're gambling with a paid seat."
+                    : "Chasing the weekly is how season money slips away — or how it's won. No pressure."}
+                </span>
+              )}
+            </div>
+          )}
           <div className="space-y-2 sm:flex sm:items-center sm:gap-2 sm:space-y-0">
             <select
               value={ownerId}

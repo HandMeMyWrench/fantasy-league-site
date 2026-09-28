@@ -454,6 +454,32 @@ session via sessionStorage 'swrr-splash', tap to skip, prefers-reduced-
 motion exempt). Remind users: iOS caches home-screen icons — re-add to
 get the new one.
 
+## Doubt engine + pick'em second-guess (Sep 28 2026)
+
+Owner's engagement thesis: weekly pot rewards variance, season pot
+punishes it — surfacing that tension AT DECISION TIME drives play.
+- PICK-CHANGE LOG: picks POST records every switch/add/clear with stamps
+  (pickem:nfl:pickmoves:{season}:{week}, capped 600); /api/pickem/
+  pickmoves?week=N serves it for COMPLETED weeks only (privacy guard).
+  THE WEEKLY's "Second-Guessing the Card": switch verdicts ("flip-flopped
+  off a winner — COST HIM THE $25") + alt-line hypotheticals for anyone
+  within 2.5 of the Oracle ("had he taken SEA -14 he wins by 0.5"),
+  SNF/MNF sorted first. Log started wk3 MNF — wk4 is the first
+  fully-armed issue.
+- DOUBT LEDGER: /api/pickem/ledger?ownerId walks CACHED WeekResults
+  (settled weeks only, ~2 Redis reads/wk, no external fetches) → season
+  rank/points/gap-to-money + alt-line record (plays/cashes/PNL vs having
+  taken market). Board shows the Doubt Card once identity is known
+  (remember-me): "#7 of 22, 3.5 back of the season money · alt-lines 1/5
+  cashed, net -2.0. The book thanks you." + a ⚠️ when 2+ alt-lines are
+  on the current card.
+- SEASON FINALE issue (BUILD ~WEEK 14): /recap/season — the yearly
+  version of THE WEEKLY. Spec: season pick'em awards (Oracle count,
+  Blindfold count, best/worst single week, alt-line P&L king + victim =
+  ledger data), Tinker King of the Year, biggest what-if of the season
+  (largest single switch-cost from the pickmoves logs), the relegation/
+  promotion story, prize table. All data sources already exist.
+
 ## Nav consolidation (July 2026)
 
 Season nav is now: Standings, Matchups, Pick'em, History (+ Draft Lottery
