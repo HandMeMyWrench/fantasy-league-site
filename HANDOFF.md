@@ -384,6 +384,29 @@ Growth thesis discussed and kept for the offseason build:
   licensed escrow (LeagueSafe pattern) — their compliance problem, not
   ours; acquisition-friendly (Sleeper can bolt a wallet under our ledger,
   can't un-build bad payments).
+- OWN PLATFORM RECONSIDERED (owner, Sep 28 2026): scaling on Sleeper's
+  unofficial API is feeling harder (we hit Upstash + Open-Meteo + polling
+  limits in week 3 alone), and owner floated going full platform with
+  LEAGUE IMPORT (history included) as the migration path — key insight:
+  on OUR platform the manager-swap problem dissolves (a division is just
+  data; relegating someone is a row update, not a Sleeper invite dance),
+  so the PURE relegation format returns. Agreed synthesis:
+  (1) BUILD THE IMPORT NOW (offseason): ingest league history from
+      Sleeper/ESPN/Yahoo into our own DB — valuable in every future
+      (federation, platform, or acquisition), emotionally perfect
+      onboarding ("nothing is lost"), and it's the easy 10%.
+  (2) ARCHITECTURE SHIFT: our DB = source of truth for everything OURS
+      (leagues, members, divisions, imported history, pick'em, bets,
+      recaps); Sleeper demoted to a GAMEPLAY PROVIDER behind an adapter
+      (rosters + live scoring in through one interface — swappable).
+  (3) DEFER the gameplay engine (rosters/drafts/waivers/scoring): that's
+      the monster — licensed stat feeds (Sportradar-class $$), matching
+      Sleeper's app quality. Import does NOT touch this part.
+  (4) DECISION TRIGGERS for going full platform: revenue covers a real
+      data license; or Sleeper restricts the API; or acquisition path
+      clearly dead (full platform = competitor, weakens the
+      Sleeper-buys-retention-layer story — going platform is partly a
+      decision to stop courting them).
 - Caution ratified: recruit ONE league first. A two-division pyramid that
   completes a real promotion/relegation cycle in 2027 beats five leagues
   signed to a format that's never run. The proof season is the marketing.
