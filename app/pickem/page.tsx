@@ -196,6 +196,61 @@ function LockIcon({ open }: { open: boolean }) {
 }
 
 /** Shared key for the board's shorthand — shown inline (toggle) and in Rules. */
+/** Legend for the NFL board (the live game) — shown on the Rules tab.
+    The fantasy BoardLegend below survives only for the retired archive. */
+function NflLegend() {
+  const Row = ({ token, children }: { token: string; children: React.ReactNode }) => (
+    <div className="flex gap-2 py-0.5">
+      <span className="tnum w-28 shrink-0 text-right text-ink">{token}</span>
+      <span className="min-w-0 text-ink-dim">{children}</span>
+    </div>
+  )
+  return (
+    <div className="text-xs leading-relaxed">
+      <Row token="GB −4.5">
+        the current market line (favorite laying the points) — it moves all
+        week; your bet is graded on the line you saved at
+      </Row>
+      <Row token="63% / 37%">
+        Vegas-derived win odds from the spread — the green/red bar below each
+        game says the same thing at a glance
+      </Row>
+      <Row token="Win · 1">
+        moneyline bet: 1 pt, +1 more if your team was the underdog (🤖 marks
+        the dog side)
+      </Row>
+      <Row token="−4.5 · 1½">
+        cover bet at the market line — 1½ pts
+      </Row>
+      <Row token="+2.5·1 −11.5·2 −18.5·3">
+        the alt-line ladder: tease (easier, 1 pt) / tight (2 pts) / tightest
+        (3 pts). Your selected chip shows YOUR stamped line, the others show
+        today&apos;s price
+      </Row>
+      <Row token="🔒 Lock">
+        3 if it hits, −2 if it misses — market bets only, frozen at its
+        game&apos;s kickoff
+      </Row>
+      <Row token="ATL 14–17 GB · Q3">
+        live score and clock once a game kicks off; FINAL when done. Your
+        frozen pick shows covering/behind by how much
+      </Row>
+      <Row token="🏟️ 💨 🌧️ ❄️">
+        dome · 20+ mph wind · rain likely · snow — the home stadium&apos;s
+        forecast
+      </Row>
+      <Row token="X.X banked · live">
+        on the Leaderboard during games: banked = finished games (official),
+        live = if every game in progress ended right now
+      </Row>
+      <Row token="📋 12/16">
+        tap a manager&apos;s name on the live board for their revealed picks,
+        graded ✓/✗ with points — only games already kicked off show
+      </Row>
+    </div>
+  )
+}
+
 function BoardLegend() {
   const Row = ({ token, children }: { token: string; children: React.ReactNode }) => (
     <div className="flex gap-2 py-0.5">
@@ -1451,65 +1506,57 @@ export default function PickemPage() {
         {tab === "rules" && (
           <section className="panel space-y-3 p-5 text-sm text-ink-dim">
             <p>
-              <span className="font-semibold text-ink">The game (from Week 3):
-              NFL pick&apos;em.</span> Every week, pick the winner of every real NFL
-              game. Favorites are the Vegas line, frozen when the week&apos;s board
-              is created — a correct pick against the spread favorite earns the
-              +1 upset bonus. (Weeks 1–2 ran a retired interleague fantasy
-              format — those results live in the Week 1 and 2 recaps.)
+              <span className="font-semibold text-ink">The game: NFL
+              pick&apos;em.</span> Bet real NFL games every week — as many or as
+              few as you want. Two ways to bet each game, one optional Lock,
+              and every point feeds both the weekly $25 and the season pot.
+              (Weeks 1–2 ran a retired fantasy format; those results live in
+              the Week 1 and 2 recaps.)
             </p>
             <p>
-              <span className="font-semibold text-ink">NFL deadlines — true
-              rolling locks.</span> Every game locks at{" "}
-              <span className="text-ink">its own kickoff, and nothing
-              else</span> — Thursday&apos;s game locks Thursday night, the 1PMs at
-              1PM, SNF at kickoff Sunday night, MNF Monday night. Miss a
-              kickoff, you zero that game only; everything still open takes
-              picks and free edits. Behind after the early games? The tight
+              <span className="font-semibold text-ink">Deadlines — rolling
+              locks.</span> Every game locks at{" "}
+              <span className="text-ink">its own kickoff, and nothing else</span>{" "}
+              — Thursday&apos;s game Thursday night, the 1PMs at 1PM, SNF and MNF at
+              their own kickoffs. A game still unpicked when it kicks off
+              scores zero, for that game alone. Everything else stays open for
+              picks and free edits, so behind after the early games? The tight
               alt-lines on the late slate are exactly how you chase. Each
               game&apos;s picks go <span className="text-ink">public at its own
               kickoff</span> (frozen = nothing to copy); picks on open games
-              stay private. No buyback, no late cards — the rolling locks make
-              them unnecessary.
-            </p>
-            <p>
-              <span className="font-semibold text-ink">Scoring.</span> 1 pt per
-              correct pick. Correctly picking the underdog (against the site&apos;s
-              posted favorite) earns +1. Your 🔒 Lock of the Week is worth 3 if it
-              hits and −2 if it misses. Fantasy ties push — no points either way.
+              stay private.
             </p>
             <p>
               <span className="font-semibold text-ink">Two ways to bet each
-              game.</span> Pick a team to <span className="text-ink">WIN</span>{" "}
-              (moneyline — underdog wins pay the +1 bonus), or to{" "}
-              <span className="text-ink">COVER the spread</span> (1½ pts — a
-              50/50 cover pays a premium over chalk; no upset bonus, the line
-              already levels it; land exactly on the number = push, no points
-              either way). Sportsbook rules on lines:
-              spreads move all week, and{" "}
-              <span className="text-ink">you&apos;re graded on the line showing
-              when you saved the pick</span> — later movement never re-prices a
-              placed bet. Changing a pick re-stamps it at the current line.
+              game.</span> <span className="text-ink">WIN</span> (moneyline):
+              1 pt, and a winning underdog pays{" "}
+              <span className="text-ink">+1 upset bonus</span> (2 total).{" "}
+              <span className="text-ink">COVER</span> (the spread): market line
+              pays <span className="text-ink">1½ pts</span> — a 50/50 cover
+              beats chalk on purpose. No upset bonus on covers (the line
+              already levels it); land exactly on the number = push, no points
+              either way. Sportsbook rules on lines: spreads move all week,
+              but <span className="text-ink">you&apos;re graded on the line showing
+              when you saved</span> — later movement never re-prices a placed
+              bet. Changing a pick re-stamps it at the current line.
             </p>
             <p>
               <span className="font-semibold text-ink">Move the line
-              yourself.</span> On any cover bet you can shift the spread in
-              touchdown steps — every notch tighter is +½ pt: tease it{" "}
+              yourself.</span> Any cover bet can shift the spread in touchdown
+              steps — every notch tighter is +½ pt: tease it{" "}
               <span className="text-ink">7 easier → 1 pt</span>, take the{" "}
               <span className="text-ink">market line → 1½ pts</span>, tighten
               it <span className="text-ink">7 → 2 pts</span>, or tighten it{" "}
               <span className="text-ink">14 → 3 pts</span>. Alt-lines stamp at
-              save time like everything else. One house rule:{" "}
-              <span className="text-ink">Locks ride the market</span> — you
-              can lock a WIN or a market-line cover, never an alt-line.
+              save time like everything else.
             </p>
             <p>
-              <span className="font-semibold text-ink">Partial cards.</span>{" "}
-              Pick any games, any time, each until its own kickoff — save as
-              often as you like. A game still unpicked when it kicks off
-              scores zero for that game alone. No buyback, no late card —
-              rolling locks replace both. (The old complete-card/buyback rules
-              governed the retired fantasy game, weeks 1–2 only.)
+              <span className="font-semibold text-ink">🔒 The Lock.</span> One
+              per week, optional: <span className="text-ink">3 pts if it hits,
+              −2 if it misses</span>, push = no harm. Locks ride the market
+              only — a WIN or a market-line cover, never an alt-line. The lock
+              freezes when its game kicks off; skipping the lock entirely is
+              legal, it just leaves the 3-pointer on the table.
             </p>
             <p>
               <span className="font-semibold text-ink">Money.</span> $25 buy-in —{" "}
@@ -1532,10 +1579,9 @@ export default function PickemPage() {
             <div className="border-t border-line pt-3">
               <p className="mb-2">
                 <span className="font-semibold text-ink">Reading the board.</span>{" "}
-                Every number on the game cards, decoded (same info for everyone —
-                the edge is in how you use it):
+                Every number on the game cards, decoded:
               </p>
-              <BoardLegend />
+              <NflLegend />
             </div>
           </section>
         )}
