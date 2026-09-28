@@ -14,13 +14,20 @@ export default function SplashIntro() {
   const [show, setShow] = useState(false)
   const [leaving, setLeaving] = useState(false)
 
+  // Once the animated overlay is actually painted (it sits above the
+  // server-rendered splash-guard), the guard has done its job.
   useEffect(() => {
+    if (show) document.getElementById("splash-guard")?.remove()
+  }, [show])
+
+  useEffect(() => {
+    const dropGuard = () => document.getElementById("splash-guard")?.remove()
     try {
-      if (sessionStorage.getItem("swrr-splash")) return
-      if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return
+      if (sessionStorage.getItem("swrr-splash")) return dropGuard()
+      if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return dropGuard()
       sessionStorage.setItem("swrr-splash", "1")
     } catch {
-      return
+      return dropGuard()
     }
     setShow(true)
     const t1 = setTimeout(() => setLeaving(true), 5900)

@@ -29,6 +29,27 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en" className={`${display.variable} ${body.variable}`}>
       <body className="min-h-screen pb-24 font-sans text-ink md:pb-0">
+        {/* SPLASH GUARD: server-rendered opaque cover, part of the very
+            first paint — kills the split-second flash of the page before
+            React hydrates SplashIntro. The inline script removes it
+            IMMEDIATELY (pre-paint) when this session won't show the
+            splash; otherwise SplashIntro clears it once the animation is
+            on screen. */}
+        <div
+          id="splash-guard"
+          aria-hidden
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 199,
+            background: "radial-gradient(120% 90% at 50% 38%, #1a2c54 0%, #0b1226 62%)",
+          }}
+        />
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `try{if(sessionStorage.getItem('swrr-splash')||matchMedia('(prefers-reduced-motion: reduce)').matches){var g=document.getElementById('splash-guard');g&&g.remove()}}catch(e){var g=document.getElementById('splash-guard');g&&g.remove()}`,
+          }}
+        />
         <SplashIntro />
         <NavBar />
         <main>{children}</main>
