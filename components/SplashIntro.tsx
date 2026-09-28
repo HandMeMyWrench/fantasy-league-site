@@ -53,7 +53,8 @@ export default function SplashIntro() {
         @keyframes swrr-bar { from { transform: scaleX(0); opacity: 0 } to { transform: scaleX(1); opacity: 1 } }
         @keyframes swrr-dash { from { transform: translateY(6px); opacity: 0 } to { transform: translateY(0); opacity: 1 } }
         @keyframes swrr-fall { from { transform: translateY(0) } to { transform: translateY(120px) } }
-        @keyframes swrr-zoom { from { transform: translateY(120px) scale(1) } to { transform: translateY(0) scale(1.45) } }
+        @keyframes swrr-recenter-line { from { transform: translateY(0) } to { transform: translateY(-96px) } }
+        @keyframes swrr-recenter-box { from { transform: translateY(120px) } to { transform: translateY(24px) } }
         @keyframes swrr-fade { from { opacity: 0 } to { opacity: 1 } }
         @keyframes swrr-fadeout { from { opacity: 1 } to { opacity: 0 } }
         @keyframes swrr-title { from { opacity: 0; transform: translateY(10px) } to { opacity: 1; transform: translateY(0) } }
@@ -101,8 +102,14 @@ export default function SplashIntro() {
                 </div>
               </div>
             ))}
-            {/* the dashed drop line */}
-            <div className="absolute left-0 top-[193px] flex w-full gap-2.5">
+            {/* the dashed drop line — after the fall it recenters (with
+                the box) to the middle of the screen as one unit */}
+            <div
+              className="absolute left-0 top-[193px] flex w-full gap-2.5"
+              style={{
+                animation: "swrr-recenter-line 650ms cubic-bezier(.2,.8,.2,1) 2500ms forwards",
+              }}
+            >
               {[0, 1, 2, 3, 4, 5].map((i) => (
                 <div
                   key={i}
@@ -115,12 +122,12 @@ export default function SplashIntro() {
               ))}
             </div>
             {/* the faller: drops through the line draining to doomed navy,
-                then zooms back to center screen, growing as it comes */}
+                then recenters (with the line) to the middle of the screen */}
             <div
               className="absolute left-0 top-[120px] h-9 w-full"
               style={{
                 animation:
-                  "swrr-fall 700ms cubic-bezier(.55,0,.65,1) 1450ms both, swrr-zoom 700ms cubic-bezier(.2,.8,.2,1) 2450ms forwards",
+                  "swrr-fall 700ms cubic-bezier(.55,0,.65,1) 1450ms both, swrr-recenter-box 650ms cubic-bezier(.2,.8,.2,1) 2500ms forwards",
               }}
             >
               <div
