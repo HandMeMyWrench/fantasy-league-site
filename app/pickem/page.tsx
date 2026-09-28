@@ -107,7 +107,8 @@ function GradedPicks({
       const other = g[p.side === "a" ? "b" : "a"].owner
       const isAts = p.market === "ats"
       const line = p.line ?? null
-      const tierPts = { tease: "1", market: "1½", tight1: "2", tight2: "3" }[p.tier ?? "market"]
+      const tier = p.tier ?? "market"
+      const tierPts = { tease: "1", market: "1½", tight1: "2", tight2: "3" }[tier]
       const desc = isAts
         ? `${picked} ${line != null ? (line > 0 ? `+${line}` : line) : "cover"} · ${tierPts}`
         : `${picked} ML${p.fav === false ? " 🤖" : ""}`
@@ -123,8 +124,21 @@ function GradedPicks({
           verdict = o.winner === "push" ? "push" : p.side === o.winner ? "win" : "loss"
         }
       }
-      return { g, picked, other, desc, verdict, isLock: row.lockGameId === g.id }
+      // points earned on this pick (same rules as the scoring engine)
+      const isLock = row.lockGameId === g.id
+      const lockEligible = !isAts || tier === "market"
+      let pts = 0
+      if (verdict === "win") {
+        if (isAts) pts = isLock && lockEligible ? 3 : { tease: 1, market: 1.5, tight1: 2, tight2: 3 }[tier]
+        else pts = (isLock && lockEligible ? 3 : 1) + (p.fav === false ? 1 : 0)
+      } else if (verdict === "loss" && isLock && lockEligible) {
+        pts = -2
+      }
+      return { g, picked, other, desc, verdict, pts, isLock }
     })
+    // Wins cluster at the top (board order within each group), the rest
+    // follow in board order — the green column reads like a receipt.
+    .sort((a, b) => (b.verdict === "win" ? 1 : 0) - (a.verdict === "win" ? 1 : 0))
   if (!entries.length)
     return <p className="px-2 py-1 text-xs text-ink-faint">No picks revealed yet — games unlock as they kick off.</p>
   return (
@@ -147,6 +161,14 @@ function GradedPicks({
             {e.isLock && " 🔒"}
             <span className="text-ink-faint"> vs {e.other}</span>
           </span>
+          {e.pts > 0 && (
+            <span className="tnum shrink-0 font-semibold text-promo">
+              +{e.pts % 1 === 0 ? e.pts : e.pts.toFixed(1)}
+            </span>
+          )}
+          {e.pts < 0 && (
+            <span className="tnum shrink-0 font-semibold text-rose-400">{e.pts}</span>
+          )}
         </li>
       ))}
     </ul>
