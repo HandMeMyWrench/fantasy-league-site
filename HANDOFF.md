@@ -402,11 +402,31 @@ Growth thesis discussed and kept for the offseason build:
   (3) DEFER the gameplay engine (rosters/drafts/waivers/scoring): that's
       the monster — licensed stat feeds (Sportradar-class $$), matching
       Sleeper's app quality. Import does NOT touch this part.
-  (4) DECISION TRIGGERS for going full platform: revenue covers a real
-      data license; or Sleeper restricts the API; or acquisition path
-      clearly dead (full platform = competitor, weakens the
-      Sleeper-buys-retention-layer story — going platform is partly a
-      decision to stop courting them).
+  (4) DECISION MADE (owner, Sep 28 2026, superseding the deferral):
+      Relegation Line WILL be its own Sleeper — team management, draft,
+      waivers, scoring, the whole season lives on RL; Sleeper import is
+      the on-ramp and Sleeper goes read-only history after cutover.
+      Bill of materials, ranked by difficulty:
+      1. Live stats + scoring engine — the only truly hard one. SWRR
+         scale: free feeds (ESPN scoreboard, nflverse corrections,
+         Sleeper public player DB) behind the SAME adapter interface
+         (now pointing inward). Commercial scale: licensed feed
+         (SportsDataIO ~$500-1k/mo tier) — trigger = revenue first.
+      2. Draft room — realtime websockets, pick timers, autodraft;
+         relegation-native perk: draft order from our lottery.
+      3. Waivers/FAAB/trades — crons + approval flows, tedious not hard.
+      4. League core (rosters/lineups/schedule/standings) — CRUD we're
+         good at; divisions + promotion/relegation become NATIVE objects
+         (relegating a manager = row update; pure format returns).
+      5. Real auth (email/passkey) replacing PINs.
+      6. Apps: current PWA is the year-one app (+ web push); native later.
+      DOGFOOD PLAN: build MVP in the 2027 offseason, run SWRR's 2027
+      season ENTIRELY on RL (full cutover, no parallel run — nobody sets
+      lineups twice; import must be flawless FIRST so leaving feels
+      safe). 24 forgiving users = the QA department.
+      Strategic note, acknowledged: this chooses competitor over
+      acquisition-courtship; the exit story becomes traction (or
+      acquihire), not retention-layer purchase.
 - Caution ratified: recruit ONE league first. A two-division pyramid that
   completes a real promotion/relegation cycle in 2027 beats five leagues
   signed to a format that's never run. The proof season is the marketing.
