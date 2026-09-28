@@ -23,8 +23,8 @@ export default function SplashIntro() {
       return
     }
     setShow(true)
-    const t1 = setTimeout(() => setLeaving(true), 5300)
-    const t2 = setTimeout(() => setShow(false), 5800)
+    const t1 = setTimeout(() => setLeaving(true), 5900)
+    const t2 = setTimeout(() => setShow(false), 6400)
     return () => {
       clearTimeout(t1)
       clearTimeout(t2)
@@ -71,7 +71,7 @@ export default function SplashIntro() {
       <div className="grid place-items-center">
         <div
           className="col-start-1 row-start-1"
-          style={{ animation: "swrr-fadeout 600ms ease 3300ms forwards" }}
+          style={{ animation: "swrr-fadeout 900ms ease 3550ms forwards" }}
         >
           <div className="relative h-[276px] w-72 max-w-[70vw]">
             {/* two safe bars — they fade away as the faller drops */}
@@ -107,7 +107,7 @@ export default function SplashIntro() {
             <div
               className="absolute left-0 top-[193px] flex w-full gap-2.5"
               style={{
-                animation: "swrr-recenter-line 650ms cubic-bezier(.2,.8,.2,1) 2500ms forwards",
+                animation: "swrr-recenter-line 950ms cubic-bezier(.35,.9,.25,1) 2500ms forwards",
               }}
             >
               {[0, 1, 2, 3, 4, 5].map((i) => (
@@ -127,7 +127,7 @@ export default function SplashIntro() {
               className="absolute left-0 top-[120px] h-9 w-full"
               style={{
                 animation:
-                  "swrr-fall 700ms cubic-bezier(.55,0,.65,1) 1450ms both, swrr-recenter-box 650ms cubic-bezier(.2,.8,.2,1) 2500ms forwards",
+                  "swrr-fall 700ms cubic-bezier(.55,0,.65,1) 1450ms both, swrr-recenter-box 950ms cubic-bezier(.35,.9,.25,1) 2500ms forwards",
               }}
             >
               <div
@@ -161,7 +161,7 @@ export default function SplashIntro() {
         {/* the brand takes the mark's place */}
         <div
           className="col-start-1 row-start-1 text-center"
-          style={{ animation: "swrr-title 750ms cubic-bezier(.2,.8,.2,1) 3750ms both" }}
+          style={{ animation: "swrr-title 1000ms cubic-bezier(.2,.8,.2,1) 3800ms both" }}
         >
           <p className="display text-4xl tracking-[0.12em] text-brand">
             RELEGATION LINE
