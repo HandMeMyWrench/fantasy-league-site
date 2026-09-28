@@ -56,7 +56,32 @@ type LbScore = {
   submitted: boolean
   lateCard?: boolean
 }
-type LbWeek = { week: number; winners: string[]; loser: string | null; scores: LbScore[] }
+type LbOut = { gameId: string; winner: "a" | "b" | "push"; aPoints: number; bPoints: number }
+type LbWeek = {
+  week: number
+  winners: string[]
+  loser: string | null
+  scores: LbScore[]
+  outcomes?: LbOut[]
+}
+// Pick'em second-guess types (week 3+): the stamped pick shape, the
+// pick-change log, and the week's NFL board for labels/kickoffs.
+type StampedPick = {
+  side: "a" | "b"
+  market?: "ml" | "ats"
+  line?: number | null
+  fav?: boolean
+  tier?: "tease" | "market" | "tight1" | "tight2"
+}
+type PickMove = { t: number; o: string; g: string; from: StampedPick | string | null; to: StampedPick | string | null }
+type NflBoardGame = {
+  id: string
+  a: { owner: string }
+  b: { owner: string }
+  kickoff?: number
+}
+const ATS_PTS: Record<string, number> = { tease: 1, market: 1.5, tight1: 2, tight2: 3 }
+const ATS_ADJ: Record<string, number> = { tease: 7, market: 0, tight1: -7, tight2: -14 }
 
 function toGames(
   matchups: Matchup[],
@@ -110,6 +135,12 @@ export default function RecapIssue() {
   const [moves, setMoves] = useState<LineupMove[]>([])
   const [tinker, setTinker] = useState<Record<string, number>>({})
   const [openSnap, setOpenSnap] = useState<Record<string, string[]> | null>(null)
+  // Pick'em second-guess inputs (week 3+)
+  const [pkMoves, setPkMoves] = useState<PickMove[]>([])
+  const [pkBoard, setPkBoard] = useState<NflBoardGame[] | null>(null)
+  const [pkReveal, setPkReveal] = useState<
+    { ownerId: string; picks: Record<string, StampedPick | string>; lockGameId: string | null }[] | null
+  >(null)
 
   useEffect(() => {
     if (!week || week < 1 || week > 18) {
@@ -174,6 +205,28 @@ export default function RecapIssue() {
       .then((r) => r.json())
       .then((d) => setOpenSnap(d.status === "ok" ? d.open : null))
       .catch(() => {})
+    // Pick'em second-guess data (NFL era only; endpoints refuse weeks
+    // still in flight, so this is safely a no-op until the week is done)
+    if (week > 2) {
+      fetch(`/api/pickem/pickmoves?week=${week}`)
+        .then((r) => (r.ok ? r.json() : null))
+        .then((d) => setPkMoves(d?.status === "ok" ? d.moves : []))
+        .catch(() => {})
+      fetch(`/api/pickem/board?contest=nfl&week=${week}`)
+        .then((r) => r.json())
+        .then((d) => setPkBoard(d?.status === "ok" ? d.board.games : null))
+        .catch(() => {})
+      fetch(`/api/pickem/picks?week=${week}&all=1&contest=nfl`)
+        .then((r) => (r.ok ? r.json() : null))
+        .then((d) =>
+          setPkReveal(
+            d?.status === "ok"
+              ? d.rows.map((r0: { ownerId: string }) => ({ ...r0, ownerId: String(r0.ownerId) }))
+              : null
+          )
+        )
+        .catch(() => {})
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [week])
 
@@ -344,6 +397,157 @@ export default function RecapIssue() {
     return { backfires, worst, fiddlers, kings, sampled: moves.length > 0 }
   }, [raw, cat, moves, tinker, openSnap])
 
+  // ---- PICK'EM SECOND-GUESS (week 3+) ----
+  // Two engines feeding the recap: (1) the SWITCHES — every logged pick
+  // change graded both ways ("flip-flopped off a winner"), flagged when
+  // the switch decided the weekly money; (2) the HYPOTHETICALS — for
+  // managers who finished close, the single alt-line tier change that
+  // would have taken the $25, late games (SNF/MNF) called out first.
+  const pkGuess = useMemo(() => {
+    if (!pickem?.outcomes || !pkBoard || !pkReveal || week <= 2) return null
+    const outBy = new Map(pickem.outcomes.map((o) => [o.gameId, o]))
+    const gameBy = new Map(pkBoard.map((g) => [g.id, g]))
+    const nameOf = (id: string) =>
+      pickem.scores.find((s) => String(s.ownerId) === String(id))?.name ?? "?"
+    const norm = (p: StampedPick | string | null): StampedPick | null =>
+      p == null ? null : typeof p === "string" ? { side: p as "a" | "b", market: "ml" } : p
+    const pts = (raw: StampedPick | string | null, gid: string, lockId: string | null): number => {
+      const p = norm(raw)
+      const o = outBy.get(gid)
+      if (!p || !o) return 0
+      const final = !(o.winner === "push" && o.aPoints === 0 && o.bPoints === 0)
+      if (!final) return 0
+      const isLock = lockId === gid && (p.market !== "ats" || (p.tier ?? "market") === "market")
+      if (p.market === "ats" && p.line != null) {
+        const margin = (p.side === "a" ? o.aPoints - o.bPoints : o.bPoints - o.aPoints) + p.line
+        if (margin === 0) return 0
+        if (margin > 0) return isLock ? 3 : ATS_PTS[p.tier ?? "market"]
+        return isLock ? -2 : 0
+      }
+      if (o.winner === "push") return 0
+      if (p.side === o.winner) return (isLock ? 3 : 1) + (p.fav === false ? 1 : 0)
+      return isLock ? -2 : 0
+    }
+    const label = (raw: StampedPick | string | null, gid: string): string => {
+      const p = norm(raw)
+      const g = gameBy.get(gid)
+      if (!p || !g) return "?"
+      const team = p.side === "a" ? g.a.owner : g.b.owner
+      if (p.market === "ats" && p.line != null)
+        return `${team} ${p.line > 0 ? `+${p.line}` : p.line}`
+      return `${team} ML`
+    }
+    const onTime = pickem.scores.filter((s) => s.submitted && !s.lateCard)
+    const winnerPts = Math.max(...onTime.map((s) => s.points), -Infinity)
+
+    // (1) switches — original (first `from`) vs final pick, per owner+game
+    const firstFrom = new Map<string, StampedPick | string | null>()
+    for (const m of pkMoves) {
+      if (m.g === "lock") continue
+      const k = `${m.o}:${m.g}`
+      if (!firstFrom.has(k)) firstFrom.set(k, m.from)
+    }
+    type SwitchLine = { text: string; weight: number }
+    const switches: SwitchLine[] = []
+    for (const [k, orig] of firstFrom) {
+      if (orig == null) continue // late add, not a switch
+      const [owner, gid] = [k.slice(0, k.indexOf(":")), k.slice(k.indexOf(":") + 1)]
+      const row = pkReveal.find((r) => r.ownerId === String(owner))
+      const finalPick = row?.picks[gid] ?? null
+      const oN = norm(orig)
+      const fN = norm(finalPick)
+      if (
+        fN &&
+        oN &&
+        oN.side === fN.side &&
+        (oN.market ?? "ml") === (fN.market ?? "ml") &&
+        (oN.tier ?? "market") === (fN.tier ?? "market")
+      )
+        continue // ended where he started
+      const lockId = row?.lockGameId ?? null
+      const dOrig = pts(orig, gid, lockId)
+      const dFin = pts(finalPick, gid, lockId)
+      const delta = dFin - dOrig
+      if (Math.abs(delta) < 0.25) continue
+      const me = pickem.scores.find((s) => String(s.ownerId) === String(owner))
+      if (!me?.submitted) continue
+      const withOrig = me.points - delta
+      const iWon = pickem.winners.map(String).includes(String(owner))
+      let impact = ""
+      let weight = Math.abs(delta)
+      if (!iWon && !me.lateCard && withOrig > winnerPts) {
+        impact = ` — that switch COST HIM THE $25 (would've won by ${(withOrig - winnerPts).toFixed(1)})`
+        weight += 100
+      } else if (iWon && delta > 0) {
+        const maxOther = Math.max(
+          ...onTime.filter((s) => String(s.ownerId) !== String(owner)).map((s) => s.points),
+          -Infinity
+        )
+        if (me.points - delta <= maxOther) {
+          impact = " — that switch WON him the money"
+          weight += 100
+        }
+      }
+      switches.push({
+        text:
+          delta < 0
+            ? `🔀 ${nameOf(owner)} flip-flopped off ${label(orig, gid)} (a winner) onto ${
+                fN ? label(finalPick, gid) : "nothing"
+              } — the switch cost him ${Math.abs(delta).toFixed(1)}${impact}.`
+            : `🔀 ${nameOf(owner)} bailed on ${label(orig, gid)} for ${
+                fN ? label(finalPick, gid) : "nothing"
+              } — the switch EARNED him ${delta.toFixed(1)}${impact}.`,
+        weight,
+      })
+    }
+    switches.sort((a, b) => b.weight - a.weight)
+
+    // (2) hypotheticals — one tier tweak from taking the money, latest
+    // kickoffs (SNF/MNF) first
+    type Hypo = { text: string; kick: number; margin: number }
+    const hypos: Hypo[] = []
+    for (const s of onTime) {
+      if (pickem.winners.map(String).includes(String(s.ownerId))) continue
+      const gap = winnerPts - s.points
+      if (gap < 0 || gap > 2.5) continue
+      const row = pkReveal.find((r) => r.ownerId === String(s.ownerId))
+      if (!row) continue
+      for (const [gid, raw] of Object.entries(row.picks)) {
+        const p = norm(raw)
+        const o = outBy.get(gid)
+        const g = gameBy.get(gid)
+        if (!p || !o || !g || p.market !== "ats" || p.line == null) continue
+        if (row.lockGameId === gid) continue // locks ride the market
+        const t = p.tier ?? "market"
+        const actual = pts(raw, gid, row.lockGameId)
+        for (const t2 of ["tease", "market", "tight1", "tight2"] as const) {
+          if (t2 === t) continue
+          const margin2 =
+            (p.side === "a" ? o.aPoints - o.bPoints : o.bPoints - o.aPoints) +
+            p.line +
+            (ATS_ADJ[t2] - ATS_ADJ[t])
+          const pts2 = margin2 > 0 ? ATS_PTS[t2] : 0
+          const gain = pts2 - actual
+          if (gain > gap) {
+            const team = p.side === "a" ? g.a.owner : g.b.owner
+            const line2 = p.line + (ATS_ADJ[t2] - ATS_ADJ[t])
+            hypos.push({
+              text: `😅 Had ${s.name} taken ${team} ${line2 > 0 ? `+${line2}` : line2} (${
+                ATS_PTS[t2]
+              } pts) instead of ${label(raw, gid)}, he wins the week by ${(gain - gap).toFixed(1)}.`,
+              kick: g.kickoff ?? 0,
+              margin: gain - gap,
+            })
+          }
+        }
+      }
+    }
+    hypos.sort((a, b) => b.kick - a.kick || a.margin - b.margin)
+    const hypoTexts = [...new Set(hypos.map((h) => h.text))].slice(0, 3)
+
+    return { switches: switches.slice(0, 3).map((s) => s.text), hypos: hypoTexts }
+  }, [pickem, pkBoard, pkReveal, pkMoves, week])
+
   const oracle = useMemo(() => {
     if (!pickem) return null
     const nameOf = (id: string) => pickem.scores.find((s) => s.ownerId === id)?.name ?? "?"
@@ -500,6 +704,19 @@ export default function RecapIssue() {
             <p className="text-xs text-ink-faint">
               {oracle.played.length} cards played.
             </p>
+            {pkGuess && (pkGuess.switches.length > 0 || pkGuess.hypos.length > 0) && (
+              <div className="space-y-2 border-t border-line pt-3">
+                <p className="display text-xs tracking-widest text-ink-faint">
+                  🎲 SECOND-GUESSING THE CARD
+                </p>
+                {pkGuess.switches.map((t, i) => (
+                  <p key={`s${i}`} className="text-ink">{t}</p>
+                ))}
+                {pkGuess.hypos.map((t, i) => (
+                  <p key={`h${i}`} className="text-ink-dim">{t}</p>
+                ))}
+              </div>
+            )}
           </div>
         </section>
       )}

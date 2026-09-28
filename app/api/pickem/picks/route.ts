@@ -13,6 +13,7 @@ import {
   getUserAuth,
   getUserPicks,
   listPickOwners,
+  redis,
   setUserAuth,
   setUserPicks,
   storageConfigured,
@@ -203,13 +204,21 @@ export async function POST(req: NextRequest) {
     const merged: Record<string, PickValue> = {}
     let stamped = 0
     let removed = 0
+    // PICK-CHANGE LOG (Sep 28 2026): every switch/add/clear is recorded
+    // with its stamps — feeds THE WEEKLY's pick'em second-guess section
+    // ("flip-flopped off a winner", "the switch that won the $25").
+    // Revealed only after the week ends (pickmoves route guards it).
+    const changeLog: { g: string; from: PickValue | null; to: PickValue | null }[] = []
     for (const g of board.games) {
       if (started.has(g.id)) {
         if (prev[g.id]) merged[g.id] = prev[g.id]
         continue
       }
       if (clears.has(g.id) && !picks[g.id]) {
-        if (prev[g.id]) removed++
+        if (prev[g.id]) {
+          removed++
+          changeLog.push({ g: g.id, from: prev[g.id], to: null })
+        }
         continue // dropped — no action on this game
       }
       const incoming = picks[g.id]
@@ -257,6 +266,7 @@ export async function POST(req: NextRequest) {
             ? { side, market, line, fav, tier }
             : { side, market, line, fav }
         stamped++
+        changeLog.push({ g: g.id, from: prev[g.id] ?? null, to: merged[g.id] })
       } else if (prev[g.id]) {
         merged[g.id] = prev[g.id]
       }
@@ -288,9 +298,28 @@ export async function POST(req: NextRequest) {
           { status: 400 }
         )
     }
+    if (lock !== (existing.prelock?.lockGameId ?? null))
+      changeLog.push({
+        g: "lock",
+        from: (existing.prelock?.lockGameId ?? null) as PickValue | null,
+        to: lock as PickValue | null,
+      })
     existing.prelock = { picks: merged, lockGameId: lock, submittedAt: now }
     existing.postlock = null
     await setUserPicks(SEASON, week, existing, contest)
+    if (changeLog.length) {
+      try {
+        const key = `pickem:nfl:pickmoves:${SEASON}:${week}`
+        const db = redis()!
+        await db.rpush(
+          key,
+          ...changeLog.map((c) => JSON.stringify({ t: now, o: ownerId, ...c }))
+        )
+        await db.ltrim(key, -600, -1)
+      } catch {
+        /* the log is garnish — never fail a save over it */
+      }
+    }
     return NextResponse.json({
       status: "ok",
       phase: "nfl",
