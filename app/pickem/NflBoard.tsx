@@ -761,6 +761,15 @@ export default function NflBoard({
                 kickoff scores zero
               </span>
             )}
+            {/* Lock is OPTIONAL by design (rolling partial cards have no
+                moment to enforce one) — but forgetting isn't choosing. */}
+            {!lockGameId && Object.keys(picks).length > 0 && (
+              <span className="block text-xs text-gold">
+                🔒 no Lock of the Week on this card — that&apos;s the 3-pointer
+                (−2 if it misses) left on the table. Skipping it is legal,
+                just make sure it&apos;s a choice.
+              </span>
+            )}
           </p>
           {/* THE DOUBT CARD: season-pot conscience, shown once we know
               who's holding the pen and at least one week has settled. */}
