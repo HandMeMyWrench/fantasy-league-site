@@ -253,7 +253,12 @@ export default function StandingsPage() {
           <span className="flex-1">Team</span>
           {!provisional && (
             <>
-              <span className="w-12 text-right">W-L</span>
+              {/* phones: PF rides under the record (no room for its own
+                  column); sm+ keeps the dedicated PF column */}
+              <span className="flex w-12 flex-col items-end text-right">
+                <span>W-L</span>
+                <span className="text-[9px] sm:hidden">PF</span>
+              </span>
               <span className="hidden w-16 text-right sm:block">PF</span>
               {oddsMap && (
                 <>
@@ -310,8 +315,13 @@ export default function StandingsPage() {
                     <span className="shrink-0 text-xs text-ink-faint">new season</span>
                   ) : (
                     <>
-                      <span className="tnum w-12 shrink-0 text-right text-sm font-semibold text-ink">
-                        {record(team)}
+                      <span className="flex w-12 shrink-0 flex-col items-end">
+                        <span className="tnum text-right text-sm font-semibold text-ink">
+                          {record(team)}
+                        </span>
+                        <span className="tnum text-right text-[11px] leading-tight text-ink-dim sm:hidden">
+                          {pointsFor(team).toFixed(1)}
+                        </span>
                       </span>
                       <span className="tnum hidden w-16 shrink-0 text-right text-sm text-ink-dim sm:block">
                         {pointsFor(team).toFixed(1)}
