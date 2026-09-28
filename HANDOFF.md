@@ -424,9 +424,17 @@ Growth thesis discussed and kept for the offseason build:
       season ENTIRELY on RL (full cutover, no parallel run — nobody sets
       lineups twice; import must be flawless FIRST so leaving feels
       safe). 24 forgiving users = the QA department.
-      Strategic note, acknowledged: this chooses competitor over
-      acquisition-courtship; the exit story becomes traction (or
-      acquihire), not retention-layer purchase.
+  (5) CLARIFIED (owner, Sep 28 2026, next day): goal is NOT to steal
+      users from Sleeper — the model is COMPANION: every league keeps
+      using Sleeper AND uses RL (Strava-on-your-watch, Discord-next-to-
+      the-game). So the gameplay engine (draft/waivers/scoring, items
+      1-3 above) goes back on the shelf as a someday-option, pulled out
+      only if Sleeper forces it (API restrictions). The 2027 build =
+      import + our-DB-as-source-of-truth + Sleeper adapter + the
+      overlay features. Valuation math unchanged (acquirers price
+      engaged users, not who renders the roster page) and the companion
+      model puts SLEEPER back on the buyer list — a layer that makes
+      their leagues un-cancellable is the cleanest acquisition story.
 - Caution ratified: recruit ONE league first. A two-division pyramid that
   completes a real promotion/relegation cycle in 2027 beats five leagues
   signed to a format that's never run. The proof season is the marketing.
