@@ -15,13 +15,21 @@ export default function SplashIntro() {
   const [leaving, setLeaving] = useState(false)
 
   // Once the animated overlay is actually painted (it sits above the
-  // server-rendered splash-guard), the guard has done its job.
+  // server-rendered splash-guard), the guard has done its job. HIDE it,
+  // never .remove() it — the guard is a React-rendered node, and removing
+  // it out from under React corrupted its DOM bookkeeping: every client
+  // navigation after the splash threw NotFoundError (insertBefore/
+  // removeChild) and crashed to "Application error" (Sep 28 2026).
+  const hideGuard = () => {
+    const g = document.getElementById("splash-guard")
+    if (g) g.style.display = "none"
+  }
   useEffect(() => {
-    if (show) document.getElementById("splash-guard")?.remove()
+    if (show) hideGuard()
   }, [show])
 
   useEffect(() => {
-    const dropGuard = () => document.getElementById("splash-guard")?.remove()
+    const dropGuard = hideGuard
     try {
       if (sessionStorage.getItem("swrr-splash")) return dropGuard()
       if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return dropGuard()
