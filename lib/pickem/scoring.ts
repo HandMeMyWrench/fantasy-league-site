@@ -58,6 +58,7 @@ export function effectivePicks(up: UserPicks): PickSubmission | null {
     picks: { ...up.prelock.picks, ...up.postlock.picks },
     lockGameId: up.postlock.lockGameId ?? up.prelock.lockGameId,
     submittedAt: up.postlock.submittedAt,
+    tiebreaker: up.postlock.tiebreaker ?? up.prelock.tiebreaker ?? null,
   }
 }
 
@@ -129,6 +130,7 @@ export function scoreUser(
     buybackPenalty: buybackChanges * BUYBACK_COST,
     submitted: eff !== null,
     lateCard: !up.prelock && !!up.postlock,
+    tiebreaker: eff?.tiebreaker ?? null,
   }
   if (!eff) return base
 
@@ -232,6 +234,30 @@ export function allocateSeasonPrizes(
     start = end
   }
   return out
+}
+
+/**
+ * MNF-TOTAL TIEBREAKER (Sep 29 2026, NFL era): when several on-time cards
+ * tie for the weekly top score, the closest guess at the last game's total
+ * points wins — distance only, over/under irrelevant (Sleeper's rule, and
+ * every office pool's before them). Winners with no guess lose the
+ * tiebreak IF any rival guessed; nobody guessed -> the tie stands and the
+ * cash splits as before. Exact-distance ties still split.
+ */
+export function applyTiebreaker(
+  winners: string[],
+  scores: UserWeekScore[],
+  actualTotal: number
+): string[] {
+  if (winners.length < 2) return winners
+  const guesses = winners.map((id) => ({
+    id,
+    g: scores.find((s) => s.ownerId === id)?.tiebreaker ?? null,
+  }))
+  const withGuess = guesses.filter((x) => x.g != null)
+  if (!withGuess.length) return winners
+  const best = Math.min(...withGuess.map((x) => Math.abs(x.g! - actualTotal)))
+  return withGuess.filter((x) => Math.abs(x.g! - actualTotal) === best).map((x) => x.id)
 }
 
 export function rankScores(scores: UserWeekScore[]): {

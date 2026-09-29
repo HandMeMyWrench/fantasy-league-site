@@ -67,6 +67,11 @@ export type PickSubmission = {
   picks: Record<string, PickValue> // gameId -> pick
   lockGameId: string | null // Lock of the Week
   submittedAt: number
+  // NFL contest (Sep 29 2026): predicted TOTAL points of the week's last
+  // game (usually MNF) — the weekly tiebreaker. Closest guess (direction
+  // doesn't matter) breaks a tie for the weekly $25; editable until that
+  // game kicks off.
+  tiebreaker?: number | null
 }
 
 export type UserPicks = {
@@ -98,6 +103,8 @@ export type UserWeekScore = {
   // (+lock), and INELIGIBLE for the weekly prize/Oracle — season points
   // only. Still Blindfold-eligible (they submitted).
   lateCard: boolean
+  // NFL tiebreaker guess carried through for display/resolution
+  tiebreaker?: number | null
   // LIVE WEEK ONLY (never persisted): points if every in-progress game
   // ended at its current score — the projection managers size late bets
   // with. Official `points` still bank finals only.
@@ -111,5 +118,7 @@ export type WeekResult = {
   outcomes: GameOutcome[]
   scores: UserWeekScore[] // sorted desc by points
   winners: string[] // ownerIds sharing the top score (split the cash)
+  // Set when the MNF-total tiebreaker actually decided the week (NFL era)
+  tiebreak?: { total: number; decided: boolean } | null
   loser: string | null // lowest score among submitters (the Blindfold)
 }

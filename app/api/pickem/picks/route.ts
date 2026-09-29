@@ -88,11 +88,16 @@ export async function GET(req: NextRequest) {
           )
           if (lockId && !startedIds.has(lockId)) lockId = null
         }
+        // tiebreaker guess stays private until the tiebreaker game (the
+        // week's last kickoff) is underway
+        const lastKick = Math.max(...board.games.map((g) => g.kickoff ?? 0))
+        const tbVisible = !startedIds || (lastKick > 0 && lastKick <= now)
         return {
           ownerId: p.ownerId,
           picks: visible,
           lockGameId: lockId,
           buybackChanges: p.postlock?.changes ?? 0,
+          tiebreaker: tbVisible ? eff?.tiebreaker ?? null : null,
         }
       })
     return NextResponse.json({ status: "ok", rows })
@@ -271,7 +276,26 @@ export async function POST(req: NextRequest) {
         merged[g.id] = prev[g.id]
       }
     }
-    if (stamped === 0 && removed === 0 && !lockGameId)
+    // MNF-TOTAL TIEBREAKER (Sep 29 2026): guess the last game's total
+    // points; closest breaks a weekly tie. Editable until that game kicks
+    // off, then frozen with everything else.
+    const lastGame = board.games.reduce((a, b) =>
+      (a.kickoff ?? 0) >= (b.kickoff ?? 0) ? a : b
+    )
+    const prevTb = existing.prelock?.tiebreaker ?? null
+    let tiebreaker = prevTb
+    let tbChanged = false
+    if (body.tiebreaker !== undefined && !started.has(lastGame.id)) {
+      const tbRaw = body.tiebreaker === null || body.tiebreaker === "" ? null : Number(body.tiebreaker)
+      if (tbRaw !== null && (!isFinite(tbRaw) || tbRaw < 0 || tbRaw > 200))
+        return NextResponse.json({ error: "tiebreaker must be a total between 0 and 200" }, { status: 400 })
+      const norm = tbRaw === null ? null : Math.round(tbRaw)
+      if (norm !== prevTb) {
+        tiebreaker = norm
+        tbChanged = true
+      }
+    }
+    if (stamped === 0 && removed === 0 && !lockGameId && !tbChanged)
       return NextResponse.json({ error: "nothing to save — no new picks" }, { status: 400 })
     // The 🔒 freezes with its game: once your lock's game kicks off it can't
     // move, and a new lock can't land on a game already underway.
@@ -304,7 +328,7 @@ export async function POST(req: NextRequest) {
         from: (existing.prelock?.lockGameId ?? null) as PickValue | null,
         to: lock as PickValue | null,
       })
-    existing.prelock = { picks: merged, lockGameId: lock, submittedAt: now }
+    existing.prelock = { picks: merged, lockGameId: lock, submittedAt: now, tiebreaker }
     existing.postlock = null
     await setUserPicks(SEASON, week, existing, contest)
     if (changeLog.length) {

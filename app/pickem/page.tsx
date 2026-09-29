@@ -29,6 +29,7 @@ type LeaderResp = {
     week: number
     winners: string[]
     loser: string | null
+    tiebreak?: { total: number; decided: boolean } | null
     scores: {
       ownerId: string
       name: string
@@ -1469,6 +1470,11 @@ export default function PickemPage() {
                     <section key={w.week} className="panel mt-4 overflow-hidden">
                       <h3 className="display border-b border-line bg-surface-2 px-4 py-2 text-sm text-ink">
                         Week {w.week}
+                        {w.tiebreak?.decided && (
+                          <span className="ml-2 text-[11px] font-normal tracking-normal text-gold">
+                            🎯 decided on the tiebreaker (MNF total: {w.tiebreak.total})
+                          </span>
+                        )}
                       </h3>
                       <ul className="p-2">
                         {w.scores.map((s) => (
@@ -1563,7 +1569,9 @@ export default function PickemPage() {
             <p>
               <span className="font-semibold text-ink">Money.</span> $25 buy-in —{" "}
               {PICKEM_ENTRANTS} of 24 managers are in this season (${TOTAL_POT} pot).
-              $25 to the weekly winner (ties split). Season top 3: $125 / $50 /
+              $25 to the weekly winner — a tied week goes to the closest{" "}
+              <span className="text-ink">MNF-total tiebreaker</span> guess
+              (set it on your card; an exact tie still splits). Season top 3: $125 / $50 /
               $25 — decided by <span className="text-ink">NFL-era points only,
               fresh from Week 3</span> (fantasy weeks 1–2 don&apos;t carry; their
               weekly $25s were paid and stand). Season ties split the combined

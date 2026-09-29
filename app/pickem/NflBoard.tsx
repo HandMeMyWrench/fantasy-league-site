@@ -77,6 +77,8 @@ export default function NflBoard({
     >
   >({})
   const [lockGameId, setLockGameId] = useState<string | null>(null)
+  // MNF-total tiebreaker guess (string for the input; "" = none)
+  const [tiebreaker, setTiebreaker] = useState<string>("")
   // Games the user explicitly UN-picked this session (toggle-off). The
   // server's merge keeps previously saved picks by default, so removals
   // must be sent explicitly (body.clears).
@@ -218,6 +220,9 @@ export default function NflBoard({
       }
       setPicks(norm)
       setLockGameId(d.picks.prelock.lockGameId ?? null)
+      setTiebreaker(
+        d.picks.prelock.tiebreaker != null ? String(d.picks.prelock.tiebreaker) : ""
+      )
       setMsg(opts.silent ? "✓ Welcome back — your card is loaded" : "✓ Loaded your saved NFL card")
       return true
     } catch {
@@ -337,6 +342,7 @@ export default function NflBoard({
           picks,
           lockGameId,
           clears: [...cleared], // explicit un-picks (merge keeps prev otherwise)
+          tiebreaker: tiebreaker.trim() === "" ? null : Number(tiebreaker),
         }),
       })
       const j = await r.json()
@@ -771,6 +777,33 @@ export default function NflBoard({
               </span>
             )}
           </p>
+          {/* MNF-TOTAL TIEBREAKER: closest guess breaks a weekly tie */}
+          {(() => {
+            const lastGame = board.games.reduce((a, b) =>
+              (a.kickoff ?? 0) >= (b.kickoff ?? 0) ? a : b
+            )
+            const frozen = kicked(lastGame)
+            return (
+              <div className="flex flex-wrap items-center gap-2 rounded-lg border border-line px-3 py-2 text-xs text-ink-dim">
+                <span>
+                  🎯 <span className="font-semibold text-ink">Tiebreaker:</span> total
+                  points in {lastGame.a.owner} @ {lastGame.b.owner}
+                  {frozen && <span className="text-ink-faint"> (locked — game started)</span>}
+                </span>
+                <input
+                  value={tiebreaker}
+                  onChange={(e) => setTiebreaker(e.target.value.replace(/[^0-9]/g, ""))}
+                  disabled={frozen}
+                  inputMode="numeric"
+                  placeholder="e.g. 44"
+                  className="w-20 rounded-lg border border-line bg-surface px-2 py-1.5 text-sm text-ink disabled:opacity-40"
+                />
+                <span className="text-ink-faint">
+                  closest guess wins a tied week — exact tie still splits
+                </span>
+              </div>
+            )
+          })()}
           {/* THE DOUBT CARD: season-pot conscience, shown once we know
               who's holding the pen and at least one week has settled. */}
           {ledger?.season && ledger.settledWeeks > 0 && (

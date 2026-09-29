@@ -5,6 +5,7 @@
 
 import {
   allocateSeasonPrizes,
+  applyTiebreaker,
   countChanges,
   effectivePicks,
   gameOutcomes,
@@ -271,6 +272,21 @@ const sMlDogLock = scoreUser(
   "P"
 )
 check("ML underdog lock hit = 4 pts", sMlDogLock.points === 4, `got ${sMlDogLock.points}`)
+
+// ---------- MNF-total tiebreaker ----------
+console.log("tiebreaker:")
+const tbScore = (ownerId: string, tiebreaker: number | null) => ({
+  ownerId, name: ownerId, points: 10, correct: 0, played: 0, upsets: 0,
+  lockResult: "none" as const, buybackChanges: 0, buybackPenalty: 0,
+  submitted: true, lateCard: false, tiebreaker,
+})
+const tbs = [tbScore("a", 40), tbScore("b", 52), tbScore("c", null)]
+check("closest guess wins (distance only)", applyTiebreaker(["a","b"], tbs, 47).join() === "b")
+check("over/under irrelevant (a under by 5 beats b over by 7)", applyTiebreaker(["a","b"], tbs, 45).join() === "a")
+check("equidistant guesses still split", applyTiebreaker(["a","b"], tbs, 46).sort().join() === "a,b")
+check("no-guess winner loses tiebreak when a rival guessed", applyTiebreaker(["a","c"], tbs, 100).join() === "a")
+check("nobody guessed -> tie stands", applyTiebreaker(["c"], tbs, 50).join() === "c" && applyTiebreaker(["c","c2"], [tbScore("c",null), tbScore("c2",null)], 50).sort().join() === "c,c2")
+check("single winner untouched", applyTiebreaker(["a"], tbs, 999).join() === "a")
 
 // ---------- season prize allocation (RATIFIED: ties split spanned money) ----------
 console.log("season prizes:")

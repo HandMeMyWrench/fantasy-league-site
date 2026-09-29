@@ -9,7 +9,7 @@ import {
   weekLockUtc,
   PICKEM_EXCLUDED_OWNER_IDS,
 } from "@/lib/pickem/config"
-import { allocateSeasonPrizes, gameOutcomes, rankScores, scoreUser } from "@/lib/pickem/scoring"
+import { allocateSeasonPrizes, applyTiebreaker, gameOutcomes, rankScores, scoreUser } from "@/lib/pickem/scoring"
 import type { UserPicks, WeekResult } from "@/lib/pickem/types"
 import {
   getBoard,
@@ -97,13 +97,29 @@ async function computeWeek(
     }
   }
   const { sorted, winners, loser } = rankScores(scores)
+  // NFL era: break a weekly tie on the last game's total (final only)
+  let finalWinners = winners
+  let tiebreak: { total: number; decided: boolean } | null = null
+  if (contest === "nfl" && winners.length > 1) {
+    const lastGame = board.games.reduce((a, b) =>
+      (a.kickoff ?? 0) >= (b.kickoff ?? 0) ? a : b
+    )
+    const o = outcomes.find((x) => x.gameId === lastGame.id)
+    const isFinal = !!o && !(o.winner === "push" && o.aPoints === 0 && o.bPoints === 0)
+    if (isFinal && o) {
+      const total = o.aPoints + o.bPoints
+      finalWinners = applyTiebreaker(winners, scores, total)
+      tiebreak = { total, decided: finalWinners.length < winners.length }
+    }
+  }
   return {
     season: SEASON,
     week,
     computedAt: Date.now(),
     outcomes,
     scores: sorted,
-    winners,
+    winners: finalWinners,
+    tiebreak,
     loser,
   }
 }

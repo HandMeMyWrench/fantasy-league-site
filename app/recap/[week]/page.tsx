@@ -61,6 +61,7 @@ type LbWeek = {
   week: number
   winners: string[]
   loser: string | null
+  tiebreak?: { total: number; decided: boolean } | null
   scores: LbScore[]
   outcomes?: LbOut[]
 }
@@ -722,6 +723,11 @@ export default function RecapIssue() {
             ) : (
               <p className="text-center italic text-ink-dim" style={{ fontFamily: SERIF }}>
                 No eligible weekly winner this week.
+              </p>
+            )}
+            {pickem?.tiebreak?.decided && (
+              <p className="mt-1 text-center text-[12px] italic text-gold" style={{ fontFamily: SERIF }}>
+                Decided on the tiebreaker — closest to the MNF total of {pickem.tiebreak.total}.
               </p>
             )}
             <ul className="mx-auto mt-5 max-w-xl columns-1 gap-8 border-y border-line py-3 sm:columns-2">
