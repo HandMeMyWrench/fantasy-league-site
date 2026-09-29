@@ -591,107 +591,147 @@ export default function RecapIssue() {
     waShare(lines.join("\n"))
   }
 
-  const gameRow = (g: GameLine, i: number) => (
-    <li key={i} className="flex items-baseline justify-between gap-2 px-2 py-1.5 text-sm">
-      <span className="min-w-0 truncate">
-        <span className="text-ink">{g.winner}</span>
-        <span className="text-ink-faint"> def. </span>
-        <span className="text-ink-dim">{g.loser}</span>
-      </span>
-      <span className="tnum shrink-0 text-ink-dim">
-        {g.wPts.toFixed(1)}–{g.lPts.toFixed(1)}
-      </span>
-    </li>
+  const SERIF = "Georgia, 'Times New Roman', serif"
+
+  const divisionTable = (title: string, games: GameLine[]) => (
+    <div className="min-w-0 flex-1">
+      <h3 className="display border-b-2 border-brand/50 pb-1.5 text-xs tracking-[0.3em] text-brand">
+        {title}
+      </h3>
+      <ul>
+        {games.map((g, i) => (
+          <li
+            key={i}
+            className="flex items-baseline justify-between gap-2 border-b border-line/60 py-2 text-[13px] last:border-b-0"
+          >
+            <span className="min-w-0 truncate">
+              <span className="font-semibold text-ink">{g.winner}</span>
+              <span className="italic text-ink-faint" style={{ fontFamily: SERIF }}> def. </span>
+              <span className="text-ink-dim">{g.loser}</span>
+            </span>
+            <span className="tnum shrink-0 text-ink-dim">
+              {g.wPts.toFixed(1)}–{g.lPts.toFixed(1)}
+            </span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  )
+
+  const rule = (label: string) => (
+    <div className="mt-10 flex items-center gap-4">
+      <span className="h-px flex-1 bg-line" />
+      <h2 className="display text-xs tracking-[0.35em] text-ink-faint">{label}</h2>
+      <span className="h-px flex-1 bg-line" />
+    </div>
   )
 
   return (
-    <main className="mx-auto max-w-3xl px-3 pb-16 pt-6 sm:px-6">
-      <p className="display text-center text-xs tracking-[0.3em] text-ink-faint">THE WEEKLY</p>
-      <h1 className="display mt-1 text-center text-3xl text-brand">WEEK {week}</h1>
-      <p className="mt-1 text-center text-xs text-ink-faint">
-        SWRR Relegation League · {SEASON} season
-      </p>
+    <main className="mx-auto max-w-3xl px-4 pb-16 pt-8 sm:px-6">
+      {/* masthead */}
+      <header className="border-b-2 border-brand/70 pb-3 text-center">
+        <Link href="/recap" className="display text-xs tracking-[0.45em] text-ink-faint hover:text-ink">
+          THE WEEKLY
+        </Link>
+        <h1 className="mt-1 text-4xl font-bold text-brand sm:text-5xl" style={{ fontFamily: SERIF }}>
+          Week {week}
+        </h1>
+        <div className="mt-2 flex items-center justify-center gap-3 text-[11px] uppercase tracking-[0.22em] text-ink-faint">
+          <span>Edition No. {week}</span>
+          <span aria-hidden>❖</span>
+          <span>Season {SEASON}</span>
+          <span aria-hidden>❖</span>
+          <button onClick={share} className="tracking-[0.22em] text-[#25D366] hover:underline">
+            SHARE TO WHATSAPP
+          </button>
+        </div>
+      </header>
 
-      <div className="mt-3 text-center">
-        <button
-          onClick={share}
-          className="rounded-lg bg-[#25D366]/15 px-4 py-2 text-sm font-semibold text-[#25D366] transition-colors hover:bg-[#25D366]/25"
-        >
-          📣 Share to WhatsApp
-        </button>
-      </div>
-
-      {/* ---- storylines ---- */}
+      {/* lead story */}
       {story && (
-        <section className="mt-6 grid gap-2 sm:grid-cols-2">
-          <div className="panel p-4">
-            <p className="display text-xs tracking-widest text-gold">🎯 GAME OF THE WEEK</p>
-            <p className="mt-1.5 text-sm text-ink">
-              {story.closest.winner} survived {story.closest.loser}{" "}
-              <span className="tnum text-ink-dim">
-                {story.closest.wPts.toFixed(1)}–{story.closest.lPts.toFixed(1)}
-              </span>{" "}
-              — a {story.closest.margin.toFixed(1)}-point sweat.
-            </p>
-          </div>
-          <div className="panel p-4">
-            <p className="display text-xs tracking-widest text-drop">💥 BEATDOWN OF THE WEEK</p>
-            <p className="mt-1.5 text-sm text-ink">
-              {story.blowout.winner} put {story.blowout.margin.toFixed(1)} on{" "}
-              {story.blowout.loser}{" "}
-              <span className="tnum text-ink-dim">
-                {story.blowout.wPts.toFixed(1)}–{story.blowout.lPts.toFixed(1)}
-              </span>
-              . Someone check on them.
-            </p>
-          </div>
-          <div className="panel p-4">
-            <p className="display text-xs tracking-widest text-promo">🚀 TOP GUN</p>
-            <p className="mt-1.5 text-sm text-ink">
-              {story.top.name} led the whole league with{" "}
-              <span className="tnum font-semibold text-gold">{story.top.pts.toFixed(1)}</span>.
-            </p>
-          </div>
-          <div className="panel p-4">
-            <p className="display text-xs tracking-widest text-ink-faint">🥶 STINKER</p>
-            <p className="mt-1.5 text-sm text-ink">
-              {story.bottom.name} managed just{" "}
-              <span className="tnum text-drop">{story.bottom.pts.toFixed(1)}</span>. Set your
-              lineup next time.
-            </p>
+        <section className="mt-8">
+          <p className="display text-center text-[11px] tracking-[0.35em] text-gold">
+            GAME OF THE WEEK
+          </p>
+          <h2
+            className="mx-auto mt-2 max-w-2xl text-center text-2xl font-bold leading-snug text-ink sm:text-[28px]"
+            style={{ fontFamily: SERIF }}
+          >
+            {story.closest.winner} survives {story.closest.loser} in a{" "}
+            {story.closest.margin.toFixed(1)}-point sweat
+          </h2>
+          <p className="mt-2 text-center text-sm italic text-ink-dim" style={{ fontFamily: SERIF }}>
+            Final: {story.closest.wPts.toFixed(1)}–{story.closest.lPts.toFixed(1)}
+          </p>
+
+          {/* column trio, newspaper rules between */}
+          <div className="mt-8 grid gap-6 border-t border-line pt-6 sm:grid-cols-3 sm:gap-0">
+            <div className="sm:pr-5">
+              <p className="display text-[10px] tracking-[0.3em] text-drop">THE BEATDOWN</p>
+              <p className="mt-1.5 text-[13px] leading-relaxed text-ink" style={{ fontFamily: SERIF }}>
+                {story.blowout.winner} put {story.blowout.margin.toFixed(1)} on{" "}
+                {story.blowout.loser},{" "}
+                <span className="tnum text-ink-dim">
+                  {story.blowout.wPts.toFixed(1)}–{story.blowout.lPts.toFixed(1)}
+                </span>
+                . Someone check on them.
+              </p>
+            </div>
+            <div className="border-line sm:border-l sm:px-5">
+              <p className="display text-[10px] tracking-[0.3em] text-promo">TOP GUN</p>
+              <p className="mt-1.5 text-[13px] leading-relaxed text-ink" style={{ fontFamily: SERIF }}>
+                {story.top.name} led the whole league with{" "}
+                <span className="tnum font-bold text-gold">{story.top.pts.toFixed(1)}</span> — the
+                week&apos;s high-water mark.
+              </p>
+            </div>
+            <div className="border-line sm:border-l sm:pl-5">
+              <p className="display text-[10px] tracking-[0.3em] text-ink-faint">THE STINKER</p>
+              <p className="mt-1.5 text-[13px] leading-relaxed text-ink" style={{ fontFamily: SERIF }}>
+                {story.bottom.name} managed just{" "}
+                <span className="tnum text-drop">{story.bottom.pts.toFixed(1)}</span>. Set your
+                lineup next time.
+              </p>
+            </div>
           </div>
         </section>
       )}
 
-      {/* ---- pick'em money ---- */}
+      {/* pick'em money */}
       {oracle && (
-        <section className="panel mt-4 overflow-hidden">
-          <h2 className="display border-b border-line bg-surface-2 px-4 py-2.5 text-sm text-brand">
-            NFL Pick&apos;em — the money
-          </h2>
-          <div className="space-y-2 p-4 text-sm">
+        <>
+          {rule("THE MONEY")}
+          <section className="mt-5">
             {oracle.winners.length > 0 ? (
-              <p className="text-ink">
-                🔮 <span className="font-semibold text-gold">{oracle.winners.join(" & ")}</span>{" "}
+              <p
+                className="text-center text-lg leading-relaxed text-ink"
+                style={{ fontFamily: SERIF }}
+              >
+                🔮 <span className="font-bold text-gold">{oracle.winners.join(" & ")}</span>{" "}
                 {oracle.winners.length > 1 ? "split" : "takes"} the ${WEEKLY_PRIZE}
                 {oracle.winPts != null && (
-                  <span className="tnum text-ink-dim"> ({oracle.winPts} pts)</span>
+                  <span className="tnum text-ink-dim"> with {oracle.winPts} points</span>
+                )}
+                {oracle.loser && (
+                  <>
+                    ; 🦏 <span className="font-bold">{oracle.loser}</span> wears the Blindfold
+                  </>
                 )}
                 .
               </p>
             ) : (
-              <p className="text-ink-dim">No eligible weekly winner this week.</p>
-            )}
-            {oracle.loser && (
-              <p className="text-ink">
-                🦏 <span className="font-semibold">{oracle.loser}</span> wears the Blindfold.
+              <p className="text-center italic text-ink-dim" style={{ fontFamily: SERIF }}>
+                No eligible weekly winner this week.
               </p>
             )}
-            <ul className="mt-2 border-t border-line pt-2">
+            <ul className="mx-auto mt-5 max-w-xl columns-1 gap-8 border-y border-line py-3 sm:columns-2">
               {oracle.played.map((s, i) => (
-                <li key={s.ownerId} className="flex items-center justify-between px-1 py-1 text-sm">
+                <li
+                  key={s.ownerId}
+                  className="flex items-baseline justify-between gap-2 py-1 text-[13px]"
+                >
                   <span className="min-w-0 truncate text-ink">
-                    <span className="display mr-2 text-ink-faint">{i + 1}</span>
+                    <span className="tnum mr-2 text-ink-faint">{i + 1}.</span>
                     {pickem!.winners.includes(s.ownerId) && "🔮 "}
                     {pickem!.loser === s.ownerId && "🦏 "}
                     {s.name}
@@ -701,76 +741,76 @@ export default function RecapIssue() {
                 </li>
               ))}
             </ul>
-            <p className="text-xs text-ink-faint">
-              {oracle.played.length} cards played.
+            <p className="mt-2 text-center text-[11px] uppercase tracking-[0.2em] text-ink-faint">
+              {oracle.played.length} cards played
             </p>
+
             {pkGuess && (pkGuess.switches.length > 0 || pkGuess.hypos.length > 0) && (
-              <div className="space-y-2 border-t border-line pt-3">
-                <p className="display text-xs tracking-widest text-ink-faint">
-                  🎲 SECOND-GUESSING THE CARD
+              <div className="mx-auto mt-6 max-w-2xl border border-line px-6 py-5">
+                <p className="display text-center text-[11px] tracking-[0.35em] text-brand">
+                  SECOND-GUESSING THE CARD
                 </p>
-                {pkGuess.switches.map((t, i) => (
-                  <p key={`s${i}`} className="text-ink">{t}</p>
-                ))}
-                {pkGuess.hypos.map((t, i) => (
-                  <p key={`h${i}`} className="text-ink-dim">{t}</p>
-                ))}
+                <div className="mt-3 space-y-3">
+                  {pkGuess.switches.map((t, i) => (
+                    <p key={`s${i}`} className="text-[13.5px] leading-relaxed text-ink" style={{ fontFamily: SERIF }}>
+                      {t}
+                    </p>
+                  ))}
+                  {pkGuess.hypos.map((t, i) => (
+                    <p key={`h${i}`} className="text-[13.5px] italic leading-relaxed text-ink-dim" style={{ fontFamily: SERIF }}>
+                      {t}
+                    </p>
+                  ))}
+                </div>
               </div>
             )}
-          </div>
-        </section>
+          </section>
+        </>
       )}
 
-      {/* ---- second-guess department ---- */}
+      {/* second-guess department (fantasy lineups) */}
       {(secondGuess.backfires.length > 0 ||
         secondGuess.worst ||
         secondGuess.fiddlers.length > 0) && (
-        <section className="panel mt-4 overflow-hidden">
-          <h2 className="display border-b border-line bg-surface-2 px-4 py-2.5 text-sm text-brand">
-            Second-Guess Department
-          </h2>
-          <div className="space-y-3 p-4 text-sm">
+        <>
+          {rule("SECOND-GUESS DEPARTMENT")}
+          <section className="mx-auto mt-5 max-w-2xl space-y-3">
             {secondGuess.backfires.map((r, i) => (
-              <p key={i} className="text-ink">
-                🪦 <span className="font-semibold">{r.team}</span> benched{" "}
-                <span className="text-gold">{r.sat}</span> for {r.started} —{" "}
-                {r.sat} outscored him by{" "}
-                <span className="tnum">{r.gain.toFixed(1)}</span>, the game was
-                lost by <span className="tnum">{r.lostBy!.toFixed(1)}</span>.{" "}
-                <span className="text-drop">That benching lost the game.</span>
+              <p key={i} className="text-[13.5px] leading-relaxed text-ink" style={{ fontFamily: SERIF }}>
+                🪦 <span className="font-bold">{r.team}</span> benched{" "}
+                <span className="text-gold">{r.sat}</span> for {r.started} — {r.sat} outscored him
+                by <span className="tnum">{r.gain.toFixed(1)}</span>, the game was lost by{" "}
+                <span className="tnum">{r.lostBy!.toFixed(1)}</span>.{" "}
+                <span className="font-bold text-drop">That benching lost the game.</span>
               </p>
             ))}
             {secondGuess.worst && secondGuess.worst.lostBy === null && (
-              <p className="text-ink">
+              <p className="text-[13.5px] leading-relaxed text-ink" style={{ fontFamily: SERIF }}>
                 🛋️ Bench regret of the week:{" "}
-                <span className="font-semibold">{secondGuess.worst.team}</span> sat{" "}
+                <span className="font-bold">{secondGuess.worst.team}</span> sat{" "}
                 <span className="text-gold">{secondGuess.worst.sat}</span> behind{" "}
                 {secondGuess.worst.started} and left{" "}
-                <span className="tnum">{secondGuess.worst.gain.toFixed(1)}</span> points
-                on the bench{secondGuess.backfires.length ? "" : " — survivable, this time"}.
+                <span className="tnum">{secondGuess.worst.gain.toFixed(1)}</span> points on the
+                bench{secondGuess.backfires.length ? "" : " — survivable, this time"}.
               </p>
             )}
             {secondGuess.fiddlers.length > 0 && (
               <div className="border-t border-line pt-3">
-                <p className="display mb-1.5 text-xs tracking-widest text-ink-faint">
+                <p className="display mb-2 text-center text-[10px] tracking-[0.3em] text-ink-faint">
                   😰 LINEUP ANXIETY METER
                 </p>
                 {secondGuess.fiddlers.map((f, i) => (
-                  <p key={i} className="text-ink">
-                    <span className="font-semibold">{f.team}</span> —{" "}
-                    <span className="tnum">{f.n}</span> lineup change
-                    {f.n === 1 ? "" : "s"} this week
+                  <p key={i} className="text-[13px] leading-relaxed text-ink" style={{ fontFamily: SERIF }}>
+                    <span className="font-bold">{f.team}</span> —{" "}
+                    <span className="tnum">{f.n}</span> lineup change{f.n === 1 ? "" : "s"} this week
                     {f.excused > 0 && (
-                      <span className="text-ink-faint">
-                        {" "}
-                        ({f.excused} excused — injury tags, we don&apos;t mock medicine)
+                      <span className="italic text-ink-faint">
+                        {" "}({f.excused} excused — injury tags, we don&apos;t mock medicine)
                       </span>
                     )}
                     {f.scramble > 0 && (
                       <span className="text-drop">
-                        {" "}
-                        · <span className="tnum">{f.scramble}</span> in the
-                        Sunday-morning scramble
+                        {" "}· <span className="tnum">{f.scramble}</span> in the Sunday-morning scramble
                       </span>
                     )}
                     {f.season > f.n && (
@@ -778,66 +818,59 @@ export default function RecapIssue() {
                     )}
                     {f.flipFlops.length > 0 && (
                       <span className="text-ink-dim">
-                        {" "}
-                        · couldn&apos;t decide on{" "}
-                        <span className="text-gold">{f.flipFlops.join(", ")}</span>{" "}
-                        (in, out, in again…)
+                        {" "}· couldn&apos;t decide on{" "}
+                        <span className="text-gold">{f.flipFlops.join(", ")}</span> (in, out, in
+                        again…)
                       </span>
                     )}
                     {f.verdict != null && (
                       <span className={f.verdict >= 0 ? "text-promo" : "text-drop"}>
-                        {" "}
-                        · verdict: {f.verdict >= 0 ? "the tinkering earned +" : "all that tinkering cost him "}
-                        <span className="tnum">{Math.abs(f.verdict).toFixed(1)}</span> pts vs
-                        the lineup he started the week with
+                        {" "}· verdict: {f.verdict >= 0 ? "the tinkering earned +" : "all that tinkering cost him "}
+                        <span className="tnum">{Math.abs(f.verdict).toFixed(1)}</span> pts vs the
+                        lineup he started the week with
                       </span>
                     )}
                     .
                   </p>
                 ))}
                 {secondGuess.kings.length > 0 && (
-                  <p className="mt-2 text-xs text-ink-faint">
+                  <p className="mt-2 text-center text-[11px] uppercase tracking-[0.15em] text-ink-faint">
                     👑 Season Tinker Kings:{" "}
-                    {secondGuess.kings
-                      .map((k) => `${k.team} (${k.n})`)
-                      .join(" · ")}
+                    {secondGuess.kings.map((k) => `${k.team} (${k.n})`).join(" · ")}
                   </p>
                 )}
               </div>
             )}
             {!secondGuess.sampled && (
-              <p className="text-xs text-ink-faint">
-                No lineup changes logged this week — the anxiety meter started
-                recording Week 3, 2026.
+              <p className="text-center text-[11px] italic text-ink-faint" style={{ fontFamily: SERIF }}>
+                No lineup changes logged this week — the anxiety meter started recording Week 3, 2026.
               </p>
             )}
-          </div>
-        </section>
+          </section>
+        </>
       )}
 
-      {/* ---- results by league ---- */}
-      {upper.length > 0 && (
-        <section className="panel mt-4 overflow-hidden">
-          <h2 className="display border-b border-line bg-surface-2 px-4 py-2.5 text-sm text-ink">
-            Upper League
-          </h2>
-          <ul className="p-2">{upper.map(gameRow)}</ul>
-        </section>
-      )}
-      {lower.length > 0 && (
-        <section className="panel mt-4 overflow-hidden">
-          <h2 className="display border-b border-line bg-surface-2 px-4 py-2.5 text-sm text-ink">
-            Lower League
-          </h2>
-          <ul className="p-2">{lower.map(gameRow)}</ul>
-        </section>
+      {/* box scores */}
+      {(upper.length > 0 || lower.length > 0) && (
+        <>
+          {rule("THE RESULTS")}
+          <section className="mt-5 flex flex-col gap-8 sm:flex-row sm:gap-10">
+            {upper.length > 0 && divisionTable("UPPER DIVISION", upper)}
+            {lower.length > 0 && divisionTable("LOWER DIVISION", lower)}
+          </section>
+        </>
       )}
 
-      <p className="mt-6 text-center text-sm">
-        <Link href="/recap" className="text-brand underline decoration-dotted underline-offset-2">
-          ← All issues
-        </Link>
-      </p>
+      <footer className="mt-14 border-t-2 border-brand/70 pt-4 text-center">
+        <p className="text-[11px] tracking-[0.25em] text-ink-faint">
+          ☙ PRINTED WEEKLY BY RELEGATION LINE ❧
+        </p>
+        <p className="mt-2 text-sm">
+          <Link href="/recap" className="text-brand underline decoration-dotted underline-offset-2">
+            ← All editions
+          </Link>
+        </p>
+      </footer>
     </main>
   )
 }
