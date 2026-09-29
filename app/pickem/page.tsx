@@ -1300,8 +1300,8 @@ export default function PickemPage() {
                         <th className="px-3 py-2">#</th>
                         <th className="py-2">Manager</th>
                         <th className="py-2 text-right">Pts</th>
-                        <th className="py-2 pr-3 text-right">🔮</th>
-                        <th className="py-2 pr-3 text-right">🦏</th>
+                        <th className="py-2 pr-3 text-right">Wins</th>
+                        <th className="py-2 pr-3 text-right">Lasts</th>
                         <th className="py-2 pr-3 text-right">Cash</th>
                         <th className="py-2 pr-3 text-right">Prize</th>
                       </tr>
@@ -1357,8 +1357,8 @@ export default function PickemPage() {
                         onClick={() =>
                           waShare(
                             `🏈 SWRR PICK'EM — Week ${wk.week} results\n` +
-                              `🔮 ${winners.join(" & ")} take${winners.length > 1 ? "" : "s"} the $${(25 / Math.max(1, winners.length)) % 1 === 0 ? 25 / Math.max(1, winners.length) : (25 / winners.length).toFixed(2)}${winners.length > 1 ? " each" : ""} (${winPts} pts)\n` +
-                              (wk.loser ? `🦏 Blindfold: ${nameOf(wk.loser)}\n` : "") +
+                              `🏆 ${winners.join(" & ")} take${winners.length > 1 ? "" : "s"} the $${(25 / Math.max(1, winners.length)) % 1 === 0 ? 25 / Math.max(1, winners.length) : (25 / winners.length).toFixed(2)}${winners.length > 1 ? " each" : ""} (${winPts} pts)\n` +
+                              (wk.loser ? `🥶 Dead last: ${nameOf(wk.loser)}\n` : "") +
                               `📊 Season: ${top3.join(" · ")}\n👉 ${SITE_URL}`
                           )
                         }
@@ -1380,8 +1380,8 @@ export default function PickemPage() {
                       <span className="text-ink-dim">Banked</span> = finished games only
                       (official, feeds the season standings).{" "}
                       <span className="text-promo">Live</span> = if every game in progress
-                      ended right now — the number to size a late bet with. Weekly 🔮/🦏
-                      settle after MNF. Trailing? The tight alt-lines (2 / 3 pts) stay
+                      ended right now — the number to size a late bet with. The weekly
+                      winner and last place settle after MNF. Trailing? The tight alt-lines (2 / 3 pts) stay
                       open on every game that hasn&apos;t kicked off.
                     </p>
                     <ul className="p-2">
@@ -1477,9 +1477,11 @@ export default function PickemPage() {
                             className="flex items-center justify-between gap-2 px-2 py-1.5 text-sm"
                           >
                             <span className="min-w-0 truncate text-ink">
-                              {w.winners.includes(s.ownerId) && "🔮 "}
-                              {w.loser === s.ownerId && "🦏 "}
+                              {w.winners.includes(s.ownerId) && "🏆 "}
                               {s.name}
+                              {w.loser === s.ownerId && (
+                                <span className="text-drop"> · last</span>
+                              )}
                               {!s.submitted && (
                                 <span className="text-ink-faint"> (no picks)</span>
                               )}
@@ -1570,11 +1572,12 @@ export default function PickemPage() {
               channel.
             </p>
             <p>
-              <span className="font-semibold text-ink">Glory.</span> Weekly winner
-              wears the 🔮 Oracle. Weekly loser wears the 🦏 Blindfold — lowest
-              score among managers who actually submitted picks (no-shows eat
-              zeros but can&apos;t &quot;win&quot; the Blindfold; ties at the bottom
-              spare everyone). Season champ goes on the History page forever.
+              <span className="font-semibold text-ink">Glory & shame.</span>{" "}
+              The weekly winner (🏆) takes the $25. The lowest score among
+              managers who actually submitted picks finishes dead last for the
+              week — no-shows eat zeros but can&apos;t claim last place, and
+              ties at the bottom spare everyone. Season champ goes on the
+              History page forever.
             </p>
             <div className="border-t border-line pt-3">
               <p className="mb-2">

@@ -584,8 +584,8 @@ export default function RecapIssue() {
   const share = () => {
     const lines = [`🗞️ SWRR WEEKLY — the Week ${week} recap is up`]
     if (oracle?.winners.length)
-      lines.push(`🔮 ${oracle.winners.join(" & ")} took the pick'em money`)
-    if (oracle?.loser) lines.push(`🦏 ${oracle.loser} wears the Blindfold`)
+      lines.push(`🏆 ${oracle.winners.join(" & ")} took the weekly $25`)
+    if (oracle?.loser) lines.push(`🥶 ${oracle.loser} finished dead last`)
     if (story) lines.push(`💥 ${story.blowout.winner} dropped a ${story.blowout.margin.toFixed(1)}-pt beatdown`)
     lines.push(`👉 ${SITE_URL}/recap/${week}`)
     waShare(lines.join("\n"))
@@ -707,14 +707,14 @@ export default function RecapIssue() {
                 className="text-center text-lg leading-relaxed text-ink"
                 style={{ fontFamily: SERIF }}
               >
-                🔮 <span className="font-bold text-gold">{oracle.winners.join(" & ")}</span>{" "}
+                🏆 <span className="font-bold text-gold">{oracle.winners.join(" & ")}</span>{" "}
                 {oracle.winners.length > 1 ? "split" : "takes"} the ${WEEKLY_PRIZE}
                 {oracle.winPts != null && (
                   <span className="tnum text-ink-dim"> with {oracle.winPts} points</span>
                 )}
                 {oracle.loser && (
                   <>
-                    ; 🦏 <span className="font-bold">{oracle.loser}</span> wears the Blindfold
+                    ; <span className="font-bold">{oracle.loser}</span> finishes dead last
                   </>
                 )}
                 .
@@ -732,9 +732,11 @@ export default function RecapIssue() {
                 >
                   <span className="min-w-0 truncate text-ink">
                     <span className="tnum mr-2 text-ink-faint">{i + 1}.</span>
-                    {pickem!.winners.includes(s.ownerId) && "🔮 "}
-                    {pickem!.loser === s.ownerId && "🦏 "}
+                    {pickem!.winners.includes(s.ownerId) && "🏆 "}
                     {s.name}
+                    {pickem!.loser === s.ownerId && (
+                      <span className="text-drop"> · last</span>
+                    )}
                     {s.lateCard && <span className="text-ink-faint"> ⏰</span>}
                   </span>
                   <span className="tnum shrink-0 text-ink-dim">{s.points.toFixed(1)}</span>
