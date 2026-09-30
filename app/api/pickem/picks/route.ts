@@ -6,7 +6,7 @@ import {
   PICKEM_ENTRANTS,
   FANTASY_FINAL_WEEK,
 } from "@/lib/pickem/config"
-import { countChanges, effectivePicks, ATS_TIER_ADJUST } from "@/lib/pickem/scoring"
+import { countChanges, dogMlPts, effectivePicks, ATS_TIER_ADJUST } from "@/lib/pickem/scoring"
 import type { AtsTier, PickValue, UserPicks } from "@/lib/pickem/types"
 import {
   getBoard,
@@ -274,9 +274,14 @@ export async function POST(req: NextRequest) {
           market === "ats" && baseLine != null
             ? baseLine + ATS_TIER_ADJUST[tier]
             : baseLine
+        // Underdog ML: stamp the banded payout from the CURRENT spread
+        const dogPay =
+          market === "ml" && !fav && g.spread != null ? dogMlPts(g.spread) : undefined
         merged[g.id] =
           market === "ats" && tier !== "market"
             ? { side, market, line, fav, tier }
+            : dogPay !== undefined
+            ? { side, market, line, fav, dogPts: dogPay }
             : { side, market, line, fav }
         stamped++
         changeLog.push({ g: g.id, from: prev[g.id] ?? null, to: merged[g.id] })

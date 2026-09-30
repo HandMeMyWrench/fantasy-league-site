@@ -73,6 +73,7 @@ type StampedPick = {
   line?: number | null
   fav?: boolean
   tier?: "tease" | "market" | "tight1" | "tight2"
+  dogPts?: number
 }
 type PickMove = { t: number; o: string; g: string; from: StampedPick | string | null; to: StampedPick | string | null }
 type NflBoardGame = {
@@ -426,7 +427,8 @@ export default function RecapIssue() {
         return isLock ? -2 : 0
       }
       if (o.winner === "push") return 0
-      if (p.side === o.winner) return (isLock ? 3 : 1) + (p.fav === false ? 1 : 0)
+      if (p.side === o.winner)
+        return (isLock ? 3 : 1) + (p.fav === false ? (p.dogPts ?? 2) - 1 : 0)
       return isLock ? -2 : 0
     }
     const label = (raw: StampedPick | string | null, gid: string): string => {

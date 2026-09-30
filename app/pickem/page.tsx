@@ -80,6 +80,7 @@ type NflPickView = {
   line?: number | null
   fav?: boolean
   tier?: "tease" | "market" | "tight1" | "tight2"
+  dogPts?: number
 }
 type NflRevealRow = {
   ownerId: string
@@ -131,7 +132,7 @@ function GradedPicks({
       let pts = 0
       if (verdict === "win") {
         if (isAts) pts = isLock && lockEligible ? 3 : { tease: 1, market: 1.5, tight1: 2, tight2: 3 }[tier]
-        else pts = (isLock && lockEligible ? 3 : 1) + (p.fav === false ? 1 : 0)
+        else pts = (isLock && lockEligible ? 3 : 1) + (p.fav === false ? (p.dogPts ?? 2) - 1 : 0)
       } else if (verdict === "loss" && isLock && lockEligible) {
         pts = -2
       }
@@ -216,9 +217,10 @@ function NflLegend() {
         Vegas-derived win odds from the spread — the green/red bar below each
         game says the same thing at a glance
       </Row>
-      <Row token="Win · 1 / Win · 2">
-        moneyline bet — the chip shows the payout: favorites pay 1, underdogs
-        (🤖) pay 2
+      <Row token="Win · 1 / 1½ / 2 / 3">
+        moneyline — the chip shows the payout. Favorites pay 1; underdogs
+        (🤖) pay by the size of the spread: 1½ under +3.5, 2 up to +9.5, 3
+        at +10 or more. Stamped when you save, like the lines
       </Row>
       <Row token="−4.5 · 1½">
         cover bet at the market line — 1½ pts
@@ -1537,8 +1539,10 @@ export default function PickemPage() {
             <p>
               <span className="font-semibold text-ink">Two ways to bet each
               game.</span> <span className="text-ink">WIN</span> (moneyline):
-              1 pt, and a winning underdog pays{" "}
-              <span className="text-ink">+1 upset bonus</span> (2 total).{" "}
+              favorites pay 1 pt; underdog wins pay by the spread —{" "}
+              <span className="text-ink">1½ under +3.5, 2 up to +9.5, 3 at
+              +10 or more</span> (the chip shows your price, stamped when you
+              save).{" "}
               <span className="text-ink">COVER</span> (the spread): market line
               pays <span className="text-ink">1½ pts</span> — a 50/50 cover
               beats chalk on purpose. No upset bonus on covers (the line

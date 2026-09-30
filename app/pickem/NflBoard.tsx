@@ -73,6 +73,7 @@ export default function NflBoard({
         market: "ml" | "ats"
         tier?: "tease" | "market" | "tight1" | "tight2"
         line?: number | null
+        dogPts?: number
       }
     >
   >({})
@@ -215,6 +216,9 @@ export default function NflBoard({
             // carry the server stamp so the UI shows the line they BET,
             // not wherever the board has drifted since
             ...(o2.line != null ? { line: o2.line } : {}),
+            ...((o2 as { dogPts?: number }).dogPts != null
+              ? { dogPts: (o2 as { dogPts?: number }).dogPts }
+              : {}),
           }
         }
       }
@@ -663,7 +667,23 @@ export default function NflBoard({
                         return (
                           <>
                             <div className="mt-1.5 flex gap-1 text-[11px]">
-                              {chip(sel?.market === "ml", fav ? "Win · 1" : "Win · 2", () => setPick("ml"))}
+                              {chip(
+                                sel?.market === "ml",
+                                fav
+                                  ? "Win · 1"
+                                  : `Win · ${(() => {
+                                      // selected pick shows ITS stamped payout;
+                                      // otherwise today's band for this spread
+                                      const pay =
+                                        sel?.market === "ml" && sel.dogPts != null
+                                          ? sel.dogPts
+                                          : g.spread != null
+                                          ? g.spread < 3.5 ? 1.5 : g.spread >= 10 ? 3 : 2
+                                          : 2
+                                      return pay % 1 === 0 ? pay : "1½"
+                                    })()}`,
+                                () => setPick("ml")
+                              )}
                               {line != null &&
                                 chip(curTier === "market", `${fmt(shownLine("market", line))} · 1½`, () =>
                                   setPick("ats")

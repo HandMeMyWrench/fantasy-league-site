@@ -40,6 +40,12 @@ export const ATS_TIER_ADJUST: Record<string, number> = {
   tight2: -14,
 }
 
+/** Banded underdog-ML payout by spread size (the dog's cushion): small
+    dogs are near coin flips and were free money at flat 2. Stamped onto
+    the pick at save time — placed bets never re-price. */
+export const dogMlPts = (spread: number): number =>
+  spread < 3.5 ? 1.5 : spread >= 10 ? 3 : 2
+
 /** Normalize legacy plain-side picks and NFL market picks to one shape.
     Legacy picks have no stamped fav/line — the board's frozen favorite
     fills in at scoring time (the fantasy contest's original behavior). */
@@ -191,7 +197,10 @@ export function scoreUser(
       points += isLock ? PTS_LOCK_HIT : PTS_CORRECT
       if (!wasFavorite) {
         base.upsets++
-        points += PTS_UPSET_BONUS
+        // Stamped banded payout (dogPts = TOTAL, so bonus = dogPts - 1);
+        // legacy fantasy picks and pre-band NFL stamps fall back to the
+        // original flat +1 (total 2).
+        points += (p.dogPts ?? 1 + PTS_UPSET_BONUS) - 1
       }
       if (isLock) base.lockResult = "hit"
     } else if (isLock) {

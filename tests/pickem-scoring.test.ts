@@ -6,6 +6,7 @@
 import {
   allocateSeasonPrizes,
   applyTiebreaker,
+  dogMlPts,
   countChanges,
   effectivePicks,
   gameOutcomes,
@@ -272,6 +273,37 @@ const sMlDogLock = scoreUser(
   "P"
 )
 check("ML underdog lock hit = 4 pts", sMlDogLock.points === 4, `got ${sMlDogLock.points}`)
+
+// ---------- banded dog-ML payouts ----------
+console.log("dog bands:")
+check("small dog band 1.5", dogMlPts(1.5) === 1.5 && dogMlPts(3) === 1.5)
+check("mid dog band 2", dogMlPts(3.5) === 2 && dogMlPts(9.5) === 2)
+check("monster dog band 3", dogMlPts(10) === 3 && dogMlPts(14) === 3)
+// stamped dogPts honored in scoring (DAL upsets NYG; stamped as small dog 1.5)
+const sBandSmall = scoreUser(
+  nflBoard, nflOut,
+  nflPick({ "nfl-2": { side: "a", market: "ml", line: 3, fav: false, dogPts: 1.5 } }),
+  "P"
+)
+check("stamped 1.5 dog win pays 1.5", sBandSmall.points === 1.5, `got ${sBandSmall.points}`)
+const sBandBig = scoreUser(
+  nflBoard, nflOut,
+  nflPick({ "nfl-2": { side: "a", market: "ml", line: 12, fav: false, dogPts: 3 } }),
+  "P"
+)
+check("stamped 3 dog win pays 3", sBandBig.points === 3, `got ${sBandBig.points}`)
+const sBandLock = scoreUser(
+  nflBoard, nflOut,
+  nflPick({ "nfl-2": { side: "a", market: "ml", line: 3, fav: false, dogPts: 1.5 } }, "nfl-2"),
+  "P"
+)
+check("lock on 1.5-band dog hit = 3.5", sBandLock.points === 3.5, `got ${sBandLock.points}`)
+const sBandLegacy = scoreUser(
+  nflBoard, nflOut,
+  nflPick({ "nfl-2": { side: "a", market: "ml", line: 3, fav: false } }),
+  "P"
+)
+check("pre-band stamp (no dogPts) still pays flat 2", sBandLegacy.points === 2, `got ${sBandLegacy.points}`)
 
 // ---------- MNF-total tiebreaker ----------
 console.log("tiebreaker:")

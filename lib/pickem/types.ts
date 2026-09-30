@@ -60,6 +60,10 @@ export type NflPick = {
   line: number | null
   fav: boolean
   tier?: AtsTier // ATS only; absent = market (back-compat)
+  // BANDED DOG PAYOUT (Sep 30 2026): for underdog ML picks, the TOTAL
+  // points a win pays, STAMPED at save from the spread at that moment
+  // (<+3.5 -> 1.5, +3.5..+9.5 -> 2, +10+ -> 3). Absent = legacy flat 2.
+  dogPts?: number
 }
 export type PickValue = Side | NflPick
 
