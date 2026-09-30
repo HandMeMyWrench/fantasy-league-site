@@ -241,7 +241,8 @@ export async function POST(req: NextRequest) {
           return NextResponse.json({ error: `invalid tier ${tierRaw}` }, { status: 400 })
         const tier = tierRaw as AtsTier
         // Unchanged pick (same side + market + tier) keeps its ORIGINAL
-        // stamp — resubmitting never re-prices a placed bet.
+        // stamp — resubmitting never re-prices a placed bet. Checked BEFORE
+        // the tease rejection so an already-stamped tease resaves cleanly.
         const prevPick = prev[g.id]
         if (
           prevPick &&
@@ -253,6 +254,13 @@ export async function POST(req: NextRequest) {
           merged[g.id] = prevPick
           continue
         }
+        // Tease retired Sep 30 2026 (paid the same 1 pt as a dog ML).
+        // Already-stamped teases keep grading; NEW ones are refused.
+        if (tier === "tease")
+          return NextResponse.json(
+            { error: "the tease line was retired — take the moneyline or tighten instead" },
+            { status: 400 }
+          )
         const fav = side === g.favorite
         // line signed FOR the picked side, then tier-adjusted (tease +7,
         // tight1 -7, tight2 -14) — the FINAL number is what's stamped.

@@ -663,7 +663,7 @@ export default function NflBoard({
                         return (
                           <>
                             <div className="mt-1.5 flex gap-1 text-[11px]">
-                              {chip(sel?.market === "ml", "Win · 1", () => setPick("ml"))}
+                              {chip(sel?.market === "ml", fav ? "Win · 1" : "Win · 2", () => setPick("ml"))}
                               {line != null &&
                                 chip(curTier === "market", `${fmt(shownLine("market", line))} · 1½`, () =>
                                   setPick("ats")
@@ -671,7 +671,9 @@ export default function NflBoard({
                             </div>
                             {line != null && (
                               <div className="mt-1 flex gap-1 text-[10px]">
-                                {chip(curTier === "tease", `${fmt(shownLine("tease", line + 7))} · 1`, () => setPick("ats", "tease"), true)}
+                                {/* tease retired Sep 30 2026 — it paid the same
+                                    1 pt as a plain ML, pure clutter */}
+                                {curTier === "tease" && chip(true, `${fmt(shownLine("tease", line + 7))} · 1`, () => setPick("ats", "tease"), true)}
                                 {chip(curTier === "tight1", `${fmt(shownLine("tight1", line - 7))} · 2`, () => setPick("ats", "tight1"), true)}
                                 {chip(curTier === "tight2", `${fmt(shownLine("tight2", line - 14))} · 3`, () => setPick("ats", "tight2"), true)}
                               </div>

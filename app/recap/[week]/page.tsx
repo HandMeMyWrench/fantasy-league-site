@@ -521,7 +521,7 @@ export default function RecapIssue() {
         if (row.lockGameId === gid) continue // locks ride the market
         const t = p.tier ?? "market"
         const actual = pts(raw, gid, row.lockGameId)
-        for (const t2 of ["tease", "market", "tight1", "tight2"] as const) {
+        for (const t2 of ["market", "tight1", "tight2"] as const) {
           if (t2 === t) continue
           const margin2 =
             (p.side === "a" ? o.aPoints - o.bPoints : o.bPoints - o.aPoints) +

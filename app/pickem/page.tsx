@@ -216,16 +216,16 @@ function NflLegend() {
         Vegas-derived win odds from the spread — the green/red bar below each
         game says the same thing at a glance
       </Row>
-      <Row token="Win · 1">
-        moneyline bet: 1 pt, +1 more if your team was the underdog (🤖 marks
-        the dog side)
+      <Row token="Win · 1 / Win · 2">
+        moneyline bet — the chip shows the payout: favorites pay 1, underdogs
+        (🤖) pay 2
       </Row>
       <Row token="−4.5 · 1½">
         cover bet at the market line — 1½ pts
       </Row>
-      <Row token="+2.5·1 −11.5·2 −18.5·3">
-        the alt-line ladder: tease (easier, 1 pt) / tight (2 pts) / tightest
-        (3 pts). Your selected chip shows YOUR stamped line, the others show
+      <Row token="−11.5·2  −18.5·3">
+        the tighten ladder: shift the spread 7 harder for 2 pts, 14 harder
+        for 3. Your selected chip shows YOUR stamped line, the others show
         today&apos;s price
       </Row>
       <Row token="🔒 Lock">
@@ -1550,11 +1550,10 @@ export default function PickemPage() {
             </p>
             <p>
               <span className="font-semibold text-ink">Move the line
-              yourself.</span> Any cover bet can shift the spread in touchdown
-              steps — every notch tighter is +½ pt: tease it{" "}
-              <span className="text-ink">7 easier → 1 pt</span>, take the{" "}
-              <span className="text-ink">market line → 1½ pts</span>, tighten
-              it <span className="text-ink">7 → 2 pts</span>, or tighten it{" "}
+              yourself.</span> Any cover bet can tighten the spread in
+              touchdown steps for a bigger payout: the{" "}
+              <span className="text-ink">market line pays 1½</span>, tighten
+              it <span className="text-ink">7 → 2 pts</span>, tighten it{" "}
               <span className="text-ink">14 → 3 pts</span>. Alt-lines stamp at
               save time like everything else.
             </p>
