@@ -209,7 +209,8 @@ export default function StandingsPage() {
         // completed weeks the simulation has almost no scoring evidence and
         // the percentages are noise wearing decimal points.
         const state = await getNflState()
-        const completed = Math.max(0, Number(state?.display_week ?? state?.week ?? 1) - 1)
+        // state.week, not display_week — display_week lags the rollover
+        const completed = Math.max(0, Number(state?.week ?? state?.display_week ?? 1) - 1)
         if (completed < 4) return
         const u = await computeLeagueOdds(cfg.upper!, movement, "bottom")
         if (!cancelled && u.status === "in_season" && u.remainingWeeks.length)

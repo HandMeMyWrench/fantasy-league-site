@@ -55,7 +55,9 @@ export default function RelegationSpotlight({
       setUpper(sortStandings(uR as Roster[]))
       setLower(sortStandings(lR as Roster[]))
       const playoffStart = Number(meta?.settings?.playoff_week_start) || 15
-      const wk = Number(state?.display_week || state?.week || 1)
+      // Prefer state.week: display_week lags through the Tue/Wed rollover
+      // and kept THE LINE un-armed a week late (found Oct 6 2026).
+      const wk = Number(state?.week || state?.display_week || 1)
       setWeek(wk)
       setWeeksLeft(Math.max(0, playoffStart - 1 - wk))
       setComplete(meta?.status === "complete" || Number(year) < new Date().getFullYear())
