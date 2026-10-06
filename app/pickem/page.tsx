@@ -1304,7 +1304,6 @@ export default function PickemPage() {
                         <th className="py-2">Manager</th>
                         <th className="py-2 text-right">Pts</th>
                         <th className="py-2 pr-3 text-right">Wins</th>
-                        <th className="py-2 pr-3 text-right">Lasts</th>
                         <th className="py-2 pr-3 text-right">Cash</th>
                         <th className="py-2 pr-3 text-right">Prize</th>
                       </tr>
@@ -1319,9 +1318,6 @@ export default function PickemPage() {
                           </td>
                           <td className="tnum py-2 pr-3 text-right text-ink-dim">
                             {r.weeklyWins || ""}
-                          </td>
-                          <td className="tnum py-2 pr-3 text-right text-ink-dim">
-                            {r.blindfolds || ""}
                           </td>
                           <td className="tnum py-2 pr-3 text-right text-promo">
                             {r.cash ? `$${r.cash % 1 === 0 ? r.cash.toFixed(0) : r.cash.toFixed(2)}` : ""}
