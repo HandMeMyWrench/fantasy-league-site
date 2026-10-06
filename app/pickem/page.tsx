@@ -1302,7 +1302,7 @@ export default function PickemPage() {
                       <tr className="text-left text-xs text-ink-faint">
                         <th className="px-3 py-2">#</th>
                         <th className="py-2">Manager</th>
-                        <th className="py-2 text-right">Pts</th>
+                        <th className="py-2 pr-3 text-right">Pts</th>
                         <th className="py-2 pr-3 text-right">Wins</th>
                         <th className="py-2 pr-3 text-right">Cash</th>
                         <th className="py-2 pr-3 text-right">Prize</th>
@@ -1313,7 +1313,7 @@ export default function PickemPage() {
                         <tr key={r.ownerId} className="border-t border-line">
                           <td className="display px-3 py-2 text-ink-faint">{i + 1}</td>
                           <td className="max-w-[9rem] truncate py-2 text-ink">{r.name}</td>
-                          <td className="tnum py-2 text-right font-semibold text-ink">
+                          <td className="tnum py-2 pr-3 text-right font-semibold text-ink">
                             {r.points.toFixed(1)}
                           </td>
                           <td className="tnum py-2 pr-3 text-right text-ink-dim">
