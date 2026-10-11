@@ -435,6 +435,32 @@ Growth thesis discussed and kept for the offseason build:
       engaged users, not who renders the roster page) and the companion
       model puts SLEEPER back on the buyer list — a layer that makes
       their leagues un-cancellable is the cleanest acquisition story.
+  (6) DRAFT & ROSTER DESIGN BRIEF (Oct 11 2026, if the gameplay engine
+      ever comes off the shelf — full doc:
+      /Users/leighpuckett/Documents/Claude/RelegationLine_Draft_Roster_Brief.md).
+      Clean-room only — learn from Sleeper by USING it + public docs,
+      NEVER by decompiling (reverse-engineered provenance is legally
+      radioactive to build from and poisons the Sleeper relationship).
+      Six subsystems, build order 4→1→2→3: (4) league core — the data
+      model IS the product: Pyramid→Divisions→Franchises(persist across
+      seasons, carry the manager)→Season; promotion/relegation = a row
+      update on the franchise's division pointer (the whole reason to own
+      the platform). (1) stats+scoring behind an ADAPTER (free feeds at
+      SWRR scale — nflverse/ESPN/Sleeper public player DB; licensed
+      SportsDataIO/Sportradar only when revenue justifies); idempotent,
+      recomputable (stat-correction window), live banked-vs-projected.
+      (2) draft room — realtime WS, pick timer, pre-draft queue +
+      autodraft (non-negotiable), snake first then auction; draft order
+      FROM OUR LOTTERY (relegation-native perk). (3) waivers/FAAB/trades
+      — process engines + public transaction log (feeds the recap). (5)
+      real auth replacing PINs; (6) PWA is year-one app + web push.
+      KEY INSIGHT: ~40% new code — per-game kickoff locks→lineup locks,
+      live scoring+polling→roster scoring, recompute-until-settled→weekly
+      results, ESPN adapter→stats adapter, draft lottery→draft order,
+      surveillance log→transaction log all PORT from the pick'em
+      codebase. Genuinely new: realtime draft room, FAAB engine, auction,
+      auth. Non-goals: no decompiling, scoreboard-not-bank holds, match
+      Sleeper on commodity mechanics then win on relegation+money+story.
 - Caution ratified: recruit ONE league first. A two-division pyramid that
   completes a real promotion/relegation cycle in 2027 beats five leagues
   signed to a format that's never run. The proof season is the marketing.
