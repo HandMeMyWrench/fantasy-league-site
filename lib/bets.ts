@@ -40,6 +40,64 @@ export type BetOffer = {
   expiresAt?: number | null
 }
 
+// ACTION FEED (Oct 15 2026): a link board for the group to share real
+// sportsbook slips (FanDuel etc.) so others can tail them — the behavior
+// already happening in WhatsApp, tidied onto the site. DELIBERATELY DUMB:
+// the site stores a link + description, shows WHERE the link goes, and
+// counts who's tailing. It NEVER processes a wager, adds affiliate codes,
+// tracks real-money P&L, or endorses any bet. "Scoreboard, not bank"
+// extends here: we're a bulletin board, not a sportsbook or an affiliate.
+// Allowlisted hosts keep it from becoming a general link/phishing dump.
+export const SPORTSBOOK_HOSTS: Record<string, string> = {
+  "fanduel.com": "FanDuel",
+  "sportsbook.fanduel.com": "FanDuel",
+  "draftkings.com": "DraftKings",
+  "sportsbook.draftkings.com": "DraftKings",
+  "dkng.co": "DraftKings",
+  "betmgm.com": "BetMGM",
+  "sports.betmgm.com": "BetMGM",
+  "caesars.com": "Caesars",
+  "williamhill.com": "Caesars",
+  "espnbet.com": "ESPN BET",
+  "bet365.com": "bet365",
+  "fanatics.com": "Fanatics",
+  "sportsbook.fanatics.com": "Fanatics",
+}
+
+/** Returns the book label for an allowlisted sportsbook URL, else null.
+    Matches the host or any parent domain (so sub.fanduel.com → FanDuel). */
+export function sportsbookFor(url: string): string | null {
+  let host: string
+  try {
+    const u = new URL(url)
+    if (u.protocol !== "https:" && u.protocol !== "http:") return null
+    host = u.hostname.toLowerCase().replace(/^www\./, "")
+  } catch {
+    return null
+  }
+  if (SPORTSBOOK_HOSTS[host]) return SPORTSBOOK_HOSTS[host]
+  // parent-domain match (e.g. account.sportsbook.fanduel.com)
+  const parts = host.split(".")
+  for (let i = 1; i < parts.length - 1; i++) {
+    const parent = parts.slice(i).join(".")
+    if (SPORTSBOOK_HOSTS[parent]) return SPORTSBOOK_HOSTS[parent]
+  }
+  return null
+}
+
+export type ActionPost = {
+  id: string
+  season: string
+  posterId: string // ownerId
+  book: string // resolved sportsbook label (FanDuel, DraftKings…)
+  host: string // the real destination host, shown so tappers see where they go
+  description: string // "Lamar o1.5 pass TD -115"
+  url: string
+  tailed: string[] // ownerIds who tapped "tailing"
+  createdAt: number
+  expiresAt: number // link board auto-clears; nobody tails a settled game
+}
+
 // ---- managers (Sleeper owner ids) ----
 const TIM = "604353086655373312" // schaefer126
 const PAPA = "736575854632652800" // PapaDrew17

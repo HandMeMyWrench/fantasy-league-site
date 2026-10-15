@@ -10,7 +10,7 @@ import {
   WHATSAPP_NAMES,
   COMMISSIONER_OWNER_ID,
 } from "@/lib/pickem/config"
-import { computeBalances, type BetOffer, type SideBet } from "@/lib/bets"
+import { computeBalances, type ActionPost, type BetOffer, type SideBet } from "@/lib/bets"
 
 const SEASON = "2026"
 
@@ -20,11 +20,14 @@ const MANAGERS = Object.entries(WHATSAPP_NAMES).sort((x, y) =>
   x[1].localeCompare(y[1])
 )
 
-type Resp = { status: string; bets: SideBet[]; offers: BetOffer[] }
+type Resp = { status: string; bets: SideBet[]; offers: BetOffer[]; actions?: ActionPost[] }
 
 export default function BetsPage() {
   const [data, setData] = useState<Resp | null>(null)
-  const [tab, setTab] = useState<"book" | "balances" | "new">("book")
+  const [tab, setTab] = useState<"book" | "balances" | "action" | "new">("book")
+  // action-feed form
+  const [actionUrl, setActionUrl] = useState("")
+  const [actionDesc, setActionDesc] = useState("")
   const [ownerId, setOwnerId] = useState("")
   const [pin, setPin] = useState("")
   const [msg, setMsg] = useState<string | null>(null)
@@ -85,6 +88,7 @@ export default function BetsPage() {
     if (h > 0) return `${h}h ${m}m`
     return `${m}m`
   }
+  const actionPosts = (data?.actions ?? []).filter((a) => a.expiresAt > Date.now())
   const active = bets.filter((b) => b.status === "active")
   const settled = bets.filter((b) => b.status === "settled")
   const paid = bets.filter((b) => b.status === "paid")
@@ -175,6 +179,7 @@ export default function BetsPage() {
           [
             ["book", "The Book"],
             ["balances", "Who owes who"],
+            ["action", `Action${actionPosts.length ? ` (${actionPosts.length})` : ""}`],
             ["new", "＋ New bet"],
           ] as const
         ).map(([t, label]) => (
@@ -301,6 +306,122 @@ export default function BetsPage() {
             Paid bets drop off. Mark a bet paid from The Book once cash moves.
           </p>
         </section>
+      )}
+
+      {data && tab === "action" && (
+        <div className="space-y-5">
+          {/* post box */}
+          <section className="panel space-y-2 p-4">
+            <h2 className="display text-sm tracking-widest text-gold">
+              📣 Drop your slip
+            </h2>
+            <p className="text-xs text-ink-dim">
+              Paste a sportsbook share link so the room can tail it. The link
+              opens in your own book&apos;s app — the site just passes it along.
+            </p>
+            <input
+              value={actionUrl}
+              onChange={(e) => setActionUrl(e.target.value)}
+              placeholder="https://sportsbook.fanduel.com/share/…"
+              className="w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm text-ink"
+            />
+            <input
+              value={actionDesc}
+              onChange={(e) => setActionDesc(e.target.value)}
+              placeholder="One line: Lamar o1.5 pass TD -115"
+              className="w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm text-ink"
+            />
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] text-ink-faint">
+                FanDuel · DraftKings · BetMGM · Caesars · ESPN BET · bet365 · Fanatics
+              </span>
+              <button
+                disabled={busy}
+                onClick={() => {
+                  act(
+                    { action: "postAction", url: actionUrl.trim(), description: actionDesc.trim(), expiresHours: 24 },
+                    "slip posted to the Action feed"
+                  )
+                  setActionUrl("")
+                  setActionDesc("")
+                }}
+                className="display rounded-lg bg-brand-deep px-4 py-2 text-sm tracking-wider text-white transition-colors hover:bg-brand-deep/80 disabled:opacity-40"
+              >
+                Post it
+              </button>
+            </div>
+          </section>
+
+          {/* feed */}
+          {actionPosts.length === 0 ? (
+            <p className="panel p-6 text-center text-sm text-ink-dim">
+              No live slips right now. Drop one above.
+            </p>
+          ) : (
+            <section className="space-y-2">
+              {actionPosts.map((a) => {
+                const tailing = a.tailed.includes(ownerId)
+                return (
+                  <div key={a.id} className="panel border border-gold/20 p-3">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="text-sm text-ink">{a.description}</p>
+                        <p className="mt-0.5 text-xs text-ink-dim">
+                          {nm(a.posterId)} · <span className="text-gold">{a.book}</span>
+                          {a.tailed.length > 0 && (
+                            <span> · 🎯 {a.tailed.length} tailing</span>
+                          )}
+                          <span className="text-ink-faint"> · expires in {fmtLeft(a.expiresAt - Date.now())}</span>
+                        </p>
+                      </div>
+                      <div className="flex shrink-0 flex-col items-end gap-1.5">
+                        <a
+                          href={a.url}
+                          target="_blank"
+                          rel="noopener noreferrer nofollow"
+                          className="rounded-full bg-gold/15 px-3 py-1.5 text-[11px] font-bold text-gold transition-colors hover:bg-gold/25"
+                        >
+                          Open slip ↗
+                        </a>
+                        <span className="text-[10px] text-ink-faint">{a.host}</span>
+                      </div>
+                    </div>
+                    <div className="mt-2 flex items-center gap-1.5">
+                      <button
+                        disabled={busy}
+                        onClick={() => act({ action: "tailAction", actionId: a.id }, tailing ? "untailed" : "you're tailing it")}
+                        className={`rounded-full px-3 py-1 text-[11px] font-semibold transition-colors ${
+                          tailing
+                            ? "bg-promo/20 text-promo"
+                            : "border border-line text-ink-dim hover:text-ink"
+                        }`}
+                      >
+                        {tailing ? "✓ Tailing" : "🎯 Tail this"}
+                      </button>
+                      {(ownerId === a.posterId || isCommish) && (
+                        <button
+                          disabled={busy}
+                          onClick={() => act({ action: "removeAction", actionId: a.id }, "slip removed")}
+                          className="rounded-full border border-line px-2.5 py-1 text-[11px] text-ink-faint hover:text-drop"
+                        >
+                          ✕ Remove
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                )
+              })}
+            </section>
+          )}
+
+          <p className="panel p-3 text-center text-[11px] leading-relaxed text-ink-faint">
+            These are external sportsbook links shared between league members.
+            21+, where legal. Bet responsibly. Relegation Line doesn&apos;t
+            process, place, or endorse any wager — this is a bulletin board, not
+            a sportsbook. The pick&apos;em and side-bet ledger are the league&apos;s
+            own games; these links are not.
+          </p>
+        </div>
       )}
 
       {data && tab === "new" && (

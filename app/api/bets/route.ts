@@ -2,27 +2,29 @@ import { NextRequest, NextResponse } from "next/server"
 import { pinOk } from "@/lib/pickem/auth"
 import { COMMISSIONER_OWNER_ID, SEASON } from "@/lib/pickem/config"
 import { getUserAuth, redis, storageConfigured } from "@/lib/pickem/storage"
-import { SEED_BETS, type BetOffer, type SideBet } from "@/lib/bets"
+import { SEED_BETS, sportsbookFor, type ActionPost, type BetOffer, type SideBet } from "@/lib/bets"
 
 export const dynamic = "force-dynamic"
 
-// Side bets — ledger + marketplace.
+// Side bets — ledger + marketplace + the action feed (sportsbook link board).
 // Storage: Redis hashes per season. Seeds live in code; settle/paid actions
 // on a seed write an override entry keyed by the seed id.
 const K = {
   bets: (season: string) => `bets:items:${season}`,
   offers: (season: string) => `bets:offers:${season}`,
   overrides: (season: string) => `bets:overrides:${season}`,
+  actions: (season: string) => `bets:actions:${season}`,
 }
 
 type Override = { status: SideBet["status"]; winnerId: string | null }
 
 async function loadAll(season: string) {
   const r = redis()!
-  const [rawBets, rawOffers, rawOv] = await Promise.all([
+  const [rawBets, rawOffers, rawOv, rawActions] = await Promise.all([
     r.hgetall<Record<string, SideBet>>(K.bets(season)),
     r.hgetall<Record<string, BetOffer>>(K.offers(season)),
     r.hgetall<Record<string, Override>>(K.overrides(season)),
+    r.hgetall<Record<string, ActionPost>>(K.actions(season)),
   ])
   const overrides = rawOv ?? {}
   const seeds = SEED_BETS.filter((b) => b.season === season).map((b) =>
@@ -31,15 +33,20 @@ async function loadAll(season: string) {
   const dynamic = Object.values(rawBets ?? {})
   const bets = [...seeds, ...dynamic]
   const offers = Object.values(rawOffers ?? {}).sort((x, y) => y.createdAt - x.createdAt)
-  return { bets, offers }
+  // Action feed: live (unexpired) links only, newest first.
+  const now = Date.now()
+  const actions = Object.values(rawActions ?? {})
+    .filter((a) => a.expiresAt > now)
+    .sort((x, y) => y.createdAt - x.createdAt)
+  return { bets, offers, actions }
 }
 
 export async function GET(req: NextRequest) {
   if (!storageConfigured())
     return NextResponse.json({ status: "unconfigured" }, { status: 503 })
   const season = req.nextUrl.searchParams.get("season") ?? SEASON
-  const { bets, offers } = await loadAll(season)
-  return NextResponse.json({ status: "ok", season, bets, offers })
+  const { bets, offers, actions } = await loadAll(season)
+  return NextResponse.json({ status: "ok", season, bets, offers, actions })
 }
 
 // POST { action, ownerId, pin, ... } — every action is PIN-authed with the
@@ -191,6 +198,65 @@ export async function POST(req: NextRequest) {
       await r.hset(K.bets(season), { [betId]: { ...stored!, status, winnerId } })
     }
     return NextResponse.json({ status: "ok", betId, newStatus: status, winnerId })
+  }
+
+  // ---- ACTION FEED (sportsbook link board) ----
+  if (action === "postAction") {
+    const url = String(body.url ?? "").trim()
+    const description = String(body.description ?? "").trim()
+    const expiresHours = Math.min(48, Math.max(1, Number(body.expiresHours) || 24))
+    // Allowlist the host: only real sportsbooks, so the board can't become a
+    // general link/phishing dump. We store and SHOW the destination host.
+    const book = sportsbookFor(url)
+    if (!book)
+      return NextResponse.json(
+        { error: "link must be a sportsbook slip (FanDuel, DraftKings, BetMGM, Caesars, ESPN BET, bet365, Fanatics)" },
+        { status: 400 }
+      )
+    if (description.length < 3)
+      return NextResponse.json({ error: "add a one-line description of the bet" }, { status: 400 })
+    let host = ""
+    try {
+      host = new URL(url).hostname.toLowerCase().replace(/^www\./, "")
+    } catch {
+      return NextResponse.json({ error: "invalid link" }, { status: 400 })
+    }
+    const post: ActionPost = {
+      id: `a-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+      season,
+      posterId: ownerId,
+      book,
+      host,
+      description: description.slice(0, 160),
+      url: url.slice(0, 1000),
+      tailed: [],
+      createdAt: Date.now(),
+      expiresAt: Date.now() + expiresHours * 3_600_000,
+    }
+    await r.hset(K.actions(season), { [post.id]: post })
+    return NextResponse.json({ status: "ok", post })
+  }
+
+  if (action === "tailAction") {
+    const id = String(body.actionId ?? "")
+    const post = (await r.hget<ActionPost>(K.actions(season), id)) ?? null
+    if (!post) return NextResponse.json({ error: "no such post" }, { status: 404 })
+    // Toggle tail (a tally of who's on it — NOT a wager, no money moves).
+    const i = post.tailed.indexOf(ownerId)
+    if (i >= 0) post.tailed.splice(i, 1)
+    else post.tailed.push(ownerId)
+    await r.hset(K.actions(season), { [post.id]: post })
+    return NextResponse.json({ status: "ok", post })
+  }
+
+  if (action === "removeAction") {
+    const id = String(body.actionId ?? "")
+    const post = (await r.hget<ActionPost>(K.actions(season), id)) ?? null
+    if (!post) return NextResponse.json({ error: "no such post" }, { status: 404 })
+    if (post.posterId !== ownerId && !isCommish)
+      return NextResponse.json({ error: "only the poster (or commissioner) can remove it" }, { status: 403 })
+    await r.hdel(K.actions(season), id)
+    return NextResponse.json({ status: "ok", removed: id })
   }
 
   return NextResponse.json({ error: "unknown action" }, { status: 400 })
