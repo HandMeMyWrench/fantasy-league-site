@@ -61,7 +61,79 @@ export async function POST(req: NextRequest) {
   const ownerId = body.ownerId == null ? "" : String(body.ownerId)
   const pin = String(body.pin ?? "")
   const season = String(body.season ?? SEASON)
+  const r = redis()!
 
+  // ---- ACTION FEED: NO PIN (Oct 15 2026) ----
+  // The sportsbook-link board is low-stakes and touches no money, so it's
+  // handled BEFORE the PIN gate — anyone can drop/tail a link without the
+  // Pick'em identity ritual. `ownerId` here is just an optional tag (a
+  // manager id for attribution, or a per-device id for the tail toggle).
+  if (action === "postAction") {
+    const url = String(body.url ?? "").trim()
+    const description = String(body.description ?? "").trim()
+    const expiresHours = Math.min(48, Math.max(1, Number(body.expiresHours) || 24))
+    const book = sportsbookFor(url)
+    if (!book)
+      return NextResponse.json(
+        { error: "link must be a sportsbook slip (FanDuel, DraftKings, BetMGM, Caesars, ESPN BET, bet365, Fanatics)" },
+        { status: 400 }
+      )
+    if (description.length < 3)
+      return NextResponse.json({ error: "add a one-line description of the bet" }, { status: 400 })
+    let host = ""
+    try {
+      host = new URL(url).hostname.toLowerCase().replace(/^www\./, "")
+    } catch {
+      return NextResponse.json({ error: "invalid link" }, { status: 400 })
+    }
+    const gameId = body.gameId ? String(body.gameId).slice(0, 60) : null
+    const gameLabel = body.gameLabel ? String(body.gameLabel).slice(0, 60) : null
+    const kickoff =
+      body.kickoff != null && isFinite(Number(body.kickoff)) ? Number(body.kickoff) : null
+    const defaultExpiry = Date.now() + expiresHours * 3_600_000
+    const expiresAt = kickoff && kickoff > Date.now() ? kickoff : defaultExpiry
+    const post: ActionPost = {
+      id: `a-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+      season,
+      posterId: ownerId, // optional attribution; "" = unattributed
+      book,
+      host,
+      description: description.slice(0, 160),
+      url: url.slice(0, 1000),
+      tailed: [],
+      createdAt: Date.now(),
+      expiresAt,
+      gameId,
+      gameLabel,
+      kickoff,
+    }
+    await r.hset(K.actions(season), { [post.id]: post })
+    return NextResponse.json({ status: "ok", post })
+  }
+
+  if (action === "tailAction") {
+    const id = String(body.actionId ?? "")
+    const who = ownerId || "anon"
+    const post = (await r.hget<ActionPost>(K.actions(season), id)) ?? null
+    if (!post) return NextResponse.json({ error: "no such post" }, { status: 404 })
+    const i = post.tailed.indexOf(who)
+    if (i >= 0) post.tailed.splice(i, 1)
+    else post.tailed.push(who)
+    await r.hset(K.actions(season), { [post.id]: post })
+    return NextResponse.json({ status: "ok", post })
+  }
+
+  if (action === "removeAction") {
+    const id = String(body.actionId ?? "")
+    const post = (await r.hget<ActionPost>(K.actions(season), id)) ?? null
+    if (!post) return NextResponse.json({ error: "no such post" }, { status: 404 })
+    if (post.posterId !== ownerId && ownerId !== COMMISSIONER_OWNER_ID)
+      return NextResponse.json({ error: "only the poster (or commissioner) can remove it" }, { status: 403 })
+    await r.hdel(K.actions(season), id)
+    return NextResponse.json({ status: "ok", removed: id })
+  }
+
+  // ---- everything below is money-relevant: PIN required ----
   const auth = await getUserAuth(ownerId)
   if (!auth || !pinOk(auth.pinHash, ownerId, pin))
     return NextResponse.json(
@@ -69,7 +141,6 @@ export async function POST(req: NextRequest) {
       { status: 403 }
     )
   const isCommish = ownerId === COMMISSIONER_OWNER_ID
-  const r = redis()!
 
   if (action === "record") {
     // Direct ledger entry between two managers (clerk-style: any authed
@@ -198,78 +269,6 @@ export async function POST(req: NextRequest) {
       await r.hset(K.bets(season), { [betId]: { ...stored!, status, winnerId } })
     }
     return NextResponse.json({ status: "ok", betId, newStatus: status, winnerId })
-  }
-
-  // ---- ACTION FEED (sportsbook link board) ----
-  if (action === "postAction") {
-    const url = String(body.url ?? "").trim()
-    const description = String(body.description ?? "").trim()
-    const expiresHours = Math.min(48, Math.max(1, Number(body.expiresHours) || 24))
-    // Allowlist the host: only real sportsbooks, so the board can't become a
-    // general link/phishing dump. We store and SHOW the destination host.
-    const book = sportsbookFor(url)
-    if (!book)
-      return NextResponse.json(
-        { error: "link must be a sportsbook slip (FanDuel, DraftKings, BetMGM, Caesars, ESPN BET, bet365, Fanatics)" },
-        { status: 400 }
-      )
-    if (description.length < 3)
-      return NextResponse.json({ error: "add a one-line description of the bet" }, { status: 400 })
-    let host = ""
-    try {
-      host = new URL(url).hostname.toLowerCase().replace(/^www\./, "")
-    } catch {
-      return NextResponse.json({ error: "invalid link" }, { status: 400 })
-    }
-    // Optional game tag — denormalized display data from the week's board.
-    // A tagged post expires at its kickoff (you can't tail a started game);
-    // untagged (parlays, futures) fall back to the flat expiry window.
-    const gameId = body.gameId ? String(body.gameId).slice(0, 60) : null
-    const gameLabel = body.gameLabel ? String(body.gameLabel).slice(0, 60) : null
-    const kickoff =
-      body.kickoff != null && isFinite(Number(body.kickoff)) ? Number(body.kickoff) : null
-    const defaultExpiry = Date.now() + expiresHours * 3_600_000
-    const expiresAt =
-      kickoff && kickoff > Date.now() ? kickoff : defaultExpiry
-    const post: ActionPost = {
-      id: `a-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-      season,
-      posterId: ownerId,
-      book,
-      host,
-      description: description.slice(0, 160),
-      url: url.slice(0, 1000),
-      tailed: [],
-      createdAt: Date.now(),
-      expiresAt,
-      gameId,
-      gameLabel,
-      kickoff,
-    }
-    await r.hset(K.actions(season), { [post.id]: post })
-    return NextResponse.json({ status: "ok", post })
-  }
-
-  if (action === "tailAction") {
-    const id = String(body.actionId ?? "")
-    const post = (await r.hget<ActionPost>(K.actions(season), id)) ?? null
-    if (!post) return NextResponse.json({ error: "no such post" }, { status: 404 })
-    // Toggle tail (a tally of who's on it — NOT a wager, no money moves).
-    const i = post.tailed.indexOf(ownerId)
-    if (i >= 0) post.tailed.splice(i, 1)
-    else post.tailed.push(ownerId)
-    await r.hset(K.actions(season), { [post.id]: post })
-    return NextResponse.json({ status: "ok", post })
-  }
-
-  if (action === "removeAction") {
-    const id = String(body.actionId ?? "")
-    const post = (await r.hget<ActionPost>(K.actions(season), id)) ?? null
-    if (!post) return NextResponse.json({ error: "no such post" }, { status: 404 })
-    if (post.posterId !== ownerId && !isCommish)
-      return NextResponse.json({ error: "only the poster (or commissioner) can remove it" }, { status: 403 })
-    await r.hdel(K.actions(season), id)
-    return NextResponse.json({ status: "ok", removed: id })
   }
 
   return NextResponse.json({ error: "unknown action" }, { status: 400 })

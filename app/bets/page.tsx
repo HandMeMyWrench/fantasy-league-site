@@ -25,10 +25,11 @@ type Resp = { status: string; bets: SideBet[]; offers: BetOffer[]; actions?: Act
 export default function BetsPage() {
   const [data, setData] = useState<Resp | null>(null)
   const [tab, setTab] = useState<"book" | "balances" | "action" | "new">("book")
-  // action-feed form
+  // action-feed form (no PIN — low-stakes link board)
   const [actionUrl, setActionUrl] = useState("")
   const [actionDesc, setActionDesc] = useState("")
   const [actionGame, setActionGame] = useState("") // gameId or "" for none
+  const [actionWho, setActionWho] = useState("") // optional name tag, no PIN
   // the week's NFL games, for tagging a slip to its slot
   const [games, setGames] = useState<
     { id: string; label: string; kickoff: number }[]
@@ -80,6 +81,46 @@ export default function BetsPage() {
       })
       .catch(() => {})
   }, [])
+
+  // A stable per-device id so the tail toggle works without any sign-in.
+  const deviceId = useMemo(() => {
+    if (typeof window === "undefined") return ""
+    try {
+      let d = localStorage.getItem("swrr-bets-device")
+      if (!d) {
+        d = "dev-" + Math.random().toString(36).slice(2, 12)
+        localStorage.setItem("swrr-bets-device", d)
+      }
+      return d
+    } catch {
+      return "dev-anon"
+    }
+  }, [])
+
+  // Action-feed calls skip the PIN entirely. Attribution uses the inline
+  // name if chosen (or the top-bar identity), else the device id.
+  const actFeed = async (payload: Record<string, unknown>, okMsg: string) => {
+    const who = actionWho || ownerId || deviceId
+    setBusy(true)
+    setMsg(null)
+    try {
+      const r = await fetch("/api/bets", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ season: SEASON, ownerId: who, ...payload }),
+      })
+      const j = await r.json()
+      if (!r.ok) setMsg(`❌ ${j.error ?? "failed"}`)
+      else {
+        setMsg(`✅ ${okMsg}`)
+        setNonce((n) => n + 1)
+      }
+    } catch {
+      setMsg("❌ network error")
+    } finally {
+      setBusy(false)
+    }
+  }
 
   const act = async (payload: Record<string, unknown>, okMsg: string) => {
     if (!ownerId || pin.length < 4) {
@@ -357,8 +398,9 @@ export default function BetsPage() {
               📣 Drop your slip
             </h2>
             <p className="text-xs text-ink-dim">
-              Paste a sportsbook share link so the room can tail it. The link
-              opens in your own book&apos;s app — the site just passes it along.
+              Paste a sportsbook share link so the room can tail it — no
+              sign-in needed. The link opens in your own book&apos;s app; the
+              site just passes it along.
             </p>
             <input
               value={actionUrl}
@@ -386,15 +428,25 @@ export default function BetsPage() {
                 ))}
               </select>
             )}
-            <div className="flex items-center justify-between">
-              <span className="text-[11px] text-ink-faint">
-                FanDuel · DraftKings · BetMGM · Caesars · ESPN BET · bet365 · Fanatics
-              </span>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <select
+                value={actionWho}
+                onChange={(e) => setActionWho(e.target.value)}
+                className="rounded-lg border border-line bg-surface px-2 py-1.5 text-xs text-ink-dim"
+                title="Optional — tag your name so the room knows whose slip it is"
+              >
+                <option value="">Posting anonymously</option>
+                {MANAGERS.map(([id, name]) => (
+                  <option key={id} value={id}>
+                    as {name}
+                  </option>
+                ))}
+              </select>
               <button
                 disabled={busy}
                 onClick={() => {
                   const g = games.find((x) => x.id === actionGame)
-                  act(
+                  actFeed(
                     {
                       action: "postAction",
                       url: actionUrl.trim(),
@@ -413,6 +465,9 @@ export default function BetsPage() {
                 Post it
               </button>
             </div>
+            <p className="text-[11px] text-ink-faint">
+              FanDuel · DraftKings · BetMGM · Caesars · ESPN BET · bet365 · Fanatics
+            </p>
           </section>
 
           {/* feed */}
@@ -423,7 +478,13 @@ export default function BetsPage() {
           ) : (
             <section className="space-y-2">
               {actionPosts.map((a) => {
-                const tailing = a.tailed.includes(ownerId)
+                const myId = actionWho || ownerId || deviceId
+                const tailing = a.tailed.includes(myId)
+                const posterName = WHATSAPP_NAMES[a.posterId]
+                const canRemove =
+                  a.posterId === myId ||
+                  a.posterId === ownerId ||
+                  ownerId === COMMISSIONER_OWNER_ID
                 return (
                   <div key={a.id} className="panel border border-gold/20 p-3">
                     <div className="flex items-start justify-between gap-3">
@@ -435,7 +496,8 @@ export default function BetsPage() {
                         )}
                         <p className="text-sm text-ink">{a.description}</p>
                         <p className="mt-0.5 text-xs text-ink-dim">
-                          {nm(a.posterId)} · <span className="text-gold">{a.book}</span>
+                          {posterName ? `${posterName} · ` : ""}
+                          <span className="text-gold">{a.book}</span>
                           {a.tailed.length > 0 && (
                             <span> · 🎯 {a.tailed.length} tailing</span>
                           )}
@@ -462,7 +524,7 @@ export default function BetsPage() {
                     <div className="mt-2 flex items-center gap-1.5">
                       <button
                         disabled={busy}
-                        onClick={() => act({ action: "tailAction", actionId: a.id }, tailing ? "untailed" : "you're tailing it")}
+                        onClick={() => actFeed({ action: "tailAction", actionId: a.id }, tailing ? "untailed" : "you're tailing it")}
                         className={`rounded-full px-3 py-1 text-[11px] font-semibold transition-colors ${
                           tailing
                             ? "bg-promo/20 text-promo"
@@ -471,10 +533,10 @@ export default function BetsPage() {
                       >
                         {tailing ? "✓ Tailing" : "🎯 Tail this"}
                       </button>
-                      {(ownerId === a.posterId || isCommish) && (
+                      {canRemove && (
                         <button
                           disabled={busy}
-                          onClick={() => act({ action: "removeAction", actionId: a.id }, "slip removed")}
+                          onClick={() => actFeed({ action: "removeAction", actionId: a.id }, "slip removed")}
                           className="rounded-full border border-line px-2.5 py-1 text-[11px] text-ink-faint hover:text-drop"
                         >
                           ✕ Remove
