@@ -28,6 +28,11 @@ export default function BetsPage() {
   // action-feed form
   const [actionUrl, setActionUrl] = useState("")
   const [actionDesc, setActionDesc] = useState("")
+  const [actionGame, setActionGame] = useState("") // gameId or "" for none
+  // the week's NFL games, for tagging a slip to its slot
+  const [games, setGames] = useState<
+    { id: string; label: string; kickoff: number }[]
+  >([])
   const [ownerId, setOwnerId] = useState("")
   const [pin, setPin] = useState("")
   const [msg, setMsg] = useState<string | null>(null)
@@ -48,6 +53,33 @@ export default function BetsPage() {
       .then(setData)
       .catch(() => null)
   }, [nonce])
+
+  // The week's NFL games → slot labels for the action-feed game tagger.
+  useEffect(() => {
+    fetch("/api/pickem/board?contest=nfl")
+      .then((r) => r.json())
+      .then((d) => {
+        if (d?.status !== "ok") return
+        const fmt = (k?: number) =>
+          k
+            ? new Date(k).toLocaleString(undefined, {
+                weekday: "short",
+                hour: "numeric",
+                minute: "2-digit",
+              })
+            : ""
+        setGames(
+          (d.board.games as { id: string; a: { owner: string }; b: { owner: string }; kickoff?: number }[])
+            .map((g) => ({
+              id: g.id,
+              label: `${fmt(g.kickoff)} · ${g.a.owner} @ ${g.b.owner}`,
+              kickoff: g.kickoff ?? 0,
+            }))
+            .sort((x, y) => x.kickoff - y.kickoff)
+        )
+      })
+      .catch(() => {})
+  }, [])
 
   const act = async (payload: Record<string, unknown>, okMsg: string) => {
     if (!ownerId || pin.length < 4) {
@@ -88,7 +120,16 @@ export default function BetsPage() {
     if (h > 0) return `${h}h ${m}m`
     return `${m}m`
   }
-  const actionPosts = (data?.actions ?? []).filter((a) => a.expiresAt > Date.now())
+  // Live slips, sorted by the game they're tagged to (soonest kickoff
+  // first), untagged ones after by recency.
+  const actionPosts = (data?.actions ?? [])
+    .filter((a) => a.expiresAt > Date.now())
+    .sort((x, y) => {
+      const kx = x.kickoff ?? Infinity
+      const ky = y.kickoff ?? Infinity
+      if (kx !== ky) return kx - ky
+      return y.createdAt - x.createdAt
+    })
   const active = bets.filter((b) => b.status === "active")
   const settled = bets.filter((b) => b.status === "settled")
   const paid = bets.filter((b) => b.status === "paid")
@@ -331,6 +372,20 @@ export default function BetsPage() {
               placeholder="One line: Lamar o1.5 pass TD -115"
               className="w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm text-ink"
             />
+            {games.length > 0 && (
+              <select
+                value={actionGame}
+                onChange={(e) => setActionGame(e.target.value)}
+                className="w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm text-ink"
+              >
+                <option value="">Which game? (optional — parlays/futures, leave blank)</option>
+                {games.map((g) => (
+                  <option key={g.id} value={g.id}>
+                    {g.label}
+                  </option>
+                ))}
+              </select>
+            )}
             <div className="flex items-center justify-between">
               <span className="text-[11px] text-ink-faint">
                 FanDuel · DraftKings · BetMGM · Caesars · ESPN BET · bet365 · Fanatics
@@ -338,12 +393,20 @@ export default function BetsPage() {
               <button
                 disabled={busy}
                 onClick={() => {
+                  const g = games.find((x) => x.id === actionGame)
                   act(
-                    { action: "postAction", url: actionUrl.trim(), description: actionDesc.trim(), expiresHours: 24 },
+                    {
+                      action: "postAction",
+                      url: actionUrl.trim(),
+                      description: actionDesc.trim(),
+                      expiresHours: 24,
+                      ...(g ? { gameId: g.id, gameLabel: g.label, kickoff: g.kickoff } : {}),
+                    },
                     "slip posted to the Action feed"
                   )
                   setActionUrl("")
                   setActionDesc("")
+                  setActionGame("")
                 }}
                 className="display rounded-lg bg-brand-deep px-4 py-2 text-sm tracking-wider text-white transition-colors hover:bg-brand-deep/80 disabled:opacity-40"
               >
@@ -365,13 +428,23 @@ export default function BetsPage() {
                   <div key={a.id} className="panel border border-gold/20 p-3">
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
+                        {a.gameLabel && (
+                          <p className="display mb-0.5 text-[10px] tracking-widest text-brand">
+                            🏈 {a.gameLabel}
+                          </p>
+                        )}
                         <p className="text-sm text-ink">{a.description}</p>
                         <p className="mt-0.5 text-xs text-ink-dim">
                           {nm(a.posterId)} · <span className="text-gold">{a.book}</span>
                           {a.tailed.length > 0 && (
                             <span> · 🎯 {a.tailed.length} tailing</span>
                           )}
-                          <span className="text-ink-faint"> · expires in {fmtLeft(a.expiresAt - Date.now())}</span>
+                          <span className="text-ink-faint">
+                            {" "}·{" "}
+                            {a.kickoff && a.kickoff > Date.now()
+                              ? `locks in ${fmtLeft(a.kickoff - Date.now())}`
+                              : `expires in ${fmtLeft(a.expiresAt - Date.now())}`}
+                          </span>
                         </p>
                       </div>
                       <div className="flex shrink-0 flex-col items-end gap-1.5">

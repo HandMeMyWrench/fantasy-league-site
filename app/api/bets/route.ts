@@ -221,6 +221,16 @@ export async function POST(req: NextRequest) {
     } catch {
       return NextResponse.json({ error: "invalid link" }, { status: 400 })
     }
+    // Optional game tag — denormalized display data from the week's board.
+    // A tagged post expires at its kickoff (you can't tail a started game);
+    // untagged (parlays, futures) fall back to the flat expiry window.
+    const gameId = body.gameId ? String(body.gameId).slice(0, 60) : null
+    const gameLabel = body.gameLabel ? String(body.gameLabel).slice(0, 60) : null
+    const kickoff =
+      body.kickoff != null && isFinite(Number(body.kickoff)) ? Number(body.kickoff) : null
+    const defaultExpiry = Date.now() + expiresHours * 3_600_000
+    const expiresAt =
+      kickoff && kickoff > Date.now() ? kickoff : defaultExpiry
     const post: ActionPost = {
       id: `a-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
       season,
@@ -231,7 +241,10 @@ export async function POST(req: NextRequest) {
       url: url.slice(0, 1000),
       tailed: [],
       createdAt: Date.now(),
-      expiresAt: Date.now() + expiresHours * 3_600_000,
+      expiresAt,
+      gameId,
+      gameLabel,
+      kickoff,
     }
     await r.hset(K.actions(season), { [post.id]: post })
     return NextResponse.json({ status: "ok", post })

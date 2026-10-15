@@ -96,6 +96,13 @@ export type ActionPost = {
   tailed: string[] // ownerIds who tapped "tailing"
   createdAt: number
   expiresAt: number // link board auto-clears; nobody tails a settled game
+  // Optional game tag (Oct 15 2026): sportsbook share links are opaque
+  // slugs, so the poster picks which NFL game/slot the bet is for from the
+  // week's schedule. Denormalized label + kickoff so the feed can show the
+  // slot and sort by it; a tagged post auto-expires at its kickoff.
+  gameId?: string | null
+  gameLabel?: string | null // "SUN 1:00 · BUF @ MIA"
+  kickoff?: number | null
 }
 
 // ---- managers (Sleeper owner ids) ----
