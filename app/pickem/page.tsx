@@ -1137,12 +1137,6 @@ export default function PickemPage() {
                           · buyback edits cost 0.5 pts each
                         </span>
                       )}
-                      {buybackOpen && (
-                        <span className="block text-xs text-ink-faint">
-                          Missed Thursday? A complete late card still counts
-                          for season points (−6.5, can&apos;t win the weekly $25).
-                        </span>
-                      )}
                     </p>
                     {/* Mobile: dropdown gets its own full-width row (was crushed
                         beside PIN+button); PIN and submit share the second row.
@@ -1530,7 +1524,13 @@ export default function PickemPage() {
               alt-lines on the late slate are exactly how you chase. Each
               game&apos;s picks go <span className="text-ink">public at its own
               kickoff</span> (frozen = nothing to copy); picks on open games
-              stay private.
+              stay private.{" "}
+              <span className="text-ink">Pick as few or as many games as you
+              want</span> — a partial card is fully in the running for the
+              weekly $25 and the season pot. There&apos;s no minimum and no
+              penalty for a short card; unpicked games just don&apos;t score.
+              Miss a whole week? That week&apos;s a zero, but you&apos;re never
+              knocked out of the season race.
             </p>
             <p>
               <span className="font-semibold text-ink">Two ways to bet each
