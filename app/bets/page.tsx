@@ -161,13 +161,29 @@ export default function BetsPage() {
     if (h > 0) return `${h}h ${m}m`
     return `${m}m`
   }
-  // Live slips, sorted by the game they're tagged to (soonest kickoff
-  // first), untagged ones after by recency.
+  // SLOT INFERENCE (Oct 19 2026): almost nobody bets a game in progress, so
+  // the time a slip was DROPPED is a good proxy for which upcoming slate
+  // it's for. For an untagged post, the assumed slot = the next kickoff
+  // window at or after its post time. Soft guess (labeled as such), used
+  // to group the feed; an explicit game tag always wins.
+  const fmtSlot = (k: number) =>
+    new Date(k).toLocaleString(undefined, { weekday: "short", hour: "numeric", minute: "2-digit" })
+  const assumedSlot = (createdAt: number): { label: string; kickoff: number } | null => {
+    const up = games
+      .filter((g) => g.kickoff >= createdAt)
+      .sort((a, b) => a.kickoff - b.kickoff)[0]
+    return up ? { label: fmtSlot(up.kickoff), kickoff: up.kickoff } : null
+  }
+  // Effective kickoff for ordering: explicit tag, else the assumed slot.
+  const effKick = (a: ActionPost) =>
+    a.kickoff && a.kickoff > 0 ? a.kickoff : assumedSlot(a.createdAt)?.kickoff ?? Infinity
+
+  // Live slips, grouped by slot (soonest first), recency within a slot.
   const actionPosts = (data?.actions ?? [])
     .filter((a) => a.expiresAt > Date.now())
     .sort((x, y) => {
-      const kx = x.kickoff ?? Infinity
-      const ky = y.kickoff ?? Infinity
+      const kx = effKick(x)
+      const ky = effKick(y)
       if (kx !== ky) return kx - ky
       return y.createdAt - x.createdAt
     })
@@ -489,11 +505,22 @@ export default function BetsPage() {
                   <div key={a.id} className="panel border border-gold/20 p-3">
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
-                        {a.gameLabel && (
+                        {a.gameLabel ? (
                           <p className="display mb-0.5 text-[10px] tracking-widest text-brand">
                             🏈 {a.gameLabel}
                           </p>
-                        )}
+                        ) : (() => {
+                          // No explicit tag — infer the slate from post time.
+                          const s = assumedSlot(a.createdAt)
+                          return s ? (
+                            <p
+                              className="display mb-0.5 text-[10px] tracking-widest text-ink-faint"
+                              title="Guessed from when the slip was dropped — tap the game picker when posting to set it exactly"
+                            >
+                              🕑 likely the {s.label} slate
+                            </p>
+                          ) : null
+                        })()}
                         <p className="text-sm text-ink">{a.description}</p>
                         <p className="mt-0.5 text-xs text-ink-dim">
                           {posterName ? `${posterName} · ` : ""}
