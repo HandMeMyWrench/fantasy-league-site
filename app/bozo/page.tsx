@@ -1,29 +1,42 @@
 "use client"
 
-// THE BOZO BET — weekly ritual. Submit a player-prop "take" before kickoff;
-// after the games the group votes the WORST take; the most-voted manager is
-// the week's Bozo and owes the group bet next week. Socially judged, no
-// money touched — it just decides whose turn it is to place the group's bet.
-// Identity = your Pick'em PIN (one take, one vote per manager, no stuffing).
+// THE BOZO BET — weekly ritual. Submit one player-prop "take" for any game
+// Thursday→Monday. There's NO group vote: an AI judge (a weekly scheduled
+// Claude run) reads every take, weighs the injury news, matchups, line value
+// and — once the games are done — the actual results, and names the single
+// WORST take. A PREVIEW verdict lands mid-week (on paper); the FINAL lands
+// after Monday night and decides who owes the group's bet next week.
+// No money touched — it just decides whose turn it is to place the bet.
+// Identity (to submit/edit a take) = your Pick'em PIN.
 
 import React, { useEffect, useMemo, useState } from "react"
 import { WHATSAPP_NAMES, COMMISSIONER_OWNER_ID } from "@/lib/pickem/config"
+import { parlay } from "@/lib/bozo"
 
 const SEASON = "2026"
 const nm = (id?: string | null) => (id ? WHATSAPP_NAMES[id] ?? "Unknown" : "—")
 const MANAGERS = Object.entries(WHATSAPP_NAMES).sort((x, y) => x[1].localeCompare(y[1]))
 
+type Verdict = {
+  stage: "preview" | "final"
+  bozoId: string
+  reason: string
+  runnerUpId?: string | null
+  at: number
+}
+
 type Resp = {
   status: string
   week: number
   currentWeek: number
-  phase: "submit" | "locked" | "vote"
-  firstKickoff: number | null
-  lastKickoff: number | null
-  submissions: Record<string, { prop: string; at: number }>
-  votes: Record<string, string>
-  tally: { counts: Record<string, number>; bozos: string[]; topVotes: number }
-  owes: { week: number; bozos: string[]; votes: number } | null
+  phase: "submit" | "final"
+  lastKick: number | null
+  submissions: Record<string, { prop: string; at: number; odds?: number | null }>
+  preview: Verdict | null
+  final: Verdict | null
+  verdict: Verdict | null
+  placement: { by: string; book?: string | null; url?: string | null; note?: string | null; at: number } | null
+  owes: { week: number; bozoId: string; reason: string } | null
   shame: Record<string, number>
 }
 
@@ -32,6 +45,9 @@ export default function BozoPage() {
   const [ownerId, setOwnerId] = useState("")
   const [pin, setPin] = useState("")
   const [prop, setProp] = useState("")
+  const [odds, setOdds] = useState("") // American odds off your own book
+  const [slipUrl, setSlipUrl] = useState("") // on-hook Bozo's placed-bet link
+  const [slipNote, setSlipNote] = useState("")
   const [msg, setMsg] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [nonce, setNonce] = useState(0)
@@ -60,6 +76,7 @@ export default function BozoPage() {
       if (!r.ok) setMsg(`❌ ${j.error ?? "failed"}`)
       else {
         setMsg(`✅ ${okMsg}`)
+        if (payload.action === "submit") setProp("")
         setNonce((n) => n + 1)
       }
     } catch {
@@ -71,15 +88,20 @@ export default function BozoPage() {
 
   const isCommish = ownerId === COMMISSIONER_OWNER_ID
   const phase = data?.phase
-  const myVote = ownerId ? data?.votes?.[ownerId] : undefined
+  const verdict = data?.verdict ?? null
   const iSubmitted = ownerId ? !!data?.submissions?.[ownerId] : false
 
   const subs = useMemo(() => {
     if (!data) return []
-    return Object.entries(data.submissions)
-      .map(([id, s]) => ({ id, prop: s.prop, votes: data.tally.counts[id] ?? 0 }))
-      .sort((a, b) => b.votes - a.votes || nm(a.id).localeCompare(nm(b.id)))
-  }, [data])
+    const rows = Object.entries(data.submissions).map(([id, s]) => ({
+      id,
+      prop: s.prop,
+      odds: s.odds ?? null,
+    }))
+    const rank = (id: string) =>
+      verdict?.bozoId === id ? 0 : verdict?.runnerUpId === id ? 1 : 2
+    return rows.sort((a, b) => rank(a.id) - rank(b.id) || nm(a.id).localeCompare(nm(b.id)))
+  }, [data, verdict])
 
   const shame = useMemo(() => {
     if (!data) return []
@@ -88,30 +110,145 @@ export default function BozoPage() {
       .sort((a, b) => b.n - a.n)
   }, [data])
 
+  // Group parlay — built live from whatever odds people have entered.
+  const groupParlay = useMemo(() => {
+    if (!data) return null
+    return parlay(Object.values(data.submissions).map((s) => s.odds))
+  }, [data])
+  const fmtOdds = (o?: number | null) => (o == null ? "" : o > 0 ? `+${o}` : `${o}`)
+
   const fmtWhen = (k?: number | null) =>
     k ? new Date(k).toLocaleString(undefined, { weekday: "short", hour: "numeric", minute: "2-digit" }) : ""
+
+  const takeCount = Object.keys(data?.submissions ?? {}).length
 
   return (
     <main className="mx-auto max-w-2xl px-4 pb-16 pt-6 sm:px-6">
       <h1 className="display text-center text-2xl text-brand">🤡 THE BOZO BET</h1>
       <p className="mt-1 text-center text-sm text-ink-dim">
-        Everyone drops a take. Worst take — decided by the group — is the Bozo,
-        and the Bozo places the group&apos;s bet next week.
+        Everyone drops a take. The worst one — judged by the house, news and all
+        — is the Bozo, and the Bozo places the group&apos;s bet next week.
       </p>
 
-      {/* who-owes banner */}
+      {/* who-owes banner (last week's FINAL bozo) + place-the-bet surface */}
       {data?.owes && (
-        <div className="panel mt-4 border border-gold/30 bg-gold/5 px-4 py-3 text-center text-sm">
-          <span className="display text-xs tracking-widest text-gold">ON THE HOOK THIS WEEK</span>
-          <p className="mt-1 text-ink">
-            🤡{" "}
-            <span className="font-bold text-gold">
-              {data.owes.bozos.map(nm).join(" & ")}
-            </span>{" "}
-            {data.owes.bozos.length > 1 ? "owe" : "owes"} the group bet — worst
-            take of Week {data.owes.week} ({data.owes.votes} vote
-            {data.owes.votes === 1 ? "" : "s"}).
+        <div className="panel mt-4 border border-gold/30 bg-gold/5 px-4 py-3 text-sm">
+          <div className="text-center">
+            <span className="display text-xs tracking-widest text-gold">ON THE HOOK THIS WEEK</span>
+            <p className="mt-1 text-ink">
+              🤡 <span className="font-bold text-gold">{nm(data.owes.bozoId)}</span> owes the
+              group bet — worst take of Week {data.owes.week}.
+            </p>
+          </div>
+
+          {data.placement ? (
+            // Placed — everyone sees it, with a tail link if there's a slip.
+            <div className="mt-3 rounded-lg border border-promo/30 bg-promo/5 px-3 py-2 text-center">
+              <p className="text-sm text-ink">
+                ✅ <span className="font-semibold text-promo">{nm(data.placement.by)}</span> placed
+                the group bet
+                {data.placement.book && <span className="text-ink-dim"> on {data.placement.book}</span>}.
+              </p>
+              {data.placement.note && (
+                <p className="mt-0.5 text-xs text-ink-dim">“{data.placement.note}”</p>
+              )}
+              {data.placement.url && (
+                <a
+                  href={data.placement.url}
+                  target="_blank"
+                  rel="noopener noreferrer nofollow"
+                  className="mt-1 inline-block rounded-full bg-brand-deep px-4 py-1.5 text-xs font-bold tracking-wide text-white"
+                >
+                  🎟️ Tail the slip →
+                </a>
+              )}
+              {(ownerId === data.owes.bozoId || isCommish) && (
+                <button
+                  disabled={busy}
+                  onClick={() => act({ action: "unplace" }, "placement cleared")}
+                  className="ml-2 text-[11px] text-ink-faint underline hover:text-drop"
+                >
+                  undo
+                </button>
+              )}
+            </div>
+          ) : ownerId === data.owes.bozoId ? (
+            // You're on the hook — place it.
+            <div className="mt-3 space-y-2 rounded-lg border border-line bg-surface/50 px-3 py-3">
+              <p className="text-xs text-ink-dim">
+                You&apos;re up. Place the group&apos;s bet (the parlay below), then drop
+                the slip so everyone can tail it. Optional link + note:
+              </p>
+              <input
+                value={slipUrl}
+                onChange={(e) => setSlipUrl(e.target.value)}
+                placeholder="sportsbook slip link (optional)"
+                className="w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm text-ink"
+              />
+              <input
+                value={slipNote}
+                onChange={(e) => setSlipNote(e.target.value)}
+                placeholder='note (optional, e.g. "6-leg, $5 each")'
+                className="w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm text-ink"
+              />
+              <button
+                disabled={busy}
+                onClick={() =>
+                  act(
+                    { action: "place", url: slipUrl.trim() || null, note: slipNote.trim() || null },
+                    "bet placed — nice"
+                  )
+                }
+                className="display w-full rounded-lg bg-gold/90 px-5 py-2 text-sm tracking-wider text-brand-deep transition-colors hover:bg-gold disabled:opacity-40"
+              >
+                ✅ Mark the group bet placed
+              </button>
+            </div>
+          ) : (
+            // Everyone else, not placed yet.
+            <p className="mt-2 text-center text-xs text-ink-faint">
+              Waiting on {nm(data.owes.bozoId)} to place the group bet.
+            </p>
+          )}
+        </div>
+      )}
+
+      {/* THE VERDICT — preview or final */}
+      {verdict && (
+        <div
+          className={`panel mt-4 px-4 py-4 text-center ${
+            verdict.stage === "final"
+              ? "border border-drop/50 bg-drop/10"
+              : "border border-line bg-surface-2"
+          }`}
+        >
+          <span
+            className={`display text-xs tracking-widest ${
+              verdict.stage === "final" ? "text-drop" : "text-ink-faint"
+            }`}
+          >
+            {verdict.stage === "final" ? "🤡 THE VERDICT IS IN" : "👀 PREVIEW — ON PAPER, NOT FINAL"}
+          </span>
+          <p className="mt-1 text-lg text-ink">
+            The Bozo {verdict.stage === "final" ? "is" : "looks like"}{" "}
+            <span className={`font-bold ${verdict.stage === "final" ? "text-drop" : "text-ink"}`}>
+              {nm(verdict.bozoId)}
+            </span>
           </p>
+          <p className="mx-auto mt-2 max-w-prose text-left text-sm leading-relaxed text-ink-dim">
+            {verdict.reason}
+          </p>
+          {verdict.runnerUpId && (
+            <p className="mt-2 text-xs text-ink-faint">
+              Runner-up roast: {nm(verdict.runnerUpId)}
+            </p>
+          )}
+          {verdict.stage === "preview" && (
+            <p className="mt-2 text-[11px] text-ink-faint">
+              The house will re-judge after Monday night, results and all — this
+              can still flip.
+            </p>
+          )}
         </div>
       )}
 
@@ -122,9 +259,9 @@ export default function BozoPage() {
             <>
               <span className="display text-brand">WEEK {data.week}</span>
               <span className="mx-2 text-ink-faint">·</span>
-              {phase === "submit" && `Takes lock at first kickoff (${fmtWhen(data.firstKickoff)})`}
-              {phase === "locked" && "Takes are in — let 'em cook. Voting opens after the last game."}
-              {phase === "vote" && "🗳️ Voting open — pick the worst take"}
+              {phase === "submit" &&
+                `Takes open all week · the house judges after Monday kickoff (${fmtWhen(data.lastKick)})`}
+              {phase === "final" && "Games are done — the house has the final say"}
             </>
           ) : (
             "Loading…"
@@ -155,19 +292,21 @@ export default function BozoPage() {
         <p className="text-[11px] text-ink-faint">Same PIN as the Pick&apos;em.</p>
       </div>
 
-      {/* SUBMIT phase */}
+      {/* SUBMIT phase — drop/edit your take */}
       {phase === "submit" && (
         <section className="panel mt-4 space-y-3 p-4">
           <h2 className="display text-sm tracking-widest text-gold">Your take</h2>
           {iSubmitted ? (
             <p className="rounded-lg border border-promo/30 bg-promo/5 px-3 py-2 text-sm text-ink">
-              ✓ Take submitted. Edit it below any time before kickoff — takes
-              stay hidden until the games start.
+              ✓ Take submitted. Edit it any time this week — the house judges
+              after Monday night.
             </p>
           ) : (
             <p className="text-xs text-ink-dim">
-              One player prop. Make it bold — or play it safe and risk the
-              boring-take vote. Hidden from everyone until first kickoff.
+              One player prop — any game, Thursday through Monday. Be bold or
+              play it safe; the house judges the whole board, not just the odds.
+              Add the price from your book and it becomes a leg of the group
+              parlay.
             </p>
           )}
           <textarea
@@ -177,10 +316,21 @@ export default function BozoPage() {
             rows={2}
             className="w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm text-ink"
           />
+          <div className="flex items-center gap-2">
+            <input
+              value={odds}
+              onChange={(e) => setOdds(e.target.value.replace(/[^0-9+-]/g, ""))}
+              placeholder="odds (e.g. -115)"
+              inputMode="text"
+              className="w-40 rounded-lg border border-line bg-surface px-3 py-2 text-sm text-ink"
+            />
+            <span className="text-[11px] text-ink-faint">
+              optional — your leg of the group parlay
+            </span>
+          </div>
           <div className="flex items-center justify-between">
             <span className="text-xs text-ink-faint">
-              {Object.keys(data?.submissions ?? {}).length} take
-              {Object.keys(data?.submissions ?? {}).length === 1 ? "" : "s"} in
+              {takeCount} take{takeCount === 1 ? "" : "s"} in
             </span>
             <div className="flex gap-1.5">
               {iSubmitted && (
@@ -194,99 +344,96 @@ export default function BozoPage() {
               )}
               <button
                 disabled={busy || prop.trim().length < 3}
-                onClick={() => act({ action: "submit", prop: prop.trim() }, "take submitted")}
+                onClick={() =>
+                  act(
+                    { action: "submit", prop: prop.trim(), odds: odds.trim() || null },
+                    "take submitted"
+                  )
+                }
                 className="display rounded-lg bg-brand-deep px-5 py-2 text-sm tracking-wider text-white transition-colors hover:bg-brand-deep/80 disabled:opacity-40"
               >
                 {iSubmitted ? "Update" : "Submit"}
               </button>
             </div>
           </div>
-          {/* who's in (names only, no takes) */}
-          {Object.keys(data?.submissions ?? {}).length > 0 && (
-            <p className="border-t border-line pt-2 text-xs text-ink-dim">
-              In: {Object.keys(data!.submissions).map(nm).join(", ")}
-            </p>
-          )}
         </section>
       )}
 
-      {/* LOCKED / VOTE phases — the takes */}
-      {(phase === "locked" || phase === "vote") && (
+      {/* GROUP PARLAY — live, built from entered odds */}
+      {groupParlay && (
+        <div className="panel mt-4 border border-brand/25 bg-brand/5 px-4 py-3 text-center text-sm">
+          <span className="display text-xs tracking-widest text-brand">THE GROUP PARLAY</span>
+          <p className="mt-1 text-ink">
+            <span className="tnum font-bold text-brand">{groupParlay.legs}</span>-leg parlay ·{" "}
+            <span className="tnum font-bold text-gold">{fmtOdds(groupParlay.american)}</span>{" "}
+            <span className="text-ink-dim">
+              ({groupParlay.decimal.toFixed(1)}× · {(groupParlay.prob * 100).toFixed(1)}% implied)
+            </span>
+          </p>
+          <p className="mt-0.5 text-[11px] text-ink-faint">
+            the card the Bozo places for the group
+            {Object.values(data?.submissions ?? {}).some((s) => s.odds == null) &&
+              " · some takes have no odds yet"}
+          </p>
+        </div>
+      )}
+
+      {/* THE TAKES — always visible */}
+      {takeCount > 0 && (
         <section className="mt-4 space-y-2">
           <h2 className="display text-sm tracking-widest text-brand">
-            {phase === "vote" ? "🗳️ Vote the worst take" : "The takes"}
-            {data && subs.length > 0 && (
-              <span className="ml-2 text-xs font-normal text-ink-faint">
-                {Object.keys(data.votes).length} vote
-                {Object.keys(data.votes).length === 1 ? "" : "s"} cast
-              </span>
-            )}
+            The board
+            <span className="ml-2 text-xs font-normal text-ink-faint">
+              {takeCount} take{takeCount === 1 ? "" : "s"}
+            </span>
           </h2>
-          {subs.length === 0 ? (
-            <p className="panel p-6 text-center text-sm text-ink-dim">
-              No takes were submitted this week.
-            </p>
-          ) : (
-            subs.map((s) => {
-              const isBozo = data!.tally.bozos.includes(s.id) && data!.tally.topVotes > 0
-              const mine = s.id === ownerId
-              const votedForThis = myVote === s.id
-              return (
-                <div
-                  key={s.id}
-                  className={`panel p-3 ${isBozo ? "border border-drop/40 bg-drop/5" : ""}`}
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className="text-sm text-ink">{s.prop}</p>
-                      <p className="mt-0.5 text-xs text-ink-dim">
-                        {nm(s.id)}
-                        {mine && <span className="text-ink-faint"> (you)</span>}
-                        {s.votes > 0 && (
-                          <span className={isBozo ? "text-drop" : "text-ink-faint"}>
-                            {" "}· 🤡 {s.votes} worst-take vote{s.votes === 1 ? "" : "s"}
-                          </span>
-                        )}
-                        {isBozo && <span className="font-semibold text-drop"> · BOZO</span>}
-                      </p>
-                    </div>
-                    {phase === "vote" && !mine && (
-                      <button
-                        disabled={busy}
-                        onClick={() =>
-                          act(
-                            votedForThis
-                              ? { action: "unvote" }
-                              : { action: "vote", targetOwnerId: s.id },
-                            votedForThis ? "vote cleared" : `worst take: ${nm(s.id)}`
-                          )
-                        }
-                        className={`shrink-0 rounded-full px-3 py-1.5 text-[11px] font-bold transition-colors ${
-                          votedForThis
-                            ? "bg-drop/20 text-drop"
-                            : "border border-line text-ink-dim hover:text-drop"
-                        }`}
-                      >
-                        {votedForThis ? "✓ Worst" : "🤡 Worst take"}
-                      </button>
-                    )}
-                    {isCommish && (
-                      <button
-                        disabled={busy}
-                        onClick={() => act({ action: "removeSubmission", targetOwnerId: s.id }, "take removed")}
-                        className="shrink-0 rounded-full border border-line px-2 py-1 text-[10px] text-ink-faint hover:text-drop"
-                      >
-                        ✕
-                      </button>
-                    )}
+          {subs.map((s) => {
+            const isBozo = verdict?.bozoId === s.id
+            const isRunnerUp = verdict?.runnerUpId === s.id
+            const mine = s.id === ownerId
+            return (
+              <div
+                key={s.id}
+                className={`panel p-3 ${isBozo ? "border border-drop/40 bg-drop/5" : ""}`}
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="text-sm text-ink">
+                      {s.prop}
+                      {s.odds != null && (
+                        <span className="ml-1.5 tnum text-xs font-bold text-gold">
+                          {fmtOdds(s.odds)}
+                        </span>
+                      )}
+                    </p>
+                    <p className="mt-0.5 text-xs text-ink-dim">
+                      {nm(s.id)}
+                      {mine && <span className="text-ink-faint"> (you)</span>}
+                      {isBozo && (
+                        <span className="font-semibold text-drop">
+                          {" "}· 🤡 {verdict?.stage === "final" ? "BOZO" : "projected Bozo"}
+                        </span>
+                      )}
+                      {isRunnerUp && <span className="text-ink-faint"> · runner-up</span>}
+                    </p>
                   </div>
+                  {isCommish && phase === "submit" && (
+                    <button
+                      disabled={busy}
+                      onClick={() => act({ action: "removeSubmission", targetOwnerId: s.id }, "take removed")}
+                      className="shrink-0 rounded-full border border-line px-2 py-1 text-[10px] text-ink-faint hover:text-drop"
+                    >
+                      ✕
+                    </button>
+                  )}
                 </div>
-              )
-            })
-          )}
-          {phase === "locked" && (
-            <p className="text-center text-xs text-ink-faint">
-              Voting opens when the week&apos;s last game kicks ({fmtWhen(data?.lastKickoff)}).
+              </div>
+            )
+          })}
+          {phase === "final" && !verdict && (
+            <p className="panel p-4 text-center text-xs text-ink-faint">
+              Games are done — the house is reviewing the board. The verdict
+              drops shortly.
             </p>
           )}
         </section>

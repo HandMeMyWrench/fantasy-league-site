@@ -506,22 +506,56 @@ punishes it — surfacing that tension AT DECISION TIME drives play.
   (largest single switch-cost from the pickmoves logs), the relegation/
   promotion story, prize table. All data sources already exist.
 
-## THE BOZO BET (Oct 24 2026)
+## THE BOZO BET (Oct 2026 — AI-judged pivot)
 
 A weekly league ritual, its own page (/bozo, nav entry; mobile bottom bar
-now grid-cols-6). Loop: everyone submits one player-prop "take" → takes
-lock at the week's FIRST kickoff (hidden until then, like pick'em) → group
-VOTES the worst take once the week's LAST game kicks → most-voted manager
-= the week's BOZO, who owes the group bet the following week. Socially
-judged, no money touched (scoreboard-not-bank — it only decides whose turn
-it is to place the group's bet). lib/bozo.ts (BozoRound, bozoTally — ties
-= co-bozos, votes for non-submitters ignored; 4 tests pass). /api/bozo:
-phase = submit|locked|vote derived from the NFL board's first/last kickoff;
-PIN-authed (one take/vote per manager, no self-vote, no stuffing); storage
-bozo:{season}:{week}. Page shows: "on the hook this week" banner (last
-week's bozo), phase-gated submit/vote UI with live tally, and a season Hall
-of Shame (bozo count per manager, scanned across weeks 3+). NFL-era only
-(weeks 3+).
+now grid-cols-6). NO group vote anymore (pivoted Oct 2026). Everyone submits
+one player-prop "take" (any game Thu→Mon, takes stay open and VISIBLE all
+week — no hiding). An AI JUDGE — a weekly scheduled Claude run, NOT the site
+— reads every take, weighs injury news / matchups / line value and (once
+games are done) actual results, and names the single WORST take. That
+manager is the week's BOZO and owes the group bet next week. Two verdicts
+land per week: a PREVIEW (mid-week, "on paper, can still flip") and the
+FINAL (after Monday night, decides who owes). No money touched
+(scoreboard-not-bank — it only decides whose turn it is to place the bet).
+
+PHASES: submit | final, ONE boundary = the board's LAST kickoff (MNF).
+weekBounds → {lastKick: max(kickoffs)}; phaseOf = Date.now()<lastKick ?
+submit : final. Takes no longer hidden (anchoring was only a voting concern).
+
+ODDS / GROUP PARLAY: each take carries an OPTIONAL American-odds field the
+submitter reads off their own book (±100..100000). The app NEVER fetches
+odds — it just does parlay math on what people enter (impliedProb,
+decimalOdds, parlay() in lib/bozo.ts). The "Group Parlay" card shows legs,
+combined American price, decimal multiple and implied %. Per-leg odds show
+on the board cards. Takes with no odds just don't join the parlay.
+
+HOW THE JUDGE POSTS: two scheduled tasks (preview ~Sun, final ~Tue) each
+GET /api/bozo (takes + names map), research the props, then POST
+{action:"verdict", week, stage:"preview"|"final", bozoOwnerId, reason,
+runnerUpOwnerId?, token}. Auth = BOZO_JUDGE_TOKEN env var (a bot token, not
+a PIN). Commissioner can also post/override a verdict with their Pick'em
+PIN. **REQUIRED: set BOZO_JUDGE_TOKEN on Vercel** (value lives in the two
+scheduled-task prompts) or the verdict POST 403s.
+
+PLACE THE BET: the on-hook Bozo (this week's owes = last week's final bozo)
+marks the group bet placed via POST {action:"place", url?, note?} (PIN-authed;
+commish can too). Optional slip URL is validated through sportsbookFor() from
+lib/bets.ts (same allowlist as the Action feed) and becomes a "Tail the slip"
+link for the group. Stored as round.placement {by,book,url,note,at}; unplace
+clears it. Shown inside the owes banner: a place form for the on-hook person,
+a ✅-placed card w/ tail link for everyone else, else "waiting on X".
+
+lib/bozo.ts (BozoRound {submissions:{prop,at,odds?}, preview, final, placement};
+BozoVerdict {stage,bozoId,reason,runnerUpId?,at}; BozoPhase = submit|final;
+currentVerdict = final ?? preview; impliedProb/decimalOdds/parlay;
+tests/bozo.test.ts — 11 assertions pass). /api/bozo GET returns phase,
+lastKick, submissions, preview, final, verdict, owes (last wk's final bozo),
+shame (final-bozo counts wks 3+), names. Storage bozo:{season}:{week};
+getRound migrates old {votes} rounds harmlessly. Page: who-owes banner,
+verdict banner (preview muted / final red with the roast + runner-up), PIN
+identity for submit/withdraw, group-parlay card, always-visible board (bozo
+pinned top), Hall of Shame. NFL-era only (weeks 3+).
 
 ## Nav consolidation (July 2026)
 

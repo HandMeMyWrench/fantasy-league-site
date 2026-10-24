@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { pinOk } from "@/lib/pickem/auth"
-import { COMMISSIONER_OWNER_ID, SEASON } from "@/lib/pickem/config"
+import { COMMISSIONER_OWNER_ID, SEASON, WHATSAPP_NAMES } from "@/lib/pickem/config"
 import { getNflState } from "@/lib/sleeper"
 import {
   getBoard,
@@ -10,7 +10,15 @@ import {
   storageConfigured,
 } from "@/lib/pickem/storage"
 import { buildNflBoard } from "@/lib/pickem/nfl"
-import { bozoTally, emptyRound, type BozoPhase, type BozoRound } from "@/lib/bozo"
+import { sportsbookFor } from "@/lib/bets"
+import {
+  currentVerdict,
+  emptyRound,
+  type BozoPhase,
+  type BozoPlacement,
+  type BozoRound,
+  type BozoVerdict,
+} from "@/lib/bozo"
 
 export const dynamic = "force-dynamic"
 
@@ -18,14 +26,27 @@ const NFL_ERA_START = 3 // BOZO rides the NFL game (weeks 3+)
 const key = (week: number) => `bozo:${SEASON}:${week}`
 
 async function getRound(week: number): Promise<BozoRound> {
-  return (await redis()!.get<BozoRound>(key(week))) ?? emptyRound(SEASON, week)
+  const r = (await redis()!.get<BozoRound>(key(week))) ?? emptyRound(SEASON, week)
+  // migrate: older rounds may carry a `votes` field — harmless, just ignore it.
+  if (!("preview" in r)) r.preview = null
+  if (!("final" in r)) r.final = null
+  return r
 }
 async function setRound(round: BozoRound) {
   await redis()!.set(key(round.week), round)
 }
 
-/** First + last kickoff of the week, building the board once if needed. */
-async function weekBounds(week: number): Promise<{ first: number; last: number } | null> {
+// Who is on the hook to place THIS week's group bet = last week's FINAL bozo.
+async function owesBozoId(week: number): Promise<string | null> {
+  if (week <= NFL_ERA_START) return null
+  const prev = await getRound(week - 1)
+  return prev.final?.bozoId ?? null
+}
+
+// Two phases (Oct 2026): nothing locks Thursday — takes stay open the WHOLE
+// week (every game Thu→Mon counts). The one boundary is the week's LAST
+// kickoff (Monday night): before it `submit`, after it `final`.
+async function weekBounds(week: number): Promise<{ lastKick: number } | null> {
   let board = await getBoard(SEASON, week, "nfl")
   if (!board) {
     board = await buildNflBoard(week).catch(() => null)
@@ -34,15 +55,12 @@ async function weekBounds(week: number): Promise<{ first: number; last: number }
   if (!board) return null
   const kicks = board.games.map((g) => g.kickoff ?? 0).filter((k) => k > 0)
   if (!kicks.length) return null
-  return { first: Math.min(...kicks), last: Math.max(...kicks) }
+  return { lastKick: Math.max(...kicks) } // MNF kickoff
 }
 
-function phaseOf(bounds: { first: number; last: number } | null): BozoPhase {
+function phaseOf(bounds: { lastKick: number } | null): BozoPhase {
   if (!bounds) return "submit"
-  const now = Date.now()
-  if (now < bounds.first) return "submit"
-  if (now < bounds.last) return "locked"
-  return "vote"
+  return Date.now() < bounds.lastKick ? "submit" : "final"
 }
 
 export async function GET(req: NextRequest) {
@@ -60,28 +78,19 @@ export async function GET(req: NextRequest) {
   const phase = phaseOf(bounds)
   const round = await getRound(week)
 
-  // Props stay private until they LOCK (first kickoff) — same as pick'em.
-  // During submit we return only WHO has submitted, not their take.
-  const revealed = phase !== "submit"
-  const submissions = revealed
-    ? round.submissions
-    : Object.fromEntries(Object.keys(round.submissions).map((id) => [id, { prop: "", at: 0 }]))
-
-  const tally = bozoTally(round)
-
-  // Who owes THIS week's group bet = last week's Bozo (vote leader).
-  let owes: { week: number; bozos: string[]; votes: number } | null = null
+  // Who owes THIS week's group bet = last week's FINAL bozo (the judge's call).
+  let owes: { week: number; bozoId: string; reason: string } | null = null
   if (week > NFL_ERA_START) {
     const prev = await getRound(week - 1)
-    const pt = bozoTally(prev)
-    if (pt.bozos.length) owes = { week: week - 1, bozos: pt.bozos, votes: pt.topVotes }
+    if (prev.final?.bozoId)
+      owes = { week: week - 1, bozoId: prev.final.bozoId, reason: prev.final.reason }
   }
 
-  // Season Hall of Shame: Bozo counts across finalized weeks.
+  // Season Hall of Shame: FINAL-bozo counts across finalized weeks.
   const shame: Record<string, number> = {}
-  for (let w = NFL_ERA_START; w < week; w++) {
+  for (let w = NFL_ERA_START; w <= week; w++) {
     const r = await getRound(w)
-    for (const id of bozoTally(r).bozos) shame[id] = (shame[id] ?? 0) + 1
+    if (r.final?.bozoId) shame[r.final.bozoId] = (shame[r.final.bozoId] ?? 0) + 1
   }
 
   return NextResponse.json({
@@ -89,14 +98,26 @@ export async function GET(req: NextRequest) {
     week,
     currentWeek,
     phase,
-    firstKickoff: bounds?.first ?? null,
-    lastKickoff: bounds?.last ?? null,
-    submissions,
-    votes: round.votes,
-    tally,
+    lastKick: bounds?.lastKick ?? null,
+    submissions: round.submissions,
+    preview: round.preview ?? null,
+    final: round.final ?? null,
+    verdict: currentVerdict(round),
+    placement: round.placement ?? null,
     owes,
     shame,
+    names: WHATSAPP_NAMES, // so the judge run can map ownerIds → people
   })
+}
+
+// The judge run authenticates with a dedicated token (BOZO_JUDGE_TOKEN) — a
+// bot, not a person, so it doesn't reuse anyone's PIN. The commissioner can
+// also post/override a verdict with their Pick'em PIN.
+function judgeAuthed(body: Record<string, unknown>): boolean {
+  const want = process.env.BOZO_JUDGE_TOKEN
+  if (!want) return false
+  const got = String(body.token ?? "")
+  return got.length > 0 && got === want
 }
 
 export async function POST(req: NextRequest) {
@@ -106,12 +127,53 @@ export async function POST(req: NextRequest) {
   if (!body) return NextResponse.json({ error: "bad body" }, { status: 400 })
 
   const action = String(body.action ?? "")
-  const ownerId = body.ownerId == null ? "" : String(body.ownerId)
-  const pin = String(body.pin ?? "")
   const week = Number(body.week)
   if (!week) return NextResponse.json({ error: "week required" }, { status: 400 })
 
-  // Identity = a claimed Pick'em PIN (keeps votes one-per-manager, no stuffing).
+  const bounds = await weekBounds(week)
+  const phase = phaseOf(bounds)
+  const round = await getRound(week)
+
+  // ---- The verdict post (judge token OR commissioner PIN) ----
+  if (action === "verdict") {
+    const ownerId = body.ownerId == null ? "" : String(body.ownerId)
+    const pin = String(body.pin ?? "")
+    let allowed = judgeAuthed(body)
+    if (!allowed && ownerId === COMMISSIONER_OWNER_ID) {
+      const auth = await getUserAuth(ownerId)
+      allowed = !!auth && pinOk(auth.pinHash, ownerId, pin)
+    }
+    if (!allowed)
+      return NextResponse.json({ error: "not authorized to post a verdict" }, { status: 403 })
+
+    const stage = body.stage === "final" ? "final" : "preview"
+    const bozoId = String(body.bozoOwnerId ?? "")
+    const reason = String(body.reason ?? "").trim()
+    if (!round.submissions[bozoId])
+      return NextResponse.json({ error: "bozo must be a manager who submitted a take" }, { status: 400 })
+    if (reason.length < 10)
+      return NextResponse.json({ error: "give a real reason (the roast)" }, { status: 400 })
+    const runnerUpId =
+      body.runnerUpOwnerId && round.submissions[String(body.runnerUpOwnerId)]
+        ? String(body.runnerUpOwnerId)
+        : null
+
+    const verdict: BozoVerdict = {
+      stage,
+      bozoId,
+      reason: reason.slice(0, 1200),
+      runnerUpId,
+      at: Date.now(),
+    }
+    if (stage === "final") round.final = verdict
+    else round.preview = verdict
+    await setRound(round)
+    return NextResponse.json({ status: "ok", stage })
+  }
+
+  // ---- Manager actions (submit / withdraw) — Pick'em PIN ----
+  const ownerId = body.ownerId == null ? "" : String(body.ownerId)
+  const pin = String(body.pin ?? "")
   const auth = await getUserAuth(ownerId)
   if (!auth || !pinOk(auth.pinHash, ownerId, pin))
     return NextResponse.json(
@@ -120,17 +182,20 @@ export async function POST(req: NextRequest) {
     )
   const isCommish = ownerId === COMMISSIONER_OWNER_ID
 
-  const bounds = await weekBounds(week)
-  const phase = phaseOf(bounds)
-  const round = await getRound(week)
-
   if (action === "submit") {
     if (phase !== "submit")
-      return NextResponse.json({ error: "takes are locked — games have started" }, { status: 403 })
+      return NextResponse.json({ error: "takes are in — Monday night has kicked off" }, { status: 403 })
     const prop = String(body.prop ?? "").trim()
     if (prop.length < 3)
       return NextResponse.json({ error: "write your take (a player prop)" }, { status: 400 })
-    round.submissions[ownerId] = { prop: prop.slice(0, 240), at: Date.now() }
+    let odds: number | null = null
+    if (body.odds != null && String(body.odds).trim() !== "") {
+      const o = Math.round(Number(body.odds))
+      if (!isFinite(o) || Math.abs(o) < 100 || Math.abs(o) > 100000)
+        return NextResponse.json({ error: "odds look off — use American odds like -115 or +250" }, { status: 400 })
+      odds = o
+    }
+    round.submissions[ownerId] = { prop: prop.slice(0, 240), at: Date.now(), odds }
     await setRound(round)
     return NextResponse.json({ status: "ok" })
   }
@@ -139,26 +204,6 @@ export async function POST(req: NextRequest) {
     if (phase !== "submit")
       return NextResponse.json({ error: "too late to pull your take" }, { status: 403 })
     delete round.submissions[ownerId]
-    delete round.votes[ownerId]
-    await setRound(round)
-    return NextResponse.json({ status: "ok" })
-  }
-
-  if (action === "vote") {
-    if (phase !== "vote")
-      return NextResponse.json({ error: "voting opens once the week's games are done" }, { status: 403 })
-    const target = String(body.targetOwnerId ?? "")
-    if (target === ownerId)
-      return NextResponse.json({ error: "can't vote your own take the worst (nice try)" }, { status: 400 })
-    if (!round.submissions[target])
-      return NextResponse.json({ error: "that manager didn't submit a take" }, { status: 400 })
-    round.votes[ownerId] = target
-    await setRound(round)
-    return NextResponse.json({ status: "ok" })
-  }
-
-  if (action === "unvote") {
-    delete round.votes[ownerId]
     await setRound(round)
     return NextResponse.json({ status: "ok" })
   }
@@ -168,8 +213,45 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "commissioner only" }, { status: 403 })
     const target = String(body.targetOwnerId ?? "")
     delete round.submissions[target]
-    // drop votes cast FOR the removed take
-    for (const [v, t] of Object.entries(round.votes)) if (t === target) delete round.votes[v]
+    await setRound(round)
+    return NextResponse.json({ status: "ok" })
+  }
+
+  // The on-hook Bozo marks the group's bet placed (optionally with a slip
+  // link to tail). Only this week's on-hook manager — or the commissioner —
+  // may do it. Scoreboard, not bank: we store a link + note, nothing more.
+  if (action === "place") {
+    const onHook = await owesBozoId(week)
+    if (!onHook)
+      return NextResponse.json({ error: "nobody's on the hook this week" }, { status: 400 })
+    if (ownerId !== onHook && !isCommish)
+      return NextResponse.json({ error: "only the Bozo on the hook can place the bet" }, { status: 403 })
+
+    let url: string | null = null
+    let book: string | null = null
+    const rawUrl = String(body.url ?? "").trim()
+    if (rawUrl) {
+      book = sportsbookFor(rawUrl)
+      if (!book)
+        return NextResponse.json(
+          { error: "link must be a known sportsbook (FanDuel, DraftKings, BetMGM, Caesars…)" },
+          { status: 400 }
+        )
+      url = rawUrl
+    }
+    const note = String(body.note ?? "").trim().slice(0, 180) || null
+
+    const placement: BozoPlacement = { by: onHook, book, url, note, at: Date.now() }
+    round.placement = placement
+    await setRound(round)
+    return NextResponse.json({ status: "ok" })
+  }
+
+  if (action === "unplace") {
+    const onHook = await owesBozoId(week)
+    if (ownerId !== onHook && !isCommish)
+      return NextResponse.json({ error: "only the Bozo on the hook can undo this" }, { status: 403 })
+    round.placement = null
     await setRound(round)
     return NextResponse.json({ status: "ok" })
   }
