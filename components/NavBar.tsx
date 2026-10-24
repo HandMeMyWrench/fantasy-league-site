@@ -30,6 +30,13 @@ const ICONS: Record<string, ReactNode> = {
       <path d="M21 17H3" />
     </>
   ),
+  "/bozo": (
+    <>
+      <circle cx="12" cy="12" r="8" />
+      <circle cx="12" cy="13" r="1.9" fill="currentColor" stroke="none" />
+      <path d="M8.5 9.5h.01M15.5 9.5h.01" />
+    </>
+  ),
   "/recap": (
     <>
       <path d="M4 4h13v16H6a2 2 0 0 1-2-2z" />
@@ -55,6 +62,7 @@ const BASE_LINKS: { href: string; label: string; short: string }[] = [
   // re-adding: { href: "/matchups", label: "Matchups", short: "Matchups" },
   { href: "/pickem", label: "Pick'em", short: "Pick'em" },
   { href: "/bets", label: "Bets", short: "Bets" },
+  { href: "/bozo", label: "Bozo", short: "Bozo" },
   { href: "/recap", label: "Recaps", short: "Recaps" },
   { href: "/history", label: "History", short: "History" },
 ]
@@ -137,7 +145,7 @@ export default function NavBar() {
 
       <nav
         aria-label="Sections"
-        className="fixed inset-x-0 bottom-0 z-50 grid grid-cols-5 border-t border-line bg-[rgba(14,23,48,0.96)] px-2 pb-[max(10px,env(safe-area-inset-bottom))] pt-1.5 backdrop-blur-md md:hidden"
+        className="fixed inset-x-0 bottom-0 z-50 grid grid-cols-6 border-t border-line bg-[rgba(14,23,48,0.96)] px-1 pb-[max(10px,env(safe-area-inset-bottom))] pt-1.5 backdrop-blur-md md:hidden"
       >
         {BASE_LINKS.map(({ href, short }) => {
           const active = isActive(pathname, href)
