@@ -506,6 +506,23 @@ punishes it — surfacing that tension AT DECISION TIME drives play.
   (largest single switch-cost from the pickmoves logs), the relegation/
   promotion story, prize table. All data sources already exist.
 
+## THE BOZO BET (Oct 24 2026)
+
+A weekly league ritual, its own page (/bozo, nav entry; mobile bottom bar
+now grid-cols-6). Loop: everyone submits one player-prop "take" → takes
+lock at the week's FIRST kickoff (hidden until then, like pick'em) → group
+VOTES the worst take once the week's LAST game kicks → most-voted manager
+= the week's BOZO, who owes the group bet the following week. Socially
+judged, no money touched (scoreboard-not-bank — it only decides whose turn
+it is to place the group's bet). lib/bozo.ts (BozoRound, bozoTally — ties
+= co-bozos, votes for non-submitters ignored; 4 tests pass). /api/bozo:
+phase = submit|locked|vote derived from the NFL board's first/last kickoff;
+PIN-authed (one take/vote per manager, no self-vote, no stuffing); storage
+bozo:{season}:{week}. Page shows: "on the hook this week" banner (last
+week's bozo), phase-gated submit/vote UI with live tally, and a season Hall
+of Shame (bozo count per manager, scanned across weeks 3+). NFL-era only
+(weeks 3+).
+
 ## Nav consolidation (July 2026)
 
 Season nav is now: Standings, Matchups, Pick'em, History (+ Draft Lottery
