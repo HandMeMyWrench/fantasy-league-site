@@ -48,6 +48,7 @@ export default function BozoPage() {
   const [odds, setOdds] = useState("") // American odds off your own book
   const [slipUrl, setSlipUrl] = useState("") // on-hook Bozo's placed-bet link
   const [slipNote, setSlipNote] = useState("")
+  const [copied, setCopied] = useState(false)
   const [msg, setMsg] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [nonce, setNonce] = useState(0)
@@ -121,6 +122,30 @@ export default function BozoPage() {
     k ? new Date(k).toLocaleString(undefined, { weekday: "short", hour: "numeric", minute: "2-digit" }) : ""
 
   const takeCount = Object.keys(data?.submissions ?? {}).length
+
+  // The player name to search on the book = everything before "over"/"under".
+  const playerOf = (prop: string) => prop.split(/ over | under /i)[0].trim() || prop
+  const fdSearch = (prop: string) =>
+    `https://sportsbook.fanduel.com/search?q=${encodeURIComponent(playerOf(prop))}`
+
+  // The whole card as plain text, for the on-hook Bozo to paste while building.
+  const cardText = useMemo(() => {
+    if (!data) return ""
+    const lines = subs.map(
+      (s) => `• ${s.prop}${s.odds != null ? ` (${fmtOdds(s.odds)})` : ""} — ${nm(s.id)}`
+    )
+    return `🤡 BOZO BET — Week ${data.week} group parlay\n${lines.join("\n")}`
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data, subs])
+  const copyCard = async () => {
+    try {
+      await navigator.clipboard.writeText(cardText)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 1500)
+    } catch {
+      setMsg("❌ couldn't copy — select and copy manually")
+    }
+  }
 
   return (
     <main className="mx-auto max-w-2xl px-4 pb-16 pt-6 sm:px-6">
@@ -376,6 +401,48 @@ export default function BozoPage() {
               " · some takes have no odds yet"}
           </p>
         </div>
+      )}
+
+      {/* THE CARD TO PLACE — build-assist for whoever's on the hook */}
+      {takeCount > 0 && (
+        <section className="panel mt-4 p-4">
+          <div className="flex items-center justify-between gap-2">
+            <h2 className="display text-sm tracking-widest text-gold">📋 The card to place</h2>
+            <button
+              onClick={copyCard}
+              className="shrink-0 rounded-full border border-line px-3 py-1 text-xs text-ink-dim transition-colors hover:text-ink"
+            >
+              {copied ? "✓ Copied" : "Copy card"}
+            </button>
+          </div>
+          <p className="mt-1 text-[11px] text-ink-faint">
+            {data?.owes ? `${nm(data.owes.bozoId)}'s` : "Whoever's"} on the hook: build this
+            parlay on FanDuel, then paste the share link{data?.owes ? " in the banner up top" : ""} so
+            everyone can tail it.
+          </p>
+          <ul className="mt-2 divide-y divide-line">
+            {subs.map((s) => (
+              <li key={s.id} className="flex items-center justify-between gap-2 py-1.5 text-sm">
+                <span className="min-w-0 text-ink">
+                  {s.prop}
+                  {s.odds != null && (
+                    <span className="ml-1.5 tnum text-xs font-bold text-gold">{fmtOdds(s.odds)}</span>
+                  )}
+                  <span className="ml-1 text-xs text-ink-faint">· {nm(s.id)}</span>
+                </span>
+                <a
+                  href={fdSearch(s.prop)}
+                  target="_blank"
+                  rel="noopener noreferrer nofollow"
+                  className="shrink-0 rounded-full bg-brand-deep/80 px-2.5 py-1 text-[11px] font-semibold text-white transition-colors hover:bg-brand-deep"
+                  title={`Find ${playerOf(s.prop)} on FanDuel`}
+                >
+                  FD ↗
+                </a>
+              </li>
+            ))}
+          </ul>
+        </section>
       )}
 
       {/* THE TAKES — always visible */}
