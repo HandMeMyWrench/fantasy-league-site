@@ -123,10 +123,13 @@ export default function BozoPage() {
 
   const takeCount = Object.keys(data?.submissions ?? {}).length
 
-  // The player name to search on the book = everything before "over"/"under".
+  // The player name = everything before "over"/"under". FanDuel has no
+  // URL that prefills its own search, so the quick link is a FanDuel-scoped
+  // web search for the player's props — that reliably surfaces the player
+  // (and often FanDuel's own page) instead of a blank FanDuel search screen.
   const playerOf = (prop: string) => prop.split(/ over | under /i)[0].trim() || prop
   const fdSearch = (prop: string) =>
-    `https://sportsbook.fanduel.com/search?q=${encodeURIComponent(playerOf(prop))}`
+    `https://www.google.com/search?q=${encodeURIComponent(playerOf(prop) + " player props FanDuel")}`
 
   // The whole card as plain text, for the on-hook Bozo to paste while building.
   const cardText = useMemo(() => {
@@ -435,9 +438,9 @@ export default function BozoPage() {
                   target="_blank"
                   rel="noopener noreferrer nofollow"
                   className="shrink-0 rounded-full bg-brand-deep/80 px-2.5 py-1 text-[11px] font-semibold text-white transition-colors hover:bg-brand-deep"
-                  title={`Find ${playerOf(s.prop)} on FanDuel`}
+                  title={`Find ${playerOf(s.prop)}'s props (FanDuel)`}
                 >
-                  FD ↗
+                  Find ↗
                 </a>
               </li>
             ))}
