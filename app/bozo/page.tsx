@@ -187,6 +187,22 @@ export default function BozoPage() {
     }
   }
 
+  // Share the current verdict to WhatsApp (opens the app / WhatsApp Web with
+  // the roast pre-filled; the sender picks the chat).
+  const shareVerdict = () => {
+    if (!data || !verdict) return
+    const name = nm(verdict.bozoId)
+    const header =
+      verdict.stage === "final"
+        ? `🤡 THE BOZO IS IN — Week ${data.week}`
+        : `👀 BOZO PREVIEW (on paper) — Week ${data.week}`
+    const lead = verdict.stage === "final" ? `The Bozo is ${name}.` : `The Bozo looks like ${name}.`
+    const ru = verdict.runnerUpId ? `\nRunner-up: ${nm(verdict.runnerUpId)}` : ""
+    const url = typeof window !== "undefined" ? `${window.location.origin}/bozo` : ""
+    const text = `${header}\n${lead}\n\n${verdict.reason}${ru}\n\n${url}`
+    window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, "_blank", "noopener,noreferrer")
+  }
+
   return (
     <main className="mx-auto max-w-2xl px-4 pb-16 pt-6 sm:px-6">
       <h1 className="display text-center text-2xl text-brand">🤡 THE BOZO BET</h1>
@@ -314,6 +330,15 @@ export default function BozoPage() {
               can still flip.
             </p>
           )}
+          <button
+            onClick={shareVerdict}
+            className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-[#25D366] px-4 py-1.5 text-xs font-bold text-[#0b3d2e] transition-opacity hover:opacity-90"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+              <path d="M12.04 2c-5.46 0-9.91 4.45-9.91 9.91 0 1.75.46 3.45 1.32 4.95L2 22l5.25-1.38a9.9 9.9 0 0 0 4.79 1.22h.01c5.46 0 9.91-4.45 9.91-9.91 0-2.65-1.03-5.14-2.9-7.01A9.82 9.82 0 0 0 12.04 2zm5.8 14.17c-.25.69-1.44 1.32-1.98 1.37-.53.05-1.03.24-3.47-.72-2.93-1.15-4.8-4.15-4.95-4.34-.14-.2-1.18-1.57-1.18-3s.75-2.13 1.02-2.42c.26-.29.57-.36.76-.36.19 0 .38 0 .55.01.18.01.42-.07.65.5.25.6.84 2.07.91 2.22.07.15.12.32.02.52-.1.2-.15.32-.29.49-.15.17-.31.39-.44.52-.15.15-.3.31-.13.6.17.29.76 1.25 1.63 2.03 1.12 1 2.06 1.31 2.35 1.46.29.15.46.12.63-.07.17-.2.73-.85.92-1.14.2-.29.39-.24.66-.15.27.1 1.71.81 2 .96.29.15.49.22.56.34.07.12.07.69-.18 1.38z"/>
+            </svg>
+            Share to WhatsApp
+          </button>
         </div>
       )}
 
