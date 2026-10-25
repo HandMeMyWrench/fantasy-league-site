@@ -49,6 +49,7 @@ export default function BozoPage() {
   const [slipUrl, setSlipUrl] = useState("") // on-hook Bozo's placed-bet link
   const [slipNote, setSlipNote] = useState("")
   const [copied, setCopied] = useState(false)
+  const [showCard, setShowCard] = useState(false) // reveal the card text to copy manually
   const [msg, setMsg] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [nonce, setNonce] = useState(0)
@@ -141,13 +142,37 @@ export default function BozoPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data, subs])
   const copyCard = async () => {
+    // Always reveal the selectable card so the button visibly does something,
+    // even when programmatic copy is blocked.
+    setShowCard(true)
+    let ok = false
     try {
-      await navigator.clipboard.writeText(cardText)
-      setCopied(true)
-      setTimeout(() => setCopied(false), 1500)
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(cardText)
+        ok = true
+      }
     } catch {
-      setMsg("❌ couldn't copy — select and copy manually")
+      /* fall through to execCommand */
     }
+    if (!ok) {
+      try {
+        const ta = document.createElement("textarea")
+        ta.value = cardText
+        ta.style.position = "fixed"
+        ta.style.top = "0"
+        ta.style.left = "0"
+        ta.style.opacity = "0"
+        document.body.appendChild(ta)
+        ta.focus()
+        ta.select()
+        ok = document.execCommand("copy")
+        document.body.removeChild(ta)
+      } catch {
+        /* manual copy only */
+      }
+    }
+    setCopied(ok)
+    if (ok) setTimeout(() => setCopied(false), 2000)
   }
 
   return (
@@ -418,6 +443,22 @@ export default function BozoPage() {
               {copied ? "✓ Copied" : "Copy card"}
             </button>
           </div>
+          {showCard && (
+            <div className="mt-2">
+              <textarea
+                readOnly
+                value={cardText}
+                onFocus={(e) => e.currentTarget.select()}
+                rows={Math.min(takeCount + 1, 12)}
+                className="w-full rounded-lg border border-line bg-surface px-3 py-2 text-xs text-ink"
+              />
+              <p className="mt-0.5 text-[11px] text-ink-faint">
+                {copied
+                  ? "Copied to your clipboard — paste it into FanDuel or your notes."
+                  : "Tap the text above to select it, then copy."}
+              </p>
+            </div>
+          )}
           <p className="mt-1 text-[11px] text-ink-faint">
             {data?.owes ? `${nm(data.owes.bozoId)}'s` : "Whoever's"} on the hook: build this
             parlay on FanDuel, then paste the share link{data?.owes ? " in the banner up top" : ""} so
