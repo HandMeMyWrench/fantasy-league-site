@@ -9,11 +9,21 @@
 // ("after Monday night"). Socially/AI judged, no money touched here — it only
 // decides whose turn it is to place the group's bet.
 
+// One row of the house's full scouted board (safest → worst). `odds` is a
+// free-text likelihood label ("~60%", "lean under"); `note` is the one-line
+// reasoning. The player's take is joined from submissions by ownerId.
+export type BozoRankRow = {
+  ownerId: string
+  odds?: string | null
+  note?: string | null
+}
+
 export type BozoVerdict = {
   stage: "preview" | "final"
   bozoId: string // ownerId the judge named the worst
   reason: string // the judge's written explanation (the roast)
   runnerUpId?: string | null // optional second-worst, for color
+  ranking?: BozoRankRow[] | null // the full board, safest → worst (optional)
   at: number // when the judge posted it
 }
 

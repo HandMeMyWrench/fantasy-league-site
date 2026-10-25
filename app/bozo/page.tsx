@@ -17,11 +17,14 @@ const SEASON = "2026"
 const nm = (id?: string | null) => (id ? WHATSAPP_NAMES[id] ?? "Unknown" : "—")
 const MANAGERS = Object.entries(WHATSAPP_NAMES).sort((x, y) => x[1].localeCompare(y[1]))
 
+type RankRow = { ownerId: string; odds?: string | null; note?: string | null }
+
 type Verdict = {
   stage: "preview" | "final"
   bozoId: string
   reason: string
   runnerUpId?: string | null
+  ranking?: RankRow[] | null
   at: number
 }
 
@@ -340,6 +343,49 @@ export default function BozoPage() {
             Share to WhatsApp
           </button>
         </div>
+      )}
+
+      {/* THE HOUSE BOARD — full scouted ranking, safest → worst */}
+      {verdict?.ranking && verdict.ranking.length > 0 && (
+        <section className="panel mt-4 overflow-hidden">
+          <h2 className="display border-b border-line bg-surface-2 px-4 py-2.5 text-sm text-brand">
+            📊 The House Board — safest to worst
+          </h2>
+          <ol className="divide-y divide-line">
+            {verdict.ranking.map((row, i) => {
+              const isBozo = row.ownerId === verdict.bozoId
+              const isRU = row.ownerId === verdict.runnerUpId
+              const prop = data?.submissions?.[row.ownerId]?.prop
+              return (
+                <li key={row.ownerId} className={`px-4 py-2.5 ${isBozo ? "bg-drop/10" : ""}`}>
+                  <div className="flex items-start gap-3">
+                    <span className="display mt-0.5 w-5 shrink-0 text-right text-ink-faint">
+                      {i + 1}
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="text-sm font-semibold text-ink">
+                          {nm(row.ownerId)}
+                          {isBozo && <span className="ml-1.5 text-xs font-bold text-drop">🤡 BOZO</span>}
+                          {isRU && <span className="ml-1.5 text-xs text-ink-faint">runner-up</span>}
+                        </p>
+                        {row.odds && (
+                          <span className="tnum shrink-0 rounded-full bg-surface px-2 py-0.5 text-[11px] font-bold text-ink-dim">
+                            {row.odds}
+                          </span>
+                        )}
+                      </div>
+                      {prop && <p className="text-xs text-ink-dim">{prop}</p>}
+                      {row.note && (
+                        <p className="mt-0.5 text-[11px] leading-snug text-ink-faint">{row.note}</p>
+                      )}
+                    </div>
+                  </div>
+                </li>
+              )
+            })}
+          </ol>
+        </section>
       )}
 
       {/* identity */}

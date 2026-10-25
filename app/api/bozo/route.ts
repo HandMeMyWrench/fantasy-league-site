@@ -16,6 +16,7 @@ import {
   emptyRound,
   type BozoPhase,
   type BozoPlacement,
+  type BozoRankRow,
   type BozoRound,
   type BozoVerdict,
 } from "@/lib/bozo"
@@ -158,11 +159,30 @@ export async function POST(req: NextRequest) {
         ? String(body.runnerUpOwnerId)
         : null
 
+    // Optional full board (safest → worst). Keep only rows for managers who
+    // submitted a take; cap sizes.
+    let ranking: BozoRankRow[] | null = null
+    if (Array.isArray(body.ranking)) {
+      ranking = body.ranking
+        .filter((row: unknown) => {
+          const id = row && typeof row === "object" ? (row as { ownerId?: unknown }).ownerId : null
+          return typeof id === "string" && !!round.submissions[id]
+        })
+        .slice(0, 40)
+        .map((row: { ownerId: string; odds?: unknown; note?: unknown }) => ({
+          ownerId: String(row.ownerId),
+          odds: row.odds != null ? String(row.odds).slice(0, 40) : null,
+          note: row.note != null ? String(row.note).slice(0, 240) : null,
+        }))
+      if (!ranking.length) ranking = null
+    }
+
     const verdict: BozoVerdict = {
       stage,
       bozoId,
       reason: reason.slice(0, 1200),
       runnerUpId,
+      ranking,
       at: Date.now(),
     }
     if (stage === "final") round.final = verdict
