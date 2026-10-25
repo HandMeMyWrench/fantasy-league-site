@@ -171,6 +171,47 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ status: "ok", stage })
   }
 
+  // ---- Commissioner / trusted bulk entry ----
+  // The league's real flow: takes get shouted in the group chat and the
+  // commissioner enters the whole slate centrally. submitFor lets the commish
+  // (PIN) or the trusted automation (judge token) drop a take on anyone's
+  // behalf. removeFor clears one.
+  if (action === "submitFor" || action === "removeFor") {
+    const ownerId = body.ownerId == null ? "" : String(body.ownerId)
+    const pin = String(body.pin ?? "")
+    let allowed = judgeAuthed(body)
+    if (!allowed && ownerId === COMMISSIONER_OWNER_ID) {
+      const auth = await getUserAuth(ownerId)
+      allowed = !!auth && pinOk(auth.pinHash, ownerId, pin)
+    }
+    if (!allowed)
+      return NextResponse.json({ error: "commissioner or judge token only" }, { status: 403 })
+
+    const target = String(body.targetOwnerId ?? "")
+    if (!WHATSAPP_NAMES[target])
+      return NextResponse.json({ error: "unknown manager" }, { status: 400 })
+
+    if (action === "removeFor") {
+      delete round.submissions[target]
+      await setRound(round)
+      return NextResponse.json({ status: "ok" })
+    }
+
+    const prop = String(body.prop ?? "").trim()
+    if (prop.length < 3)
+      return NextResponse.json({ error: "write the take (a player prop)" }, { status: 400 })
+    let odds: number | null = null
+    if (body.odds != null && String(body.odds).trim() !== "") {
+      const o = Math.round(Number(body.odds))
+      if (!isFinite(o) || Math.abs(o) < 100 || Math.abs(o) > 100000)
+        return NextResponse.json({ error: "odds look off — use American odds like -115 or +250" }, { status: 400 })
+      odds = o
+    }
+    round.submissions[target] = { prop: prop.slice(0, 240), at: Date.now(), odds }
+    await setRound(round)
+    return NextResponse.json({ status: "ok" })
+  }
+
   // ---- Manager actions (submit / withdraw) — Pick'em PIN ----
   const ownerId = body.ownerId == null ? "" : String(body.ownerId)
   const pin = String(body.pin ?? "")
