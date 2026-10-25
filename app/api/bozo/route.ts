@@ -163,18 +163,21 @@ export async function POST(req: NextRequest) {
     // submitted a take; cap sizes.
     let ranking: BozoRankRow[] | null = null
     if (Array.isArray(body.ranking)) {
-      ranking = body.ranking
-        .filter((row: unknown) => {
+      const rows: BozoRankRow[] = (body.ranking as unknown[])
+        .filter((row): row is { ownerId: string } => {
           const id = row && typeof row === "object" ? (row as { ownerId?: unknown }).ownerId : null
           return typeof id === "string" && !!round.submissions[id]
         })
         .slice(0, 40)
-        .map((row: { ownerId: string; odds?: unknown; note?: unknown }) => ({
-          ownerId: String(row.ownerId),
-          odds: row.odds != null ? String(row.odds).slice(0, 40) : null,
-          note: row.note != null ? String(row.note).slice(0, 240) : null,
-        }))
-      if (!ranking.length) ranking = null
+        .map((row) => {
+          const r = row as { ownerId: string; odds?: unknown; note?: unknown }
+          return {
+            ownerId: String(r.ownerId),
+            odds: r.odds != null ? String(r.odds).slice(0, 40) : null,
+            note: r.note != null ? String(r.note).slice(0, 240) : null,
+          }
+        })
+      ranking = rows.length ? rows : null
     }
 
     const verdict: BozoVerdict = {
