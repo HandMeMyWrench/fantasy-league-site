@@ -50,6 +50,7 @@ export default function BozoPage() {
   const [slipNote, setSlipNote] = useState("")
   const [copied, setCopied] = useState(false)
   const [showCard, setShowCard] = useState(false) // reveal the card text to copy manually
+  const [copiedName, setCopiedName] = useState<string | null>(null) // ownerId of last copied leg
   const [msg, setMsg] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [nonce, setNonce] = useState(0)
@@ -124,13 +125,10 @@ export default function BozoPage() {
 
   const takeCount = Object.keys(data?.submissions ?? {}).length
 
-  // The player name = everything before "over"/"under". FanDuel has no
-  // URL that prefills its own search, so the quick link is a FanDuel-scoped
-  // web search for the player's props — that reliably surfaces the player
-  // (and often FanDuel's own page) instead of a blank FanDuel search screen.
+  // The player name = everything before "over"/"under". That's what gets
+  // pasted into FanDuel's in-app search (FanDuel has no URL that prefills
+  // search, and in the app you look players up one at a time anyway).
   const playerOf = (prop: string) => prop.split(/ over | under /i)[0].trim() || prop
-  const fdSearch = (prop: string) =>
-    `https://www.google.com/search?q=${encodeURIComponent(playerOf(prop) + " player props FanDuel")}`
 
   // The whole card as plain text, for the on-hook Bozo to paste while building.
   const cardText = useMemo(() => {
@@ -141,38 +139,52 @@ export default function BozoPage() {
     return `🤡 BOZO BET — Week ${data.week} group parlay\n${lines.join("\n")}`
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data, subs])
+  // Resilient clipboard write: Clipboard API, then execCommand fallback.
+  const writeClip = async (text: string): Promise<boolean> => {
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(text)
+        return true
+      }
+    } catch {
+      /* fall through */
+    }
+    try {
+      const ta = document.createElement("textarea")
+      ta.value = text
+      ta.style.position = "fixed"
+      ta.style.top = "0"
+      ta.style.left = "0"
+      ta.style.opacity = "0"
+      document.body.appendChild(ta)
+      ta.focus()
+      ta.select()
+      const ok = document.execCommand("copy")
+      document.body.removeChild(ta)
+      return ok
+    } catch {
+      return false
+    }
+  }
+
   const copyCard = async () => {
     // Always reveal the selectable card so the button visibly does something,
     // even when programmatic copy is blocked.
     setShowCard(true)
-    let ok = false
-    try {
-      if (navigator.clipboard?.writeText) {
-        await navigator.clipboard.writeText(cardText)
-        ok = true
-      }
-    } catch {
-      /* fall through to execCommand */
-    }
-    if (!ok) {
-      try {
-        const ta = document.createElement("textarea")
-        ta.value = cardText
-        ta.style.position = "fixed"
-        ta.style.top = "0"
-        ta.style.left = "0"
-        ta.style.opacity = "0"
-        document.body.appendChild(ta)
-        ta.focus()
-        ta.select()
-        ok = document.execCommand("copy")
-        document.body.removeChild(ta)
-      } catch {
-        /* manual copy only */
-      }
-    }
+    const ok = await writeClip(cardText)
     setCopied(ok)
     if (ok) setTimeout(() => setCopied(false), 2000)
+  }
+
+  // Copy JUST the player's name — the thing you paste into FanDuel's search.
+  const copyName = async (player: string, id: string) => {
+    const ok = await writeClip(player)
+    if (ok) {
+      setCopiedName(id)
+      setTimeout(() => setCopiedName((c) => (c === id ? null : c)), 1500)
+    } else {
+      setMsg(`❌ couldn't copy — the name is: ${player}`)
+    }
   }
 
   return (
@@ -460,9 +472,9 @@ export default function BozoPage() {
             </div>
           )}
           <p className="mt-1 text-[11px] text-ink-faint">
-            {data?.owes ? `${nm(data.owes.bozoId)}'s` : "Whoever's"} on the hook: build this
-            parlay on FanDuel, then paste the share link{data?.owes ? " in the banner up top" : ""} so
-            everyone can tail it.
+            {data?.owes ? `${nm(data.owes.bozoId)}'s` : "Whoever's"} on the hook: in FanDuel, tap
+            search and paste each name (Copy name), add the prop, repeat. Then paste the share
+            link{data?.owes ? " in the banner up top" : ""} so everyone can tail it.
           </p>
           <ul className="mt-2 divide-y divide-line">
             {subs.map((s) => (
@@ -474,15 +486,13 @@ export default function BozoPage() {
                   )}
                   <span className="ml-1 text-xs text-ink-faint">· {nm(s.id)}</span>
                 </span>
-                <a
-                  href={fdSearch(s.prop)}
-                  target="_blank"
-                  rel="noopener noreferrer nofollow"
+                <button
+                  onClick={() => copyName(playerOf(s.prop), s.id)}
                   className="shrink-0 rounded-full bg-brand-deep/80 px-2.5 py-1 text-[11px] font-semibold text-white transition-colors hover:bg-brand-deep"
-                  title={`Find ${playerOf(s.prop)}'s props (FanDuel)`}
+                  title={`Copy "${playerOf(s.prop)}" to paste into FanDuel search`}
                 >
-                  Find ↗
-                </a>
+                  {copiedName === s.id ? "✓ Name" : "Copy name"}
+                </button>
               </li>
             ))}
           </ul>
