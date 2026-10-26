@@ -10,7 +10,7 @@ import {
   WHATSAPP_NAMES,
   COMMISSIONER_OWNER_ID,
 } from "@/lib/pickem/config"
-import { computeBalances, type ActionPost, type BetOffer, type SideBet } from "@/lib/bets"
+import { computeBalances, sportsbookFor, type ActionPost, type BetOffer, type SideBet } from "@/lib/bets"
 
 const SEASON = "2026"
 
@@ -22,6 +22,14 @@ const MANAGERS = Object.entries(WHATSAPP_NAMES).sort((x, y) =>
 
 type Resp = { status: string; bets: SideBet[]; offers: BetOffer[]; actions?: ActionPost[] }
 
+function WaIcon() {
+  return (
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+      <path d="M12.04 2c-5.46 0-9.91 4.45-9.91 9.91 0 1.75.46 3.45 1.32 4.95L2 22l5.25-1.38a9.9 9.9 0 0 0 4.79 1.22h.01c5.46 0 9.91-4.45 9.91-9.91 0-2.65-1.03-5.14-2.9-7.01A9.82 9.82 0 0 0 12.04 2zm5.8 14.17c-.25.69-1.44 1.32-1.98 1.37-.53.05-1.03.24-3.47-.72-2.93-1.15-4.8-4.15-4.95-4.34-.14-.2-1.18-1.57-1.18-3s.75-2.13 1.02-2.42c.26-.29.57-.36.76-.36.19 0 .38 0 .55.01.18.01.42-.07.65.5.25.6.84 2.07.91 2.22.07.15.12.32.02.52-.1.2-.15.32-.29.49-.15.17-.31.39-.44.52-.15.15-.3.31-.13.6.17.29.76 1.25 1.63 2.03 1.12 1 2.06 1.31 2.35 1.46.29.15.46.12.63-.07.17-.2.73-.85.92-1.14.2-.29.39-.24.66-.15.27.1 1.71.81 2 .96.29.15.49.22.56.34.07.12.07.69-.18 1.38z" />
+    </svg>
+  )
+}
+
 export default function BetsPage() {
   const [data, setData] = useState<Resp | null>(null)
   const [tab, setTab] = useState<"book" | "balances" | "action" | "new">("book")
@@ -30,6 +38,7 @@ export default function BetsPage() {
   const [actionDesc, setActionDesc] = useState("")
   const [actionGame, setActionGame] = useState("") // gameId or "" for none
   const [actionWho, setActionWho] = useState("") // optional name tag, no PIN
+  const [shareBanner, setShareBanner] = useState<string | null>(null) // post-share fallback
   // the week's NFL games, for tagging a slip to its slot
   const [games, setGames] = useState<
     { id: string; label: string; kickoff: number }[]
@@ -99,7 +108,7 @@ export default function BetsPage() {
 
   // Action-feed calls skip the PIN entirely. Attribution uses the inline
   // name if chosen (or the top-bar identity), else the device id.
-  const actFeed = async (payload: Record<string, unknown>, okMsg: string) => {
+  const actFeed = async (payload: Record<string, unknown>, okMsg: string): Promise<boolean> => {
     const who = actionWho || ownerId || deviceId
     setBusy(true)
     setMsg(null)
@@ -110,17 +119,31 @@ export default function BetsPage() {
         body: JSON.stringify({ season: SEASON, ownerId: who, ...payload }),
       })
       const j = await r.json()
-      if (!r.ok) setMsg(`❌ ${j.error ?? "failed"}`)
-      else {
-        setMsg(`✅ ${okMsg}`)
-        setNonce((n) => n + 1)
+      if (!r.ok) {
+        setMsg(`❌ ${j.error ?? "failed"}`)
+        return false
       }
+      setMsg(`✅ ${okMsg}`)
+      setNonce((n) => n + 1)
+      return true
     } catch {
       setMsg("❌ network error")
+      return false
     } finally {
       setBusy(false)
     }
   }
+
+  // Build the WhatsApp message for a slip and open the share sheet. Sharing to
+  // the group is the last step of posting — it's how the slip reaches the room.
+  const slipMessage = (url: string, description: string) => {
+    const book = sportsbookFor(url) || "Sportsbook"
+    const site = typeof window !== "undefined" ? `${window.location.origin}/bets` : ""
+    const desc = description.trim() || "(see the slip)"
+    return `🎟️ New slip on the board — tail it:\n${desc}\n${book}: ${url}\n\nFull action board: ${site}`
+  }
+  const shareToWhatsApp = (text: string) =>
+    window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, "_blank", "noopener,noreferrer")
 
   const act = async (payload: Record<string, unknown>, okMsg: string) => {
     if (!ownerId || pin.length < 4) {
@@ -459,28 +482,56 @@ export default function BetsPage() {
                 ))}
               </select>
               <button
-                disabled={busy}
-                onClick={() => {
+                disabled={busy || actionUrl.trim().length < 8}
+                onClick={async () => {
+                  const url = actionUrl.trim()
+                  const desc = actionDesc.trim()
                   const g = games.find((x) => x.id === actionGame)
-                  actFeed(
+                  const ok = await actFeed(
                     {
                       action: "postAction",
-                      url: actionUrl.trim(),
-                      description: actionDesc.trim(),
+                      url,
+                      description: desc,
                       expiresHours: 24,
                       ...(g ? { gameId: g.id, gameLabel: g.label, kickoff: g.kickoff } : {}),
                     },
-                    "slip posted to the Action feed"
+                    "slip posted — now share it to the group"
                   )
-                  setActionUrl("")
-                  setActionDesc("")
-                  setActionGame("")
+                  if (ok) {
+                    setActionUrl("")
+                    setActionDesc("")
+                    setActionGame("")
+                    // Final step: push it to the group chat.
+                    const text = slipMessage(url, desc)
+                    const w = shareToWhatsApp(text)
+                    setShareBanner(w ? null : text) // show fallback if popup blocked
+                  }
                 }}
-                className="display rounded-lg bg-brand-deep px-4 py-2 text-sm tracking-wider text-white transition-colors hover:bg-brand-deep/80 disabled:opacity-40"
+                className="display rounded-lg bg-[#25D366] px-4 py-2 text-sm tracking-wider text-[#0b3d2e] transition-opacity hover:opacity-90 disabled:opacity-40"
               >
-                Post it
+                Post &amp; Share →
               </button>
             </div>
+            <p className="text-[11px] text-ink-faint">
+              Posting records it here and opens WhatsApp to share with the room —
+              that last step is how the group tails it.
+            </p>
+            {shareBanner && (
+              <div className="rounded-lg border border-[#25D366]/40 bg-[#25D366]/10 px-3 py-2 text-center">
+                <p className="text-xs text-ink">
+                  ✅ Posted. WhatsApp didn&apos;t open on its own — tap to share it:
+                </p>
+                <button
+                  onClick={() => {
+                    shareToWhatsApp(shareBanner)
+                    setShareBanner(null)
+                  }}
+                  className="mt-1 inline-flex items-center gap-1.5 rounded-full bg-[#25D366] px-4 py-1.5 text-xs font-bold text-[#0b3d2e]"
+                >
+                  <WaIcon /> Share to WhatsApp
+                </button>
+              </div>
+            )}
             <p className="text-[11px] text-ink-faint">
               FanDuel · DraftKings · BetMGM · Caesars · ESPN BET · bet365 · Fanatics
             </p>
@@ -559,6 +610,13 @@ export default function BetsPage() {
                         }`}
                       >
                         {tailing ? "✓ Tailing" : "🎯 Tail this"}
+                      </button>
+                      <button
+                        onClick={() => shareToWhatsApp(slipMessage(a.url, a.description))}
+                        className="inline-flex items-center gap-1 rounded-full bg-[#25D366]/15 px-3 py-1 text-[11px] font-semibold text-[#128C4B] transition-colors hover:bg-[#25D366]/25"
+                        title="Share this slip to the group chat"
+                      >
+                        <WaIcon /> Share
                       </button>
                       {canRemove && (
                         <button
