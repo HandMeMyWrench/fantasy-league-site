@@ -65,6 +65,23 @@ export default function BozoPage() {
       .catch(() => null)
   }, [nonce])
 
+  // Load your existing take into the form when you identify yourself, so you
+  // can edit it in place (rather than retyping) or clear it with Pull it.
+  // Runs on identity change and after each refetch; a fresh draft (no take
+  // on file) is left untouched.
+  useEffect(() => {
+    if (!ownerId || !data) return
+    const mine = data.submissions?.[ownerId]
+    if (mine) {
+      setProp(mine.prop ?? "")
+      setOdds(mine.odds != null ? String(mine.odds) : "")
+    } else {
+      setProp("")
+      setOdds("")
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ownerId, data])
+
   const act = async (payload: Record<string, unknown>, okMsg: string) => {
     if (!ownerId || pin.length < 4) {
       setMsg("❌ pick who you are and enter your Pick'em PIN first")
@@ -82,7 +99,8 @@ export default function BozoPage() {
       if (!r.ok) setMsg(`❌ ${j.error ?? "failed"}`)
       else {
         setMsg(`✅ ${okMsg}`)
-        if (payload.action === "submit") setProp("")
+        // Don't clear the fields on submit — the prefill effect re-syncs them
+        // from the saved take so you can keep editing; withdraw clears them.
         setNonce((n) => n + 1)
       }
     } catch {
@@ -434,8 +452,9 @@ export default function BozoPage() {
           <h2 className="display text-sm tracking-widest text-gold">Your take</h2>
           {iSubmitted ? (
             <p className="rounded-lg border border-promo/30 bg-promo/5 px-3 py-2 text-sm text-ink">
-              ✓ Take submitted. Edit it any time this week — the house judges
-              after Monday night.
+              ✓ Your take&apos;s loaded below. Tweak it and hit <b>Update</b>, or{" "}
+              <b>Pull it</b> to remove it — any time this week, until Monday
+              kickoff.
             </p>
           ) : (
             <p className="text-xs text-ink-dim">
@@ -472,7 +491,10 @@ export default function BozoPage() {
               {iSubmitted && (
                 <button
                   disabled={busy}
-                  onClick={() => act({ action: "withdraw" }, "take pulled")}
+                  onClick={() => {
+                    if (confirm("Remove your take from this week's Bozo bet?"))
+                      act({ action: "withdraw" }, "take pulled")
+                  }}
                   className="rounded-lg border border-line px-3 py-2 text-sm text-ink-faint hover:text-drop"
                 >
                   Pull it
