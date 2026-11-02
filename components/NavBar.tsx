@@ -90,6 +90,29 @@ export default function NavBar() {
     return () => clearInterval(id)
   }, [])
 
+  // Clear the app-icon badge whenever the app is opened or brought back to the
+  // foreground (the service worker only clears it on a notification TAP, so
+  // opening straight from the home-screen icon needs this).
+  useEffect(() => {
+    const clear = () => {
+      try {
+        ;(navigator as Navigator & { clearAppBadge?: () => Promise<void> }).clearAppBadge?.()
+      } catch {
+        /* Badging API unsupported — ignore */
+      }
+    }
+    clear()
+    const onVis = () => {
+      if (document.visibilityState === "visible") clear()
+    }
+    document.addEventListener("visibilitychange", onVis)
+    window.addEventListener("focus", clear)
+    return () => {
+      document.removeEventListener("visibilitychange", onVis)
+      window.removeEventListener("focus", clear)
+    }
+  }, [])
+
   const LINKS = showLottery
     ? [{ href: "/lottery", label: "Draft Lottery", short: "Lottery" }, ...BASE_LINKS]
     : BASE_LINKS
