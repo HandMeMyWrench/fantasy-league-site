@@ -3,6 +3,9 @@ import { pinOk } from "@/lib/pickem/auth"
 import { COMMISSIONER_OWNER_ID, SEASON } from "@/lib/pickem/config"
 import { getUserAuth, redis, storageConfigured } from "@/lib/pickem/storage"
 import { SEED_BETS, sportsbookFor, type ActionPost, type BetOffer, type SideBet } from "@/lib/bets"
+import { sendToAll } from "@/lib/push"
+
+export const runtime = "nodejs"
 
 export const dynamic = "force-dynamic"
 
@@ -108,6 +111,20 @@ export async function POST(req: NextRequest) {
       kickoff,
     }
     await r.hset(K.actions(season), { [post.id]: post })
+    // Buzz the room (except the poster) about a new slip to tail. Best-effort.
+    try {
+      await sendToAll(
+        {
+          title: "🎟️ New slip to tail",
+          body: `${description.slice(0, 120)} · ${book}`,
+          url: "/bets",
+          tag: "action",
+        },
+        ownerId || undefined
+      )
+    } catch {
+      /* push is non-critical — never block a post on it */
+    }
     return NextResponse.json({ status: "ok", post })
   }
 

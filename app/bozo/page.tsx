@@ -12,6 +12,7 @@
 import React, { useEffect, useMemo, useState } from "react"
 import { WHATSAPP_NAMES, COMMISSIONER_OWNER_ID } from "@/lib/pickem/config"
 import { parlay } from "@/lib/bozo"
+import PushBell from "@/components/PushBell"
 
 const SEASON = "2026"
 const nm = (id?: string | null) => (id ? WHATSAPP_NAMES[id] ?? "Unknown" : "—")
@@ -231,6 +232,8 @@ export default function BozoPage() {
         Everyone drops a take. The worst one — judged by the house, news and all
         — is the Bozo, and the Bozo places the group&apos;s bet next week.
       </p>
+
+      <PushBell />
 
       {/* who-owes banner (last week's FINAL bozo) + place-the-bet surface */}
       {data?.owes && (
