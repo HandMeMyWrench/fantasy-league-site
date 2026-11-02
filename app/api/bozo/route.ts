@@ -252,14 +252,15 @@ export async function POST(req: NextRequest) {
     const prop = String(body.prop ?? "").trim()
     if (prop.length < 3)
       return NextResponse.json({ error: "write your take (a player prop)" }, { status: 400 })
-    let odds: number | null = null
-    if (body.odds != null && String(body.odds).trim() !== "") {
-      const o = Math.round(Number(body.odds))
-      if (!isFinite(o) || Math.abs(o) < 100 || Math.abs(o) > 100000)
-        return NextResponse.json({ error: "odds look off — use American odds like -115 or +250" }, { status: 400 })
-      odds = o
-    }
-    round.submissions[ownerId] = { prop: prop.slice(0, 240), at: Date.now(), odds }
+    // Odds are REQUIRED now — every take is a priced leg so the group parlay
+    // is always complete.
+    const rawOdds = String(body.odds ?? "").trim()
+    if (rawOdds === "")
+      return NextResponse.json({ error: "add the odds from your book (e.g. -115 or +250) — they're required" }, { status: 400 })
+    const o = Math.round(Number(rawOdds))
+    if (!isFinite(o) || Math.abs(o) < 100 || Math.abs(o) > 100000)
+      return NextResponse.json({ error: "odds look off — use American odds like -115 or +250" }, { status: 400 })
+    round.submissions[ownerId] = { prop: prop.slice(0, 240), at: Date.now(), odds: o }
     await setRound(round)
     return NextResponse.json({ status: "ok" })
   }

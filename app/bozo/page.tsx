@@ -141,6 +141,12 @@ export default function BozoPage() {
     return parlay(Object.values(data.submissions).map((s) => s.odds))
   }, [data])
   const fmtOdds = (o?: number | null) => (o == null ? "" : o > 0 ? `+${o}` : `${o}`)
+  const validOdds = (s: string) => {
+    const t = s.trim()
+    if (t === "") return false
+    const o = Math.round(Number(t))
+    return isFinite(o) && Math.abs(o) >= 100 && Math.abs(o) <= 100000
+  }
 
   const fmtWhen = (k?: number | null) =>
     k ? new Date(k).toLocaleString(undefined, { weekday: "short", hour: "numeric", minute: "2-digit" }) : ""
@@ -463,8 +469,8 @@ export default function BozoPage() {
             <p className="text-xs text-ink-dim">
               One player prop — any game, Thursday through Monday. Be bold or
               play it safe; the house judges the whole board, not just the odds.
-              Add the price from your book and it becomes a leg of the group
-              parlay.
+              The price from your book is <b>required</b> — every take is a leg
+              of the group parlay, so the whole card always prices out.
             </p>
           )}
           <textarea
@@ -480,10 +486,12 @@ export default function BozoPage() {
               onChange={(e) => setOdds(e.target.value.replace(/[^0-9+-]/g, ""))}
               placeholder="odds (e.g. -115)"
               inputMode="text"
-              className="w-40 rounded-lg border border-line bg-surface px-3 py-2 text-sm text-ink"
+              className={`w-40 rounded-lg border bg-surface px-3 py-2 text-sm text-ink ${
+                odds.trim() !== "" && !validOdds(odds) ? "border-drop" : "border-line"
+              }`}
             />
             <span className="text-[11px] text-ink-faint">
-              optional — your leg of the group parlay
+              required — your leg of the group parlay
             </span>
           </div>
           <div className="flex items-center justify-between">
@@ -504,10 +512,10 @@ export default function BozoPage() {
                 </button>
               )}
               <button
-                disabled={busy || prop.trim().length < 3}
+                disabled={busy || prop.trim().length < 3 || !validOdds(odds)}
                 onClick={() =>
                   act(
-                    { action: "submit", prop: prop.trim(), odds: odds.trim() || null },
+                    { action: "submit", prop: prop.trim(), odds: odds.trim() },
                     "take submitted"
                   )
                 }
